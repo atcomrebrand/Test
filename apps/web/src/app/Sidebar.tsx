@@ -1,31 +1,7 @@
 import { NavLink } from "react-router-dom";
-import {
-  LayoutDashboard,
-  CreditCard,
-  ShoppingBag,
-  ListChecks,
-  CalendarDays,
-  History,
-  Tags,
-  BarChart3,
-  Settings,
-  Trash2,
-  Wallet,
-} from "lucide-react";
+import { Wallet } from "lucide-react";
 import { cn } from "@/lib/cn";
-
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/cards", label: "Cartões", icon: CreditCard },
-  { to: "/purchases", label: "Compras", icon: ShoppingBag },
-  { to: "/installments", label: "Parcelas", icon: ListChecks },
-  { to: "/calendar", label: "Calendário", icon: CalendarDays },
-  { to: "/timeline", label: "Linha do Tempo", icon: History },
-  { to: "/categories", label: "Categorias", icon: Tags },
-  { to: "/statistics", label: "Estatísticas", icon: BarChart3 },
-  { to: "/trash", label: "Lixeira", icon: Trash2 },
-  { to: "/settings", label: "Configurações", icon: Settings },
-];
+import { NAV_ITEMS } from "./navItems";
 
 export function Sidebar() {
   return (

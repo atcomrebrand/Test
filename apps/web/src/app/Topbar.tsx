@@ -56,7 +56,7 @@ export function Topbar() {
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.97 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute right-0 z-20 mt-2 w-80 overflow-hidden rounded-2xl border border-[rgb(var(--border))] surface shadow-elevated"
+                  className="fixed inset-x-4 top-16 z-20 overflow-hidden rounded-2xl border border-[rgb(var(--border))] surface shadow-elevated sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-80"
                 >
                   <div className="flex items-center justify-between border-b border-[rgb(var(--border))] px-4 py-3">
                     <p className="text-sm font-semibold">Notificações</p>
