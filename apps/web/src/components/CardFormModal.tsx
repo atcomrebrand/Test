@@ -77,9 +77,9 @@ export function CardFormModal({ open, onClose, card }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} title={isEdit ? "Editar cartão" : "Novo cartão"} size="lg">
-      <form onSubmit={onSubmit} className="grid grid-cols-2 gap-4">
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input
-          className="col-span-2"
+          className="sm:col-span-2"
           label="Nome do cartão"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -122,7 +122,7 @@ export function CardFormModal({ open, onClose, card }: Props) {
           onChange={(e) => setForm({ ...form, dueDay: e.target.value })}
         />
 
-        <div className="col-span-2">
+        <div className="sm:col-span-2">
           <p className="mb-1.5 text-sm font-medium">Cor</p>
           <div className="flex flex-wrap gap-2">
             {COLORS.map((c) => (
@@ -140,7 +140,7 @@ export function CardFormModal({ open, onClose, card }: Props) {
           </div>
         </div>
 
-        <div className="col-span-2 mt-2 flex justify-end gap-2">
+        <div className="sm:col-span-2 mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>

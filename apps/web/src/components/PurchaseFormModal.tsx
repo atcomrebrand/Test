@@ -137,9 +137,9 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
 
   return (
     <Modal open={open} onClose={onClose} title={isEdit ? "Editar compra" : "Nova compra"} size="xl">
-      <form onSubmit={onSubmit} className="grid grid-cols-2 gap-4">
+      <form onSubmit={onSubmit} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Input
-          className="col-span-2"
+          className="sm:col-span-2"
           label="Nome da compra"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -219,7 +219,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
 
         {kind === "RECURRING" && !isEdit && (
           <Input
-            className="col-span-2"
+            className="sm:col-span-2"
             label="Data de término (opcional)"
             type="date"
             min={form.purchaseDate}
@@ -230,7 +230,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         )}
 
         <Textarea
-          className="col-span-2"
+          className="sm:col-span-2"
           label="Observações"
           rows={2}
           value={form.notes}
@@ -238,14 +238,14 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         />
 
         <Input
-          className="col-span-2"
+          className="sm:col-span-2"
           label="Tags (separadas por vírgula)"
           value={form.tags}
           onChange={(e) => setForm({ ...form, tags: e.target.value })}
           placeholder="Ex: presente, urgente"
         />
 
-        <label className="col-span-2 flex items-center gap-2 text-sm">
+        <label className="sm:col-span-2 flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={form.isFavorite}
@@ -256,7 +256,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         </label>
 
         {!isEdit && preview.length > 0 && kind !== "RECURRING" && (
-          <div className="col-span-2 rounded-2xl surface-2 p-4">
+          <div className="sm:col-span-2 rounded-2xl surface-2 p-4">
             <p className="mb-2 text-sm font-semibold">
               {preview.length === 1 ? "Cobrança" : `${preview.length} parcelas geradas`}
             </p>
@@ -277,7 +277,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         )}
 
         {!isEdit && preview.length > 0 && kind === "RECURRING" && (
-          <div className="col-span-2 flex items-start gap-3 rounded-2xl surface-2 p-4">
+          <div className="sm:col-span-2 flex items-start gap-3 rounded-2xl surface-2 p-4">
             <span
               className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${serviceMatch ? "" : "bg-accent-500/10 text-accent-500"}`}
               style={serviceMatch ? { backgroundColor: `${serviceMatch.color}1a` } : undefined}
@@ -301,7 +301,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
           </div>
         )}
 
-        <div className="col-span-2 mt-2 flex justify-end gap-2">
+        <div className="sm:col-span-2 mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
