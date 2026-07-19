@@ -28,7 +28,9 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
     totalAmount: "",
     installmentAmount: "",
     installmentsCount: "48",
-    firstDueDate: todayISO(),
+    nextDueDate: todayISO(),
+    paidInstallmentsCount: "0",
+    payoffAmount: "",
     notes: "",
   });
 
@@ -41,7 +43,9 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
         totalAmount: String(financing.totalAmount),
         installmentAmount: String(financing.installmentAmount),
         installmentsCount: String(financing.installmentsCount),
-        firstDueDate: financing.firstDueDate.slice(0, 10),
+        nextDueDate: financing.firstDueDate.slice(0, 10),
+        paidInstallmentsCount: "0",
+        payoffAmount: financing.payoffAmount != null ? String(financing.payoffAmount) : "",
         notes: financing.notes ?? "",
       });
     } else if (open) {
@@ -52,7 +56,9 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
         totalAmount: "",
         installmentAmount: "",
         installmentsCount: "48",
-        firstDueDate: todayISO(),
+        nextDueDate: todayISO(),
+        paidInstallmentsCount: "0",
+        payoffAmount: "",
         notes: "",
       });
     }
@@ -79,7 +85,9 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
           totalAmount: Number(form.totalAmount),
           installmentAmount: Number(form.installmentAmount),
           installmentsCount: Number(form.installmentsCount),
-          firstDueDate: new Date(form.firstDueDate + "T12:00:00").toISOString(),
+          nextDueDate: new Date(form.nextDueDate + "T12:00:00").toISOString(),
+          paidInstallmentsCount: Number(form.paidInstallmentsCount) || 0,
+          payoffAmount: form.payoffAmount ? Number(form.payoffAmount) : undefined,
           notes: form.notes || undefined,
         },
         { onSuccess },
@@ -144,14 +152,40 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
           onChange={(e) => setForm({ ...form, installmentsCount: e.target.value })}
           required
         />
+        {!isEdit && (
+          <Input
+            label="Parcelas já pagas"
+            type="number"
+            min="0"
+            max={String(Math.max(0, (Number(form.installmentsCount) || 1) - 1))}
+            value={form.paidInstallmentsCount}
+            onChange={(e) => setForm({ ...form, paidInstallmentsCount: e.target.value })}
+            hint="0 se o financiamento é novo e ainda não começou a pagar."
+          />
+        )}
+
         <Input
-          label="Data da 1ª parcela"
+          label={Number(form.paidInstallmentsCount) > 0 ? "Data da próxima parcela" : "Data da 1ª parcela"}
           type="date"
           disabled={isEdit}
-          value={form.firstDueDate}
-          onChange={(e) => setForm({ ...form, firstDueDate: e.target.value })}
+          value={form.nextDueDate}
+          onChange={(e) => setForm({ ...form, nextDueDate: e.target.value })}
+          hint={Number(form.paidInstallmentsCount) > 0 ? "Data de vencimento da próxima parcela em aberto." : undefined}
           required
         />
+        {!isEdit && (
+          <Input
+            className="sm:col-span-2"
+            label="Proposta de quitação à vista (R$, opcional)"
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.payoffAmount}
+            onChange={(e) => setForm({ ...form, payoffAmount: e.target.value })}
+            hint="Se o banco já te passou um valor para quitar tudo à vista. Pode ser atualizado depois, sempre que chegar uma nova proposta."
+            placeholder="Ex: 18500.00"
+          />
+        )}
 
         <Textarea
           className="sm:col-span-2"

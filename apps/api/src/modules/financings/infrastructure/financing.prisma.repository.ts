@@ -40,6 +40,8 @@ export class FinancingPrismaRepository extends FinancingRepository {
           installmentAmount: data.installmentAmount,
           installmentsCount: data.installmentsCount,
           firstDueDate: data.firstDueDate,
+          payoffAmount: data.payoffAmount,
+          payoffQuotedAt: data.payoffQuotedAt,
           notes: data.notes,
         },
       });
@@ -51,6 +53,9 @@ export class FinancingPrismaRepository extends FinancingRepository {
           number: i.number,
           amount: i.amount,
           dueDate: i.dueDate,
+          status: i.status,
+          paidAt: i.paidAt,
+          paidAmount: i.paidAmount,
         })),
       });
 

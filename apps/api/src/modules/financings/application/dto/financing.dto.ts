@@ -28,8 +28,27 @@ export class CreateFinancingDto {
   @Max(600)
   installmentsCount!: number;
 
+  /** Due date of the next unpaid installment (or installment #1, if none have been paid yet). */
   @IsDateString()
-  firstDueDate!: string;
+  nextDueDate!: string;
+
+  /** How many installments (from #1) are already paid — for financing already in progress. Omit/0 for a brand-new one. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  paidInstallmentsCount?: number;
+
+  /** Optional cash-payoff quote ("quitação à vista") to store right away, instead of adding it later. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  payoffAmount?: number;
+
+  @IsOptional()
+  @IsDateString()
+  payoffQuotedAt?: string;
 
   @IsOptional()
   @IsString()

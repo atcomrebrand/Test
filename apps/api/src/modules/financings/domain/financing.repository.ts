@@ -10,6 +10,8 @@ export interface CreateFinancingData {
   installmentAmount: number;
   installmentsCount: number;
   firstDueDate: Date;
+  payoffAmount?: number;
+  payoffQuotedAt?: Date;
   notes?: string;
 }
 

@@ -29,11 +29,17 @@ export class FinancingsService {
   }
 
   async create(userId: string, dto: CreateFinancingDto) {
-    const firstDueDate = new Date(dto.firstDueDate);
+    const nextDueDate = new Date(dto.nextDueDate);
+    const paidInstallmentsCount = dto.paidInstallmentsCount ?? 0;
+    if (paidInstallmentsCount >= dto.installmentsCount) {
+      throw new BadRequestException("Número de parcelas pagas deve ser menor que o número total de parcelas.");
+    }
+
     const installments = generateFixedInstallments({
-      firstDueDate,
+      nextDueDate,
       installmentAmount: dto.installmentAmount,
       installmentsCount: dto.installmentsCount,
+      paidInstallmentsCount,
     });
 
     const financing = await this.financings.createWithInstallments(
@@ -45,7 +51,9 @@ export class FinancingsService {
         totalAmount: dto.totalAmount,
         installmentAmount: dto.installmentAmount,
         installmentsCount: dto.installmentsCount,
-        firstDueDate,
+        firstDueDate: installments[0].dueDate,
+        payoffAmount: dto.payoffAmount,
+        payoffQuotedAt: dto.payoffAmount !== undefined ? new Date(dto.payoffQuotedAt ?? Date.now()) : undefined,
         notes: dto.notes,
       },
       installments,

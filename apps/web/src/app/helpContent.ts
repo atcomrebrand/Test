@@ -77,8 +77,9 @@ export const HELP_TOPICS: HelpTopic[] = [
     summary:
       "Controle financiamentos de carro, moto ou casa separadamente dos seus cartões. Você informa o valor fixo da parcela (sem cálculo de juros) e o sistema gera todas as parcelas automaticamente.",
     tips: [
+      "Financiamento já em andamento? Informe quantas parcelas já foram pagas e a data da próxima parcela — o sistema monta o resto (as parcelas já pagas entram marcadas como pagas automaticamente).",
       "Depois de criado, o valor da parcela e o número de parcelas não podem ser editados — exclua e recadastre se o contrato mudar.",
-      "\"Quitação à vista\" é um campo livre pra você atualizar toda vez que receber uma proposta nova do banco.",
+      "\"Quitação à vista\" pode ser informada já no cadastro e atualizada depois toda vez que receber uma proposta nova do banco.",
       "O resumo aparece no Dashboard automaticamente assim que você tiver pelo menos um financiamento ativo.",
     ],
   },
