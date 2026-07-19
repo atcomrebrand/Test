@@ -79,6 +79,9 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
 SQL
 
 log "5/9 — Clonando/atualizando o repositório em $APP_DIR"
+# Depois da 1a instalação, $APP_DIR pertence a $APP_USER; git (rodando aqui como root)
+# recusa operar num diretório de outro dono a menos que ele seja marcado como confiável.
+git config --global --add safe.directory "$APP_DIR"
 if [ -d "$APP_DIR/.git" ]; then
   git -C "$APP_DIR" fetch origin "$REPO_BRANCH"
   git -C "$APP_DIR" checkout "$REPO_BRANCH"
