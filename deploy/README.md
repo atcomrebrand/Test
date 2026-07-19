@@ -1,0 +1,49 @@
+# Deploy em uma VPS (Ubuntu/Debian)
+
+Instala e coloca o app inteiro no ar (frontend + backend + PostgreSQL) numa VPS limpa,
+usando Nginx como servidor web e systemd para manter o backend rodando.
+
+## Uso
+
+Conecte via SSH na VPS como `root` e rode:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/atcomrebrand/test/claude/credit-card-installments-system-8o6tq0/deploy/setup-vps.sh | bash
+```
+
+Ao final, o script imprime a URL de acesso (`http://SEU_IP`) e o login de demonstração.
+
+## O que o script instala
+
+- Node.js 20 LTS + pnpm
+- PostgreSQL (banco e usuário criados automaticamente, senha aleatória)
+- Backend NestJS rodando como serviço systemd (`parcelas-api`), reinicia sozinho se cair
+- Nginx servindo o frontend (build estático) e fazendo proxy de `/api/v1` para o backend
+- Firewall (`ufw`) liberando apenas SSH, HTTP e HTTPS
+
+## Atualizar depois de um novo push
+
+Rode o mesmo comando de novo — o script é idempotente: puxa o código mais recente,
+reinstala dependências se necessário, roda migrations pendentes e reinicia o serviço.
+
+## Comandos úteis pós-instalação
+
+```bash
+systemctl status parcelas-api      # status do backend
+journalctl -u parcelas-api -f      # logs do backend em tempo real
+systemctl restart parcelas-api     # reiniciar o backend manualmente
+nginx -t && systemctl reload nginx # validar e recarregar config do Nginx
+cat /root/.parcelas_db_password    # senha gerada do banco (se precisar)
+```
+
+## Domínio próprio + HTTPS (opcional)
+
+Se você apontar um domínio para o IP da VPS, pode ativar HTTPS gratuito com:
+
+```bash
+apt-get install -y certbot python3-certbot-nginx
+certbot --nginx -d seu-dominio.com
+```
+
+O Certbot ajusta o `server_name` e a config de SSL automaticamente no arquivo
+`/etc/nginx/sites-available/parcelas`.
