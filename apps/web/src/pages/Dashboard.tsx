@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SpendingEvolutionChart } from "@/components/charts/SpendingEvolutionChart";
 import { CategoryChart } from "@/components/charts/CategoryChart";
+import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { useDashboardSummary, useSpendingByCategory, useSpendingEvolution } from "@/features/useDashboard";
 import { formatCurrency, formatDate, daysUntil } from "@/lib/format";
 
@@ -33,6 +34,8 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title="Dashboard" description="Sua visão geral financeira, em tempo real." />
+
+      <OnboardingChecklist hasCards={Boolean(summary.nextClosing)} hasPurchases={summary.recentPurchases.length > 0} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile

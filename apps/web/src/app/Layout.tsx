@@ -3,6 +3,7 @@ import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 import { MobileNav } from "./MobileNav";
 import { CommandPalette } from "./CommandPalette";
+import { HelpCenter } from "./HelpCenter";
 
 export function Layout() {
   return (
@@ -16,6 +17,7 @@ export function Layout() {
       </div>
       <MobileNav />
       <CommandPalette />
+      <HelpCenter />
     </div>
   );
 }

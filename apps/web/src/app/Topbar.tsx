@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Bell, Moon, Search, Sun, LogOut } from "lucide-react";
+import { Bell, HelpCircle, Moon, Search, Sun, LogOut } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useThemeStore } from "@/store/theme";
 import { useUiStore } from "@/store/ui";
@@ -11,6 +11,7 @@ import { cn } from "@/lib/cn";
 export function Topbar() {
   const { mode, toggle } = useThemeStore();
   const setCommandPaletteOpen = useUiStore((s) => s.setCommandPaletteOpen);
+  const openHelp = useUiStore((s) => s.openHelp);
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -99,6 +100,15 @@ export function Topbar() {
           aria-label="Alternar tema"
         >
           {mode === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+        </button>
+
+        <button
+          onClick={() => openHelp()}
+          className="flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:surface-2"
+          aria-label="Central de ajuda"
+          title="Central de ajuda (?)"
+        >
+          <HelpCircle className="h-5 w-5" />
         </button>
 
         <div className="ml-1 hidden items-center gap-2 sm:flex">

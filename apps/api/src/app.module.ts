@@ -16,6 +16,7 @@ import { SearchModule } from "./modules/search/search.module";
 import { NotificationsModule } from "./modules/notifications/notifications.module";
 import { SettingsModule } from "./modules/settings/settings.module";
 import { ExportModule } from "./modules/export/export.module";
+import { AccountModule } from "./modules/account/account.module";
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { ExportModule } from "./modules/export/export.module";
     NotificationsModule,
     SettingsModule,
     ExportModule,
+    AccountModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
