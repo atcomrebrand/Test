@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum CardBrand {
+  VISA
+  MASTERCARD
+  ELO
+  AMEX
+  HIPERCARD
+  OTHER
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  LATE
+  CANCELLED
+}
+
+enum PurchaseKind {
+  INSTALLMENT
+  CASH
+  RECURRING
+}
+
+enum NotificationType {
+  UPCOMING_DUE
+  LIMIT_WARNING
+  LATE_INSTALLMENT
+  SPENDING_INCREASE
+  CLOSING_SOON
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+// ---------------------------------------------------------------------------
+// Core entities
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  cards         Card[]
+  categories    Category[]
+  purchases     Purchase[]
+  installments  Installment[]
+  payments      Payment[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  settings      Setting?
+
+  @@map("users")
+}
+
+model Card {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  bank        String
+  brand       CardBrand @default(OTHER)
+  color       String    @default("#6D5BFF")
+  limitAmount Decimal   @db.Decimal(12, 2)
+  lastDigits  String    @db.VarChar(4)
+  closingDay  Int // 1-28
+  dueDay      Int // 1-28
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  purchases    Purchase[]
+  installments Installment[]
+
+  @@index([userId, active])
+  @@map("cards")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String   @default("tag")
+  color     String   @default("#8B8B8B")
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  purchases Purchase[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("categories")
+}
+
+model Purchase {
+  id                String       @id @default(cuid())
+  userId            String
+  user              User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId            String
+  card              Card         @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  categoryId        String?
+  category          Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name              String
+  merchant          String?
+  notes             String?
+  totalAmount       Decimal      @db.Decimal(12, 2)
+  purchaseDate      DateTime
+  kind              PurchaseKind @default(INSTALLMENT)
+  installmentsCount Int          @default(1)
+  downPayment       Decimal?     @db.Decimal(12, 2)
+  isRecurring       Boolean      @default(false)
+  recurrenceEndDate DateTime?
+  tags              String[]     @default([])
+  isFavorite        Boolean      @default(false)
+  attachmentUrl     String?
+  attachmentName    String?
+  deletedAt         DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  installments Installment[]
+  auditLogs    AuditLog[]
+
+  @@index([userId, purchaseDate])
+  @@index([userId, deletedAt])
+  @@index([cardId])
+  @@index([categoryId])
+  @@map("purchases")
+}
+
+model Installment {
+  id              String            @id @default(cuid())
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchaseId      String
+  purchase        Purchase          @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  cardId          String
+  card            Card              @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  number          Int // 1..N
+  amount          Decimal           @db.Decimal(12, 2)
+  referenceMonth  Int // 1-12, invoice competence month
+  referenceYear   Int
+  dueDate         DateTime
+  status          InstallmentStatus @default(PENDING)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  payment Payment?
+
+  @@unique([purchaseId, number])
+  @@index([userId, referenceYear, referenceMonth])
+  @@index([userId, status])
+  @@index([cardId, referenceYear, referenceMonth])
+  @@map("installments")
+}
+
+model Payment {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installmentId String      @unique
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  amountPaid    Decimal     @db.Decimal(12, 2)
+  paidAt        DateTime    @default(now())
+  method        String?
+
+  @@index([userId])
+  @@map("payments")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model Setting {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme              Theme    @default(SYSTEM)
+  currency           String   @default("BRL")
+  alertUpcomingDue   Boolean  @default(true)
+  alertLimitWarning  Boolean  @default(true)
+  alertLateInstall   Boolean  @default(true)
+  alertSpendingJump  Boolean  @default(true)
+  limitWarningPct    Int      @default(80)
+  dashboardWidgets   String[] @default(["summary", "evolution", "category", "limit", "recent"])
+  updatedAt          DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchaseId String?
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  entity     String
+  entityId   String
+  action     String
+  changes    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@map("audit_logs")
+}

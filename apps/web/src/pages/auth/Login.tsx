@@ -1,0 +1,65 @@
+import { FormEvent, useState } from "react";
+import { Link, Navigate, useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { CreditCard } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { useLogin } from "@/features/useAuth";
+import { useAuthStore } from "@/store/auth";
+
+export default function Login() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const [email, setEmail] = useState("mauroo.galvaoo@gmail.com");
+  const [password, setPassword] = useState("demo1234");
+  const login = useLogin();
+  const navigate = useNavigate();
+
+  if (isAuthenticated) return <Navigate to="/" replace />;
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    login.mutate(
+      { email, password },
+      { onSuccess: () => navigate("/") },
+    );
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[rgb(var(--bg))] px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="w-full max-w-sm"
+      >
+        <div className="mb-8 flex flex-col items-center gap-3 text-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-accent-500 text-white shadow-elevated">
+            <CreditCard className="h-6 w-6" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold">Bem-vindo de volta</h1>
+            <p className="text-sm text-muted">Controle suas parcelas com previsibilidade total.</p>
+          </div>
+        </div>
+
+        <form onSubmit={onSubmit} className="surface flex flex-col gap-4 rounded-2xl border border-[rgb(var(--border))] p-6 shadow-soft">
+          <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          <Input label="Senha" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+          <Button type="submit" loading={login.isPending} className="mt-2 w-full">
+            Entrar
+          </Button>
+          <p className="text-center text-xs text-muted">
+            Conta demo já preenchida — é só clicar em Entrar.
+          </p>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-muted">
+          Não tem conta?{" "}
+          <Link to="/register" className="font-medium text-accent-500 hover:underline">
+            Criar conta
+          </Link>
+        </p>
+      </motion.div>
+    </div>
+  );
+}
