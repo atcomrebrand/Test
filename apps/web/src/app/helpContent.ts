@@ -9,6 +9,7 @@ import {
   BarChart3,
   Trash2,
   Settings,
+  Landmark,
   type LucideIcon,
 } from "lucide-react";
 
@@ -67,6 +68,18 @@ export const HELP_TOPICS: HelpTopic[] = [
       "Marque como paga assim que o pagamento cair na fatura — isso atualiza todos os indicadores do Dashboard na hora.",
       "Parcelas com vencimento no passado e ainda pendentes viram \"Atrasado\" automaticamente.",
       "Dá pra reverter um pagamento marcado por engano com o botão de desfazer.",
+    ],
+  },
+  {
+    id: "financing",
+    title: "Financiamentos",
+    icon: Landmark,
+    summary:
+      "Controle financiamentos de carro, moto ou casa separadamente dos seus cartões. Você informa o valor fixo da parcela (sem cálculo de juros) e o sistema gera todas as parcelas automaticamente.",
+    tips: [
+      "Depois de criado, o valor da parcela e o número de parcelas não podem ser editados — exclua e recadastre se o contrato mudar.",
+      "\"Quitação à vista\" é um campo livre pra você atualizar toda vez que receber uma proposta nova do banco.",
+      "O resumo aparece no Dashboard automaticamente assim que você tiver pelo menos um financiamento ativo.",
     ],
   },
   {

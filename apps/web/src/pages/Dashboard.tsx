@@ -1,4 +1,5 @@
-import { Wallet, CalendarClock, ListChecks, TrendingUp, ReceiptText, AlertTriangle } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Wallet, CalendarClock, ListChecks, TrendingUp, ReceiptText, AlertTriangle, Landmark, ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -9,12 +10,14 @@ import { SpendingEvolutionChart } from "@/components/charts/SpendingEvolutionCha
 import { CategoryChart } from "@/components/charts/CategoryChart";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { useDashboardSummary, useSpendingByCategory, useSpendingEvolution } from "@/features/useDashboard";
+import { useFinancingSummary } from "@/features/useFinancings";
 import { formatCurrency, formatDate, daysUntil } from "@/lib/format";
 
 export default function Dashboard() {
   const { data: summary, isLoading } = useDashboardSummary();
   const { data: evolution } = useSpendingEvolution();
   const { data: byCategory } = useSpendingByCategory();
+  const { data: financingSummary } = useFinancingSummary();
 
   if (isLoading || !summary) {
     return (
@@ -70,6 +73,42 @@ export default function Dashboard() {
           <AlertTriangle className="h-4 w-4 shrink-0" />
           Você possui {summary.lateInstallmentsCount} parcela(s) atrasada(s). Regularize para evitar juros.
         </div>
+      )}
+
+      {financingSummary && financingSummary.totalActive > 0 && (
+        <Card className="mt-4">
+          <CardContent className="flex flex-wrap items-center gap-6 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500">
+                <Landmark className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">Financiamentos</p>
+                <p className="text-xs text-muted">{financingSummary.totalActive} ativo(s)</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Comprometido este mês</p>
+              <p className="font-semibold">{formatCurrency(financingSummary.committedThisMonth)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Restante a pagar</p>
+              <p className="font-semibold">{formatCurrency(financingSummary.totalRemaining)}</p>
+            </div>
+            {financingSummary.nextInstallment && (
+              <div>
+                <p className="text-xs text-muted">Próxima parcela</p>
+                <p className="font-semibold">
+                  {formatCurrency(financingSummary.nextInstallment.amount)} em{" "}
+                  {formatDate(financingSummary.nextInstallment.dueDate)}
+                </p>
+              </div>
+            )}
+            <Link to="/financing" className="ml-auto flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
+              Ver financiamentos <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </CardContent>
+        </Card>
       )}
 
       <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">

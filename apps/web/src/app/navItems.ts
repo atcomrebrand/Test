@@ -9,6 +9,7 @@ import {
   BarChart3,
   Settings,
   Trash2,
+  Landmark,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/cards", label: "Cartões", icon: CreditCard },
   { to: "/purchases", label: "Compras", icon: ShoppingBag },
   { to: "/installments", label: "Parcelas", icon: ListChecks },
+  { to: "/financing", label: "Financiamentos", icon: Landmark },
   { to: "/calendar", label: "Calendário", icon: CalendarDays },
   { to: "/timeline", label: "Linha do Tempo", icon: History },
   { to: "/categories", label: "Categorias", icon: Tags },

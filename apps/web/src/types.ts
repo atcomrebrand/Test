@@ -113,3 +113,43 @@ export interface Settings {
   limitWarningPct: number;
   dashboardWidgets: string[];
 }
+
+export type FinancingKind = "CAR" | "MOTORCYCLE" | "HOUSE" | "OTHER";
+export type FinancingInstallmentStatus = "PENDING" | "PAID" | "LATE" | "CANCELLED";
+
+export interface FinancingInstallment {
+  id: string;
+  financingId: string;
+  number: number;
+  amount: string | number;
+  dueDate: string;
+  status: FinancingInstallmentStatus;
+  paidAt: string | null;
+  paidAmount: string | number | null;
+}
+
+export interface Financing {
+  id: string;
+  userId: string;
+  name: string;
+  kind: FinancingKind;
+  institution: string | null;
+  totalAmount: string | number;
+  installmentAmount: string | number;
+  installmentsCount: number;
+  firstDueDate: string;
+  payoffAmount: string | number | null;
+  payoffQuotedAt: string | null;
+  notes: string | null;
+  active: boolean;
+  createdAt: string;
+  installments: FinancingInstallment[];
+}
+
+export interface FinancingSummary {
+  totalActive: number;
+  committedThisMonth: number;
+  totalRemaining: number;
+  totalPaid: number;
+  nextInstallment: { financingId: string; financingName: string; dueDate: string; amount: number } | null;
+}

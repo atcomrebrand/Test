@@ -47,6 +47,20 @@ enum Theme {
   SYSTEM
 }
 
+enum FinancingKind {
+  CAR
+  MOTORCYCLE
+  HOUSE
+  OTHER
+}
+
+enum FinancingInstallmentStatus {
+  PENDING
+  PAID
+  LATE
+  CANCELLED
+}
+
 // ---------------------------------------------------------------------------
 // Core entities
 // ---------------------------------------------------------------------------
@@ -59,14 +73,16 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  cards         Card[]
-  categories    Category[]
-  purchases     Purchase[]
-  installments  Installment[]
-  payments      Payment[]
-  notifications Notification[]
-  auditLogs     AuditLog[]
-  settings      Setting?
+  cards                 Card[]
+  categories            Category[]
+  purchases             Purchase[]
+  installments          Installment[]
+  payments              Payment[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  settings              Setting?
+  financings            Financing[]
+  financingInstallments FinancingInstallment[]
 
   @@map("users")
 }
@@ -232,4 +248,53 @@ model AuditLog {
 
   @@index([userId, entity, entityId])
   @@map("audit_logs")
+}
+
+/// Non-credit-card financing: car, motorcycle, house etc. Fixed installment
+/// amount supplied by the user — no interest/amortization math, since the
+/// contract already tells them what each payment is.
+model Financing {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  kind              FinancingKind @default(OTHER)
+  institution       String?
+  totalAmount       Decimal       @db.Decimal(12, 2)
+  installmentAmount Decimal       @db.Decimal(12, 2)
+  installmentsCount Int
+  firstDueDate      DateTime
+  /// Latest cash-payoff quote from the lender ("quitação à vista") — overwritten each time a new proposal arrives.
+  payoffAmount      Decimal?      @db.Decimal(12, 2)
+  payoffQuotedAt    DateTime?
+  notes             String?
+  active            Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  installments FinancingInstallment[]
+
+  @@index([userId, active])
+  @@map("financings")
+}
+
+model FinancingInstallment {
+  id          String                     @id @default(cuid())
+  userId      String
+  user        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  financingId String
+  financing   Financing                  @relation(fields: [financingId], references: [id], onDelete: Cascade)
+  number      Int
+  amount      Decimal                    @db.Decimal(12, 2)
+  dueDate     DateTime
+  status      FinancingInstallmentStatus @default(PENDING)
+  paidAt      DateTime?
+  paidAmount  Decimal?                   @db.Decimal(12, 2)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@unique([financingId, number])
+  @@index([userId, status])
+  @@index([userId, dueDate])
+  @@map("financing_installments")
 }
