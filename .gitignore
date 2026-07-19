@@ -9,3 +9,4 @@ coverage/
 .turbo/
 apps/api/generated/
 apps/web/dist/
+apps/web/tsconfig.tsbuildinfo
