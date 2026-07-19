@@ -40,6 +40,7 @@ export interface Purchase {
   installmentsCount: number;
   downPayment: string | number | null;
   isRecurring: boolean;
+  recurrenceEndDate: string | null;
   tags: string[];
   isFavorite: boolean;
   attachmentUrl: string | null;

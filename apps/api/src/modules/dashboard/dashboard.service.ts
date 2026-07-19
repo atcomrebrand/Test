@@ -1,16 +1,18 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { InstallmentsService } from "../installments/installments.service";
+import { PurchasesService } from "../purchases/application/purchases.service";
 
 @Injectable()
 export class DashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly installments: InstallmentsService,
+    private readonly purchases: PurchasesService,
   ) {}
 
   async summary(userId: string) {
-    await this.installments.refreshLateStatuses(userId);
+    await Promise.all([this.installments.refreshLateStatuses(userId), this.purchases.extendRecurringPurchases(userId)]);
 
     const now = new Date();
     const thisMonth = { year: now.getFullYear(), month: now.getMonth() + 1 };

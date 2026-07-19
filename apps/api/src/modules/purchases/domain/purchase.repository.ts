@@ -41,6 +41,17 @@ export interface CreatePurchaseWithInstallments {
   cardId: string;
 }
 
+export interface RecurringPurchaseForExtension {
+  id: string;
+  cardId: string;
+  purchaseDate: Date;
+  monthlyAmount: number;
+  recurrenceEndDate: Date | null;
+  installmentsCount: number;
+  latestReferenceYear: number;
+  latestReferenceMonth: number;
+}
+
 export abstract class PurchaseRepository {
   abstract findManyPaginated(filters: PurchaseFilters): Promise<{ items: Purchase[]; total: number }>;
   abstract findById(id: string): Promise<Purchase | null>;
@@ -51,4 +62,13 @@ export abstract class PurchaseRepository {
   abstract restore(id: string): Promise<void>;
   abstract hardDelete(id: string): Promise<void>;
   abstract recentByUser(userId: string, limit: number): Promise<Purchase[]>;
+  abstract findActiveRecurringForExtension(userId: string): Promise<RecurringPurchaseForExtension[]>;
+  abstract appendRecurringOccurrences(
+    purchaseId: string,
+    userId: string,
+    cardId: string,
+    occurrences: GeneratedInstallment[],
+    newInstallmentsCount: number,
+  ): Promise<void>;
+  abstract cancelFutureRecurringOccurrences(purchaseId: string, afterKey: number, recurrenceEndDate: Date): Promise<void>;
 }

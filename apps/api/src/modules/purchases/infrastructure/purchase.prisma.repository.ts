@@ -5,7 +5,9 @@ import {
   CreatePurchaseWithInstallments,
   PurchaseFilters,
   PurchaseRepository,
+  RecurringPurchaseForExtension,
 } from "../domain/purchase.repository";
+import { GeneratedInstallment } from "../domain/installment-generator";
 
 @Injectable()
 export class PurchasePrismaRepository extends PurchaseRepository {
@@ -134,5 +136,72 @@ export class PurchasePrismaRepository extends PurchaseRepository {
       orderBy: { createdAt: "desc" },
       take: limit,
     });
+  }
+
+  async findActiveRecurringForExtension(userId: string): Promise<RecurringPurchaseForExtension[]> {
+    const purchases = await this.prisma.purchase.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+        kind: "RECURRING",
+        OR: [{ recurrenceEndDate: null }, { recurrenceEndDate: { gte: new Date() } }],
+      },
+      include: {
+        installments: { orderBy: [{ referenceYear: "desc" }, { referenceMonth: "desc" }], take: 1 },
+      },
+    });
+
+    return purchases.map((p) => {
+      const latest = p.installments[0];
+      return {
+        id: p.id,
+        cardId: p.cardId,
+        purchaseDate: p.purchaseDate,
+        monthlyAmount: Number(p.totalAmount),
+        recurrenceEndDate: p.recurrenceEndDate,
+        installmentsCount: p.installmentsCount,
+        latestReferenceYear: latest?.referenceYear ?? p.purchaseDate.getFullYear(),
+        latestReferenceMonth: latest?.referenceMonth ?? p.purchaseDate.getMonth() + 1,
+      };
+    });
+  }
+
+  async appendRecurringOccurrences(
+    purchaseId: string,
+    userId: string,
+    cardId: string,
+    occurrences: GeneratedInstallment[],
+    newInstallmentsCount: number,
+  ) {
+    await this.prisma.$transaction([
+      this.prisma.installment.createMany({
+        data: occurrences.map((o) => ({
+          userId,
+          purchaseId,
+          cardId,
+          number: o.number,
+          amount: o.amount,
+          referenceMonth: o.referenceMonth,
+          referenceYear: o.referenceYear,
+          dueDate: o.dueDate,
+        })),
+      }),
+      this.prisma.purchase.update({ where: { id: purchaseId }, data: { installmentsCount: newInstallmentsCount } }),
+    ]);
+  }
+
+  async cancelFutureRecurringOccurrences(purchaseId: string, afterKey: number, recurrenceEndDate: Date) {
+    const installments = await this.prisma.installment.findMany({
+      where: { purchaseId, status: "PENDING" },
+      select: { id: true, referenceYear: true, referenceMonth: true },
+    });
+    const toCancel = installments
+      .filter((i) => i.referenceYear * 12 + i.referenceMonth > afterKey)
+      .map((i) => i.id);
+
+    await this.prisma.$transaction([
+      this.prisma.installment.updateMany({ where: { id: { in: toCancel } }, data: { status: "CANCELLED" } }),
+      this.prisma.purchase.update({ where: { id: purchaseId }, data: { recurrenceEndDate } }),
+    ]);
   }
 }

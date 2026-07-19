@@ -84,6 +84,18 @@ export function useDuplicatePurchase() {
   });
 }
 
+export function useCancelRecurrence() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post(`/purchases/${id}/cancel-recurrence`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Assinatura cancelada. As cobranças futuras foram removidas.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useTrashPurchase() {
   const qc = useQueryClient();
   return useMutation({

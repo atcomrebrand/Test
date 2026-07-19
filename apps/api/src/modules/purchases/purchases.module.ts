@@ -10,6 +10,6 @@ import { NotificationsModule } from "../notifications/notifications.module";
   imports: [CardsModule, NotificationsModule],
   controllers: [PurchasesController],
   providers: [PurchasesService, { provide: PurchaseRepository, useClass: PurchasePrismaRepository }],
-  exports: [PurchaseRepository],
+  exports: [PurchaseRepository, PurchasesService],
 })
 export class PurchasesModule {}

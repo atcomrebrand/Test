@@ -1,9 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PurchaseRepository } from "../domain/purchase.repository";
 import { CardRepository } from "../../cards/domain/card.repository";
-import { generateInstallments } from "../domain/installment-generator";
+import { GeneratedInstallment, generateInstallments, generateRecurringOccurrences } from "../domain/installment-generator";
 import { CreatePurchaseDto, PurchaseQueryDto, UpdatePurchaseDto } from "./dto/purchase.dto";
 import { NotificationsService } from "../../notifications/notifications.service";
+
+/** How many months of a subscription we keep pre-generated ahead of "today". */
+const RECURRING_HORIZON_MONTHS = 6;
+/** Safety cap for the initial batch when the user sets a far-future end date. */
+const RECURRING_MAX_BATCH = 60;
 
 @Injectable()
 export class PurchasesService {
@@ -14,6 +19,8 @@ export class PurchasesService {
   ) {}
 
   async findAll(userId: string, query: PurchaseQueryDto) {
+    await this.extendRecurringPurchases(userId);
+
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
     const { items, total } = await this.purchases.findManyPaginated({
@@ -51,22 +58,46 @@ export class PurchasesService {
     if (!card.active) throw new BadRequestException("Não é possível lançar compras em um cartão inativo.");
 
     const kind = dto.kind ?? (dto.installmentsCount && dto.installmentsCount > 1 ? "INSTALLMENT" : "CASH");
-    const installmentsCount = kind === "CASH" ? 1 : (dto.installmentsCount ?? 1);
     const purchaseDate = new Date(dto.purchaseDate);
+    const recurrenceEndDate = dto.recurrenceEndDate ? new Date(dto.recurrenceEndDate) : undefined;
 
-    const installments = generateInstallments({
-      purchaseDate,
-      closingDay: card.closingDay,
-      dueDay: card.dueDay,
-      totalAmount: dto.totalAmount,
-      installmentsCount,
-      downPayment: dto.downPayment,
-    });
+    let installments: GeneratedInstallment[];
+    let installmentsCount: number;
 
-    const financedSum = Math.round(installments.reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
-    const expectedFinanced = Math.round((dto.totalAmount - (dto.downPayment ?? 0)) * 100) / 100;
-    if (financedSum !== expectedFinanced) {
-      throw new BadRequestException("Inconsistência no cálculo das parcelas. Operação abortada.");
+    if (kind === "RECURRING") {
+      const batchCount = recurrenceEndDate ? RECURRING_MAX_BATCH : RECURRING_HORIZON_MONTHS;
+      installments = generateRecurringOccurrences({
+        purchaseDate,
+        closingDay: card.closingDay,
+        dueDay: card.dueDay,
+        monthlyAmount: dto.totalAmount,
+        count: batchCount,
+      });
+
+      if (recurrenceEndDate) {
+        const endKey = recurrenceEndDate.getFullYear() * 12 + (recurrenceEndDate.getMonth() + 1);
+        installments = installments.filter((o) => o.referenceYear * 12 + o.referenceMonth <= endKey);
+        if (installments.length === 0) {
+          throw new BadRequestException("A data de término precisa ser depois da primeira cobrança.");
+        }
+      }
+      installmentsCount = installments.length;
+    } else {
+      installmentsCount = kind === "CASH" ? 1 : (dto.installmentsCount ?? 1);
+      installments = generateInstallments({
+        purchaseDate,
+        closingDay: card.closingDay,
+        dueDay: card.dueDay,
+        totalAmount: dto.totalAmount,
+        installmentsCount,
+        downPayment: dto.downPayment,
+      });
+
+      const financedSum = Math.round(installments.reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
+      const expectedFinanced = Math.round((dto.totalAmount - (dto.downPayment ?? 0)) * 100) / 100;
+      if (financedSum !== expectedFinanced) {
+        throw new BadRequestException("Inconsistência no cálculo das parcelas. Operação abortada.");
+      }
     }
 
     const purchase = await this.purchases.createWithInstallments({
@@ -81,9 +112,9 @@ export class PurchasesService {
         purchaseDate,
         kind,
         installmentsCount,
-        downPayment: dto.downPayment,
-        isRecurring: dto.isRecurring ?? false,
-        recurrenceEndDate: dto.recurrenceEndDate ? new Date(dto.recurrenceEndDate) : undefined,
+        downPayment: kind === "RECURRING" ? undefined : dto.downPayment,
+        isRecurring: kind === "RECURRING",
+        recurrenceEndDate,
         tags: dto.tags ?? [],
         isFavorite: dto.isFavorite ?? false,
         attachmentUrl: dto.attachmentUrl,
@@ -96,6 +127,67 @@ export class PurchasesService {
     await this.notifications.evaluateLimitUsage(userId, dto.cardId);
 
     return this.purchases.findByIdWithInstallments(purchase.id);
+  }
+
+  /**
+   * Subscriptions are open-ended, so we don't generate installments forever up front.
+   * Instead, every time the user looks at their purchases we top each active subscription
+   * back up to a rolling N-month horizon — the same "no cron needed" pattern used for
+   * marking overdue installments as late.
+   */
+  async extendRecurringPurchases(userId: string) {
+    const recurring = await this.purchases.findActiveRecurringForExtension(userId);
+    if (recurring.length === 0) return;
+
+    const now = new Date();
+    const targetKey = now.getFullYear() * 12 + (now.getMonth() + 1) + RECURRING_HORIZON_MONTHS;
+
+    for (const p of recurring) {
+      const latestKey = p.latestReferenceYear * 12 + p.latestReferenceMonth;
+      if (latestKey >= targetKey) continue;
+
+      const card = await this.cards.findById(p.cardId);
+      if (!card) continue;
+
+      let occurrences = generateRecurringOccurrences({
+        purchaseDate: p.purchaseDate,
+        closingDay: card.closingDay,
+        dueDay: card.dueDay,
+        monthlyAmount: p.monthlyAmount,
+        startNumber: p.installmentsCount + 1,
+        count: targetKey - latestKey,
+      });
+
+      if (p.recurrenceEndDate) {
+        const endKey = p.recurrenceEndDate.getFullYear() * 12 + (p.recurrenceEndDate.getMonth() + 1);
+        occurrences = occurrences.filter((o) => o.referenceYear * 12 + o.referenceMonth <= endKey);
+      }
+      if (occurrences.length === 0) continue;
+
+      await this.purchases.appendRecurringOccurrences(
+        p.id,
+        userId,
+        p.cardId,
+        occurrences,
+        p.installmentsCount + occurrences.length,
+      );
+    }
+  }
+
+  async cancelRecurrence(userId: string, id: string) {
+    const purchase = await this.getOwned(userId, id);
+    if (purchase.kind !== "RECURRING") {
+      throw new BadRequestException("Esta compra não é uma assinatura recorrente.");
+    }
+    if (purchase.recurrenceEndDate && purchase.recurrenceEndDate <= new Date()) {
+      throw new BadRequestException("Esta assinatura já foi cancelada.");
+    }
+
+    const now = new Date();
+    const currentKey = now.getFullYear() * 12 + (now.getMonth() + 1);
+    await this.purchases.cancelFutureRecurringOccurrences(id, currentKey, now);
+
+    return this.purchases.findByIdWithInstallments(id);
   }
 
   async update(userId: string, id: string, dto: UpdatePurchaseDto) {
@@ -118,7 +210,7 @@ export class PurchasesService {
       totalAmount: Number(original.totalAmount),
       purchaseDate: new Date().toISOString(),
       kind: original.kind,
-      installmentsCount: original.installmentsCount,
+      installmentsCount: original.kind === "RECURRING" ? undefined : original.installmentsCount,
       downPayment: original.downPayment ? Number(original.downPayment) : undefined,
       tags: original.tags,
     });

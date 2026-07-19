@@ -34,6 +34,11 @@ export class PurchasesController {
     return this.service.restore(user.userId, id);
   }
 
+  @Post(":id/cancel-recurrence")
+  cancelRecurrence(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.service.cancelRecurrence(user.userId, id);
+  }
+
   @Patch(":id")
   update(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: UpdatePurchaseDto) {
     return this.service.update(user.userId, id, dto);

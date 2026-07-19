@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Repeat } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select, Textarea, Label } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -38,6 +39,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
     purchaseDate: todayISO(),
     installmentsCount: "1",
     downPayment: "",
+    recurrenceEndDate: "",
     isFavorite: false,
     tags: "",
   });
@@ -55,6 +57,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         purchaseDate: purchase.purchaseDate.slice(0, 10),
         installmentsCount: String(purchase.installmentsCount),
         downPayment: purchase.downPayment ? String(purchase.downPayment) : "",
+        recurrenceEndDate: purchase.recurrenceEndDate ? purchase.recurrenceEndDate.slice(0, 10) : "",
         isFavorite: purchase.isFavorite,
         tags: purchase.tags.join(", "),
       });
@@ -70,6 +73,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         purchaseDate: todayISO(),
         installmentsCount: "1",
         downPayment: "",
+        recurrenceEndDate: "",
         isFavorite: false,
         tags: "",
       });
@@ -91,9 +95,6 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
     });
   }, [selectedCard, form.purchaseDate, form.totalAmount, form.installmentsCount, form.downPayment, kind]);
 
-  if (!isEdit) {
-    // fall through, active cards only for creation
-  }
   const activeCards = (cards ?? []).filter((c) => (isEdit ? true : c.active));
 
   function onSubmit(e: FormEvent) {
@@ -107,9 +108,12 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
       totalAmount: Number(form.totalAmount),
       purchaseDate: new Date(form.purchaseDate + "T12:00:00").toISOString(),
       kind,
-      installmentsCount: kind === "RECURRING" ? 1 : Number(form.installmentsCount),
-      downPayment: form.downPayment ? Number(form.downPayment) : undefined,
-      isRecurring: kind === "RECURRING",
+      installmentsCount: kind === "RECURRING" ? undefined : Number(form.installmentsCount),
+      downPayment: kind === "INSTALLMENT" && form.downPayment ? Number(form.downPayment) : undefined,
+      recurrenceEndDate:
+        kind === "RECURRING" && form.recurrenceEndDate
+          ? new Date(form.recurrenceEndDate + "T12:00:00").toISOString()
+          : undefined,
       isFavorite: form.isFavorite,
       tags: form.tags
         .split(",")
@@ -136,7 +140,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
           label="Nome da compra"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
-          placeholder="Ex: Notebook Dell"
+          placeholder={kind === "RECURRING" ? "Ex: Netflix, Spotify" : "Ex: Notebook Dell"}
           required
         />
 
@@ -166,7 +170,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         />
 
         <Input
-          label="Valor total (R$)"
+          label={kind === "RECURRING" ? "Valor mensal (R$)" : "Valor total (R$)"}
           type="number"
           step="0.01"
           min="0.01"
@@ -210,6 +214,18 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
           </>
         )}
 
+        {kind === "RECURRING" && !isEdit && (
+          <Input
+            className="col-span-2"
+            label="Data de término (opcional)"
+            type="date"
+            min={form.purchaseDate}
+            value={form.recurrenceEndDate}
+            onChange={(e) => setForm({ ...form, recurrenceEndDate: e.target.value })}
+            hint="Deixe em branco para uma assinatura sem prazo — você pode cancelar quando quiser."
+          />
+        )}
+
         <Textarea
           className="col-span-2"
           label="Observações"
@@ -236,7 +252,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
           Marcar como favorita
         </label>
 
-        {!isEdit && preview.length > 0 && (
+        {!isEdit && preview.length > 0 && kind !== "RECURRING" && (
           <div className="col-span-2 rounded-2xl surface-2 p-4">
             <p className="mb-2 text-sm font-semibold">
               {preview.length === 1 ? "Cobrança" : `${preview.length} parcelas geradas`}
@@ -254,6 +270,24 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
             <p className="mt-2 text-xs text-muted">
               Primeiro vencimento: {formatDate(preview[0].dueDate)}
             </p>
+          </div>
+        )}
+
+        {!isEdit && preview.length > 0 && kind === "RECURRING" && (
+          <div className="col-span-2 flex items-start gap-3 rounded-2xl surface-2 p-4">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-500">
+              <Repeat className="h-4 w-4" />
+            </span>
+            <div className="text-sm">
+              <p className="font-semibold">
+                {formatCurrency(preview[0].amount)} todo mês, a partir de {formatDate(preview[0].dueDate)}
+              </p>
+              <p className="mt-1 text-muted">
+                {form.recurrenceEndDate
+                  ? `Cobranças automáticas até ${formatDate(form.recurrenceEndDate + "T12:00:00")}.`
+                  : "Cobranças automáticas todo mês, sem data para acabar — cancele quando quiser na lista de compras."}
+              </p>
+            </div>
           </div>
         )}
 

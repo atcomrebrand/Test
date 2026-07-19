@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, ShoppingBag, Search, Star, Copy, Trash2, Pencil, ChevronLeft, ChevronRight } from "lucide-react";
+import { Plus, ShoppingBag, Search, Star, Copy, Trash2, Pencil, ChevronLeft, ChevronRight, Repeat, Ban } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Input";
@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { PurchaseFormModal } from "@/components/PurchaseFormModal";
 import { useCards } from "@/features/useCards";
 import { useCategories } from "@/features/useCategories";
-import { useDuplicatePurchase, usePurchases, useTrashPurchase, useUpdatePurchase } from "@/features/usePurchases";
+import { useCancelRecurrence, useDuplicatePurchase, usePurchases, useTrashPurchase, useUpdatePurchase } from "@/features/usePurchases";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { Purchase } from "@/types";
 
@@ -30,6 +30,7 @@ export default function Purchases() {
   const trash = useTrashPurchase();
   const duplicate = useDuplicatePurchase();
   const updatePurchase = useUpdatePurchase();
+  const cancelRecurrence = useCancelRecurrence();
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Purchase | null>(null);
@@ -136,7 +137,10 @@ export default function Purchases() {
                         <p className="truncate font-medium">{p.name}</p>
                         {p.isFavorite && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />}
                       </div>
-                      <p className="shrink-0 font-semibold sm:hidden">{formatCurrency(p.totalAmount)}</p>
+                      <p className="shrink-0 font-semibold sm:hidden">
+                        {formatCurrency(p.totalAmount)}
+                        {p.kind === "RECURRING" && <span className="text-xs text-muted">/mês</span>}
+                      </p>
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {p.card.name} · {p.category?.name ?? "Sem categoria"} · {formatDate(p.purchaseDate)}
@@ -148,12 +152,19 @@ export default function Purchases() {
                   <div className="text-xs text-muted">
                     {p.kind === "CASH" ? (
                       <Badge tone="neutral">À vista</Badge>
+                    ) : p.kind === "RECURRING" ? (
+                      <Badge tone={p.recurrenceEndDate ? "neutral" : "accent"}>
+                        <Repeat className="h-3 w-3" /> {p.recurrenceEndDate ? "Cancelada" : "Assinatura"}
+                      </Badge>
                     ) : (
                       <Badge tone="accent">{paidCount}/{p.installmentsCount} pagas</Badge>
                     )}
                   </div>
 
-                  <p className="hidden w-28 text-right font-semibold sm:block">{formatCurrency(p.totalAmount)}</p>
+                  <p className="hidden w-28 text-right font-semibold sm:block">
+                    {formatCurrency(p.totalAmount)}
+                    {p.kind === "RECURRING" && <span className="block text-xs font-normal text-muted">/mês</span>}
+                  </p>
 
                   <div className="flex items-center gap-1">
                     <button
@@ -166,13 +177,27 @@ export default function Purchases() {
                     <button onClick={() => openEdit(p)} className="rounded-lg p-2 transition-colors hover:surface-2" title="Editar">
                       <Pencil className="h-4 w-4 text-muted" />
                     </button>
-                    <button
-                      onClick={() => duplicate.mutate(p.id)}
-                      className="rounded-lg p-2 transition-colors hover:surface-2"
-                      title="Duplicar"
-                    >
-                      <Copy className="h-4 w-4 text-muted" />
-                    </button>
+                    {p.kind === "RECURRING" && !p.recurrenceEndDate ? (
+                      <button
+                        onClick={() => {
+                          if (confirm(`Cancelar a assinatura "${p.name}"? As cobranças futuras serão removidas.`)) {
+                            cancelRecurrence.mutate(p.id);
+                          }
+                        }}
+                        className="rounded-lg p-2 transition-colors hover:surface-2"
+                        title="Cancelar assinatura"
+                      >
+                        <Ban className="h-4 w-4 text-amber-500" />
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => duplicate.mutate(p.id)}
+                        className="rounded-lg p-2 transition-colors hover:surface-2"
+                        title="Duplicar"
+                      >
+                        <Copy className="h-4 w-4 text-muted" />
+                      </button>
+                    )}
                     <button
                       onClick={() => trash.mutate(p.id)}
                       className="rounded-lg p-2 transition-colors hover:surface-2"
