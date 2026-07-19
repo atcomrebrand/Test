@@ -11,6 +11,7 @@ import { FinancingInstallmentsModal } from "@/components/FinancingInstallmentsMo
 import { useDeleteFinancing, useFinancings } from "@/features/useFinancings";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { FINANCING_KIND_META } from "@/lib/financingKind";
+import { matchAutomakerIcon, matchCarThumbnail } from "@/lib/carIcons";
 import { Financing as FinancingType } from "@/types";
 
 export default function Financing() {
@@ -70,6 +71,8 @@ export default function Financing() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {financings.map((f) => {
             const meta = FINANCING_KIND_META[f.kind];
+            const automaker = f.kind === "CAR" ? matchAutomakerIcon(f.name) : null;
+            const carThumb = f.kind === "CAR" ? matchCarThumbnail(f.name) : null;
             const paidCount = f.installments.filter((i) => i.status === "PAID").length;
             const paidAmount = f.installments
               .filter((i) => i.status === "PAID")
@@ -84,12 +87,18 @@ export default function Financing() {
                 <CardContent className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-                        style={{ backgroundColor: `${meta.color}1a`, color: meta.color }}
-                      >
-                        <meta.icon className="h-5 w-5" />
-                      </span>
+                      {automaker ? (
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
+                          <automaker.Icon className="h-5 w-5" style={{ color: automaker.color }} />
+                        </span>
+                      ) : (
+                        <span
+                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
+                          style={{ backgroundColor: `${meta.color}1a`, color: meta.color }}
+                        >
+                          <meta.icon className="h-5 w-5" />
+                        </span>
+                      )}
                       <div>
                         <p className="font-semibold">{f.name}</p>
                         <p className="text-xs text-muted">
@@ -115,6 +124,16 @@ export default function Financing() {
                       </button>
                     </div>
                   </div>
+
+                  {carThumb && (
+                    <div className="flex items-center gap-3 rounded-2xl surface-2 p-3">
+                      <carThumb.Thumbnail className="h-12 w-20 shrink-0 text-[rgb(var(--text))]" />
+                      <div>
+                        <p className="text-sm font-medium">{carThumb.label}</p>
+                        <p className="text-xs text-muted">Veículo financiado</p>
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <div className="mb-1.5 flex items-center justify-between text-xs text-muted">

@@ -1,9 +1,10 @@
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useCreateFinancing, useUpdateFinancing } from "@/features/useFinancings";
 import { FINANCING_KIND_OPTIONS } from "@/lib/financingKind";
+import { matchAutomakerIcon, matchCarThumbnail } from "@/lib/carIcons";
 import { Financing, FinancingKind } from "@/types";
 
 interface Props {
@@ -67,6 +68,9 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
   const totalToPay =
     (Number(form.installmentAmount) || 0) * (Number(form.installmentsCount) || 0);
 
+  const carThumbMatch = useMemo(() => (form.kind === "CAR" ? matchCarThumbnail(form.name) : null), [form.kind, form.name]);
+  const automakerMatch = useMemo(() => (form.kind === "CAR" ? matchAutomakerIcon(form.name) : null), [form.kind, form.name]);
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     const onSuccess = () => onClose();
@@ -104,6 +108,13 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
           placeholder="Ex: Honda Civic 2024, Apartamento Jardins"
+          hint={
+            carThumbMatch
+              ? `Reconhecemos "${carThumbMatch.label}" — a miniatura vai aparecer no card.`
+              : automakerMatch
+                ? "Reconhecemos a montadora — o logo vai aparecer no card."
+                : undefined
+          }
           required
         />
 
