@@ -108,6 +108,34 @@ describe("generateInstallments", () => {
     expect(result[0].dueDate.getDate()).toBe(22);
     expect(result[0].dueDate.getMonth()).toBe(6);
   });
+
+  it("supports a due day of 29 on a card that closes on the 29th", () => {
+    const result = generateInstallments({
+      purchaseDate: new Date(2026, 6, 15), // July 15th
+      closingDay: 29,
+      dueDay: 29,
+      totalAmount: 100,
+      installmentsCount: 1,
+    });
+
+    expect(result[0].dueDate.getDate()).toBe(29);
+    expect(result[0].dueDate.getMonth()).toBe(6); // July (before closing day, current invoice)
+  });
+
+  it("clamps a due day of 31 to the last real day of a shorter month (February)", () => {
+    const result = generateInstallments({
+      purchaseDate: new Date(2026, 0, 15), // Jan 15th, closes before day 31 so lands on January invoice
+      closingDay: 31,
+      dueDay: 31,
+      totalAmount: 100,
+      installmentsCount: 2,
+    });
+
+    expect(result[0].dueDate.getMonth()).toBe(0); // January has 31 days
+    expect(result[0].dueDate.getDate()).toBe(31);
+    expect(result[1].dueDate.getMonth()).toBe(1); // February 2026 has 28 days
+    expect(result[1].dueDate.getDate()).toBe(28);
+  });
 });
 
 describe("generateRecurringOccurrences", () => {

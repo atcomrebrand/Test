@@ -1,3 +1,5 @@
+import { nextOccurrenceOfDay } from "../../../common/date/day-of-month";
+
 export class CardEntity {
   constructor(
     public readonly id: string,
@@ -14,11 +16,11 @@ export class CardEntity {
   ) {}
 
   static validateDays(closingDay: number, dueDay: number) {
-    if (closingDay < 1 || closingDay > 28) {
-      throw new Error("Dia de fechamento deve estar entre 1 e 28.");
+    if (closingDay < 1 || closingDay > 31) {
+      throw new Error("Dia de fechamento deve estar entre 1 e 31.");
     }
-    if (dueDay < 1 || dueDay > 28) {
-      throw new Error("Dia de vencimento deve estar entre 1 e 28.");
+    if (dueDay < 1 || dueDay > 31) {
+      throw new Error("Dia de vencimento deve estar entre 1 e 31.");
     }
   }
 
@@ -28,21 +30,13 @@ export class CardEntity {
     }
   }
 
-  /** Next closing date strictly after `from`. */
+  /** Next closing date strictly after `from`, clamped to shorter months (e.g. day 31 -> Feb 28/29). */
   nextClosingDate(from = new Date()): Date {
     return nextOccurrenceOfDay(from, this.closingDay);
   }
 
-  /** Next due date strictly after `from`. */
+  /** Next due date strictly after `from`, clamped to shorter months. */
   nextDueDate(from = new Date()): Date {
     return nextOccurrenceOfDay(from, this.dueDay);
   }
-}
-
-function nextOccurrenceOfDay(from: Date, day: number): Date {
-  const candidate = new Date(from.getFullYear(), from.getMonth(), day, 12, 0, 0);
-  if (candidate <= from) {
-    candidate.setMonth(candidate.getMonth() + 1);
-  }
-  return candidate;
 }

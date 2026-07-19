@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationType } from "@prisma/client";
+import { nextOccurrenceOfDay } from "../../common/date/day-of-month";
 
 const START_OF_TODAY = () => {
   const d = new Date();
@@ -129,10 +130,4 @@ export class NotificationsService {
     if (existing) return existing;
     return this.prisma.notification.create({ data: { userId, type, title, message: data.message } });
   }
-}
-
-function nextOccurrenceOfDay(from: Date, day: number): Date {
-  const candidate = new Date(from.getFullYear(), from.getMonth(), day, 12, 0, 0);
-  if (candidate < from) candidate.setMonth(candidate.getMonth() + 1);
-  return candidate;
 }

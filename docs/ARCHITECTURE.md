@@ -65,7 +65,7 @@ Entidades principais (ver `apps/api/prisma/schema.prisma`):
 
 Constraints/índices relevantes:
 - `Installment.amount >= 0`, `Purchase.totalAmount > 0`, `Purchase.installmentsCount >= 1` (check constraints via Prisma `@db` + validação de aplicação, já que Prisma não expõe `CHECK` nativamente em todas versões — reforçado na camada de aplicação e em SQL migration adicional).
-- `Card.closingDay`/`dueDay` entre 1 e 28 (evita bug de mês com 28/30/31 dias).
+- `Card.closingDay`/`dueDay` entre 1 e 31; datas geradas a partir desses dias são "clampadas" (`common/date/day-of-month.ts`) para o último dia real do mês em meses curtos (ex.: dia 31 vira 28/29 em fevereiro), em vez de restringir o cadastro a dias 1-28.
 - Índices em `Installment(userId, referenceMonth, referenceYear)`, `Installment(status)`, `Purchase(userId, purchaseDate)`, `Purchase(deletedAt)` para paginação/filtros rápidos sem N+1 (sempre `include` explícito, nunca lazy loop).
 - `onDelete: Cascade` de Card -> Purchase é bloqueado pela regra de negócio (não pode excluir cartão com compras); a FK usa `Restrict`.
 

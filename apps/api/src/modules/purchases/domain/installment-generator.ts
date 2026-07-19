@@ -1,3 +1,5 @@
+import { dateForDayInMonth } from "../../../common/date/day-of-month";
+
 export interface GenerateInstallmentsInput {
   purchaseDate: Date;
   closingDay: number;
@@ -51,7 +53,7 @@ export function generateInstallments(input: GenerateInstallmentsInput): Generate
       amount: amountCents / 100,
       referenceMonth: month,
       referenceYear: year,
-      dueDate: new Date(year, month - 1, dueDay, 12, 0, 0),
+      dueDate: dateForDayInMonth(year, month, dueDay),
     });
   }
 
@@ -97,7 +99,7 @@ export function generateRecurringOccurrences(input: GenerateRecurringOccurrences
       amount,
       referenceMonth: month,
       referenceYear: year,
-      dueDate: new Date(year, month - 1, dueDay, 12, 0, 0),
+      dueDate: dateForDayInMonth(year, month, dueDay),
     };
   });
 }

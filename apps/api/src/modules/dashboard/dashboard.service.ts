@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { InstallmentsService } from "../installments/installments.service";
 import { PurchasesService } from "../purchases/application/purchases.service";
+import { nextOccurrenceOfDay } from "../../common/date/day-of-month";
 
 @Injectable()
 export class DashboardService {
@@ -121,10 +122,4 @@ export class DashboardService {
     });
     return Number(result._sum.amount ?? 0);
   }
-}
-
-function nextOccurrenceOfDay(from: Date, day: number): Date {
-  const candidate = new Date(from.getFullYear(), from.getMonth(), day, 12, 0, 0);
-  if (candidate < from) candidate.setMonth(candidate.getMonth() + 1);
-  return candidate;
 }

@@ -28,12 +28,12 @@ export class CreateCardDto {
 
   @IsInt()
   @Min(1)
-  @Max(28)
+  @Max(31)
   closingDay!: number;
 
   @IsInt()
   @Min(1)
-  @Max(28)
+  @Max(31)
   dueDay!: number;
 }
 
@@ -44,7 +44,7 @@ export class UpdateCardDto {
   @IsOptional() @IsHexColor() color?: string;
   @IsOptional() @IsNumber() @IsPositive() limitAmount?: number;
   @IsOptional() @IsString() @Length(4, 4) lastDigits?: string;
-  @IsOptional() @IsInt() @Min(1) @Max(28) closingDay?: number;
-  @IsOptional() @IsInt() @Min(1) @Max(28) dueDay?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(31) closingDay?: number;
+  @IsOptional() @IsInt() @Min(1) @Max(31) dueDay?: number;
   @IsOptional() @IsBoolean() active?: boolean;
 }

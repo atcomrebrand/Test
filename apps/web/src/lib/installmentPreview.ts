@@ -35,7 +35,7 @@ export function previewInstallments(input: {
       amount: (baseCents + (isLast ? remainderCents : 0)) / 100,
       referenceMonth: month,
       referenceYear: year,
-      dueDate: new Date(year, month - 1, dueDay),
+      dueDate: dateForDayInMonth(year, month, dueDay),
     };
   });
 }
@@ -45,4 +45,10 @@ function addMonths(year: number, month1to12: number, offset: number) {
   const year2 = year + Math.floor(zeroBased / 12);
   const month2 = ((zeroBased % 12) + 12) % 12;
   return { year: year2, month: month2 + 1 };
+}
+
+/** A Date for `day` within the given month (1-based), clamped to that month's real length (e.g. day 31 in Feb -> 28/29). */
+function dateForDayInMonth(year: number, month1to12: number, day: number): Date {
+  const daysInMonth = new Date(year, month1to12, 0).getDate();
+  return new Date(year, month1to12 - 1, Math.min(day, daysInMonth));
 }

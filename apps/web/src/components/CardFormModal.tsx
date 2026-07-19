@@ -73,7 +73,7 @@ export function CardFormModal({ open, onClose, card }: Props) {
     else create.mutate(data, { onSuccess });
   }
 
-  const days = Array.from({ length: 28 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }));
+  const days = Array.from({ length: 31 }, (_, i) => ({ value: String(i + 1), label: String(i + 1) }));
 
   return (
     <Modal open={open} onClose={onClose} title={isEdit ? "Editar cartão" : "Novo cartão"} size="lg">
