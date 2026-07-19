@@ -8,7 +8,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { useCards } from "@/features/useCards";
 import { useCategories } from "@/features/useCategories";
 import { useCreatePurchase, useUpdatePurchase } from "@/features/usePurchases";
-import { previewInstallments } from "@/lib/installmentPreview";
+import { previewInstallments, previewRecurringOccurrence } from "@/lib/installmentPreview";
 import { formatCurrency, formatDate, monthLabel } from "@/lib/format";
 import { Purchase } from "@/types";
 
@@ -86,12 +86,19 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
 
   const preview = useMemo(() => {
     if (!selectedCard || kind === "CASH") return [];
+    if (kind === "RECURRING") {
+      const occurrence = previewRecurringOccurrence({
+        nextPaymentDate: new Date(form.purchaseDate + "T12:00:00"),
+        monthlyAmount: Number(form.totalAmount) || 0,
+      });
+      return occurrence ? [occurrence] : [];
+    }
     return previewInstallments({
       purchaseDate: new Date(form.purchaseDate + "T12:00:00"),
       closingDay: selectedCard.closingDay,
       dueDay: selectedCard.dueDay,
       totalAmount: Number(form.totalAmount) || 0,
-      installmentsCount: kind === "RECURRING" ? 1 : Number(form.installmentsCount) || 1,
+      installmentsCount: Number(form.installmentsCount) || 1,
       downPayment: form.downPayment ? Number(form.downPayment) : 0,
     });
   }, [selectedCard, form.purchaseDate, form.totalAmount, form.installmentsCount, form.downPayment, kind]);
@@ -150,7 +157,10 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         <Select
           label="Cartão"
           disabled={isEdit}
-          options={activeCards.map((c) => ({ value: c.id, label: `${c.name} (fecha dia ${c.closingDay})` }))}
+          options={activeCards.map((c) => ({
+            value: c.id,
+            label: kind === "RECURRING" ? c.name : `${c.name} (fecha dia ${c.closingDay})`,
+          }))}
           value={form.cardId}
           onChange={(e) => setForm({ ...form, cardId: e.target.value })}
           required
@@ -164,11 +174,12 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
 
         <Input label="Estabelecimento" value={form.merchant} onChange={(e) => setForm({ ...form, merchant: e.target.value })} />
         <Input
-          label="Data da compra"
+          label={kind === "RECURRING" ? "Próximo pagamento" : "Data da compra"}
           type="date"
           disabled={isEdit}
           value={form.purchaseDate}
           onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
+          hint={kind === "RECURRING" ? "Dia em que essa assinatura cobra no cartão — não a fatura inteira." : undefined}
           required
         />
 

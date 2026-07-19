@@ -61,9 +61,8 @@ export function generateInstallments(input: GenerateInstallmentsInput): Generate
 }
 
 export interface GenerateRecurringOccurrencesInput {
-  purchaseDate: Date;
-  closingDay: number;
-  dueDay: number;
+  /** Due date of the next (or, for a brand-new subscription, the first) charge. */
+  nextPaymentDate: Date;
   monthlyAmount: number;
   /** 1-based number of the first occurrence generated in this batch (>1 when topping up an existing subscription). */
   startNumber?: number;
@@ -75,31 +74,33 @@ export interface GenerateRecurringOccurrencesInput {
  * Recurring-subscription engine (Netflix, Spotify, etc.).
  *
  * Unlike a parceled purchase, each occurrence charges the *full* monthly
- * amount — nothing is split. The same closing-day rule decides which
- * invoice the *first* charge lands on; every occurrence after that simply
- * advances one month at a time. Subscriptions are open-ended, so callers
- * generate a bounded batch (e.g. the next 6 months) and top it up over time
- * via `startNumber` instead of generating forever up front.
+ * amount — nothing is split. Subscriptions aren't tied to the card's
+ * closing-day invoice cycle: the user already knows exactly which day their
+ * subscription bills every month, so `nextPaymentDate` anchors the schedule
+ * directly instead of deriving it from a purchase date. Subscriptions are
+ * open-ended, so callers generate a bounded batch (e.g. the next 6 months)
+ * and top it up over time via `startNumber` instead of generating forever
+ * up front.
  */
 export function generateRecurringOccurrences(input: GenerateRecurringOccurrencesInput): GeneratedInstallment[] {
-  const { purchaseDate, closingDay, dueDay, monthlyAmount, startNumber = 1, count } = input;
+  const { nextPaymentDate, monthlyAmount, startNumber = 1, count } = input;
 
   if (monthlyAmount <= 0) throw new Error("Valor mensal deve ser maior que zero.");
   if (startNumber < 1) throw new Error("Número da primeira ocorrência deve ser ao menos 1.");
   if (count < 1) return [];
 
-  const firstReference = firstReferenceMonth(purchaseDate, closingDay);
+  const day = nextPaymentDate.getDate();
   const amount = round2(monthlyAmount);
 
   return Array.from({ length: count }, (_, i) => {
-    const occurrenceOffset = startNumber - 1 + i;
-    const { year, month } = addMonths(firstReference.year, firstReference.month, occurrenceOffset);
+    const number = startNumber + i;
+    const { year, month } = addMonths(nextPaymentDate.getFullYear(), nextPaymentDate.getMonth() + 1, number - 1);
     return {
-      number: startNumber + i,
+      number,
       amount,
       referenceMonth: month,
       referenceYear: year,
-      dueDate: dateForDayInMonth(year, month, dueDay),
+      dueDate: dateForDayInMonth(year, month, day),
     };
   });
 }

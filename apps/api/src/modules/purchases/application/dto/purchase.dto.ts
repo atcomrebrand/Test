@@ -40,6 +40,7 @@ export class CreatePurchaseDto {
   @IsPositive()
   totalAmount!: number;
 
+  /** Purchase date for CASH/INSTALLMENT; due date of the next charge for RECURRING (see installment-generator.ts). */
   @IsDateString()
   purchaseDate!: string;
 

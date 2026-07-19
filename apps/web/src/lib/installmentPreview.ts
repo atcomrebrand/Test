@@ -40,6 +40,20 @@ export function previewInstallments(input: {
   });
 }
 
+/** Mirrors the backend's subscription engine: anchored directly on the next payment date, no closing day involved. */
+export function previewRecurringOccurrence(input: { nextPaymentDate: Date; monthlyAmount: number }): PreviewInstallment | null {
+  const { nextPaymentDate, monthlyAmount } = input;
+  if (!monthlyAmount || monthlyAmount <= 0 || Number.isNaN(nextPaymentDate.getTime())) return null;
+
+  return {
+    number: 1,
+    amount: Math.round(monthlyAmount * 100) / 100,
+    referenceMonth: nextPaymentDate.getMonth() + 1,
+    referenceYear: nextPaymentDate.getFullYear(),
+    dueDate: nextPaymentDate,
+  };
+}
+
 function addMonths(year: number, month1to12: number, offset: number) {
   const zeroBased = month1to12 - 1 + offset;
   const year2 = year + Math.floor(zeroBased / 12);

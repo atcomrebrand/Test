@@ -141,9 +141,7 @@ describe("generateInstallments", () => {
 describe("generateRecurringOccurrences", () => {
   it("charges the full amount every month, never splitting it", () => {
     const result = generateRecurringOccurrences({
-      purchaseDate: new Date(2026, 0, 5),
-      closingDay: 10,
-      dueDay: 15,
+      nextPaymentDate: new Date(2026, 0, 15),
       monthlyAmount: 44.9,
       count: 4,
     });
@@ -151,51 +149,37 @@ describe("generateRecurringOccurrences", () => {
     expect(result.map((o) => o.amount)).toEqual([44.9, 44.9, 44.9, 44.9]);
   });
 
-  it("applies the same closing-day rule as parceled purchases for the first occurrence", () => {
-    const before = generateRecurringOccurrences({
-      purchaseDate: new Date(2026, 6, 8),
-      closingDay: 10,
-      dueDay: 15,
-      monthlyAmount: 20,
-      count: 1,
-    });
-    const after = generateRecurringOccurrences({
-      purchaseDate: new Date(2026, 6, 12),
-      closingDay: 10,
-      dueDay: 15,
+  it("anchors the first occurrence directly on nextPaymentDate, with no closing-day math", () => {
+    const result = generateRecurringOccurrences({
+      nextPaymentDate: new Date(2026, 6, 25), // July 25th — the user's actual next charge date
       monthlyAmount: 20,
       count: 1,
     });
 
-    expect(before[0].referenceMonth).toBe(7);
-    expect(after[0].referenceMonth).toBe(8);
+    expect(result[0].referenceMonth).toBe(7);
+    expect(result[0].dueDate.getDate()).toBe(25);
   });
 
   it("numbers consecutive months starting from 1 by default", () => {
     const result = generateRecurringOccurrences({
-      purchaseDate: new Date(2026, 0, 1),
-      closingDay: 10,
-      dueDay: 15,
+      nextPaymentDate: new Date(2026, 0, 15),
       monthlyAmount: 10,
       count: 3,
     });
 
     expect(result.map((o) => o.number)).toEqual([1, 2, 3]);
     expect(result.map((o) => o.referenceMonth)).toEqual([1, 2, 3]);
+    expect(result.map((o) => o.dueDate.getDate())).toEqual([15, 15, 15]);
   });
 
   it("tops up an existing subscription seamlessly using startNumber", () => {
     const firstBatch = generateRecurringOccurrences({
-      purchaseDate: new Date(2026, 0, 1),
-      closingDay: 10,
-      dueDay: 15,
+      nextPaymentDate: new Date(2026, 0, 15),
       monthlyAmount: 10,
       count: 3,
     });
     const topUp = generateRecurringOccurrences({
-      purchaseDate: new Date(2026, 0, 1),
-      closingDay: 10,
-      dueDay: 15,
+      nextPaymentDate: new Date(2026, 0, 15),
       monthlyAmount: 10,
       startNumber: 4,
       count: 2,
@@ -211,9 +195,7 @@ describe("generateRecurringOccurrences", () => {
 
   it("rolls the due date across the year boundary", () => {
     const result = generateRecurringOccurrences({
-      purchaseDate: new Date(2026, 10, 5),
-      closingDay: 10,
-      dueDay: 20,
+      nextPaymentDate: new Date(2026, 10, 20),
       monthlyAmount: 15,
       count: 4,
     });
@@ -224,5 +206,15 @@ describe("generateRecurringOccurrences", () => {
       [2027, 1],
       [2027, 2],
     ]);
+  });
+
+  it("clamps the charge day for shorter months", () => {
+    const result = generateRecurringOccurrences({
+      nextPaymentDate: new Date(2026, 0, 31), // Jan 31st
+      monthlyAmount: 9.9,
+      count: 3,
+    });
+
+    expect(result.map((o) => o.dueDate.getDate())).toEqual([31, 28, 31]); // Jan 31, Feb 28 (2026 not leap), Mar 31
   });
 });

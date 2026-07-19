@@ -67,9 +67,7 @@ export class PurchasesService {
     if (kind === "RECURRING") {
       const batchCount = recurrenceEndDate ? RECURRING_MAX_BATCH : RECURRING_HORIZON_MONTHS;
       installments = generateRecurringOccurrences({
-        purchaseDate,
-        closingDay: card.closingDay,
-        dueDay: card.dueDay,
+        nextPaymentDate: purchaseDate,
         monthlyAmount: dto.totalAmount,
         count: batchCount,
       });
@@ -146,13 +144,8 @@ export class PurchasesService {
       const latestKey = p.latestReferenceYear * 12 + p.latestReferenceMonth;
       if (latestKey >= targetKey) continue;
 
-      const card = await this.cards.findById(p.cardId);
-      if (!card) continue;
-
       let occurrences = generateRecurringOccurrences({
-        purchaseDate: p.purchaseDate,
-        closingDay: card.closingDay,
-        dueDay: card.dueDay,
+        nextPaymentDate: p.purchaseDate,
         monthlyAmount: p.monthlyAmount,
         startNumber: p.installmentsCount + 1,
         count: targetKey - latestKey,
