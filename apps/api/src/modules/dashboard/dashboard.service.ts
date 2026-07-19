@@ -49,7 +49,7 @@ export class DashboardService {
 
       totalLimit += Number(card.limitAmount);
       const spentAgg = await this.prisma.installment.aggregate({
-        where: { cardId: card.id, status: { not: "CANCELLED" } },
+        where: { cardId: card.id, status: { in: ["PENDING", "LATE"] } },
         _sum: { amount: true },
       });
       totalSpent += Number(spentAgg._sum.amount ?? 0);

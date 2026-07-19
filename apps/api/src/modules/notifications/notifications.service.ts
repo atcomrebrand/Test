@@ -103,7 +103,7 @@ export class NotificationsService {
 
   private async sumSpent(cardId: string) {
     const result = await this.prisma.installment.aggregate({
-      where: { cardId, status: { not: "CANCELLED" } },
+      where: { cardId, status: { in: ["PENDING", "LATE"] } },
       _sum: { amount: true },
     });
     return Number(result._sum.amount ?? 0);

@@ -34,7 +34,7 @@ export function CommandPalette() {
   return (
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-[60] flex items-start justify-center pt-24 px-4">
+        <div className="fixed inset-0 z-[60] flex items-start justify-center pt-24 px-4" role="dialog" aria-modal="true" aria-label="Busca rápida">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

@@ -36,8 +36,11 @@ export class CardPrismaRepository extends CardRepository {
   }
 
   async sumSpentByCard(id: string) {
+    // Brazilian card issuers reserve the full remaining installment amount against the
+    // limit at purchase time; it's only released as each installment is paid off. So
+    // "used limit" is the open (PENDING/LATE) balance, not lifetime spend.
     const result = await this.prisma.installment.aggregate({
-      where: { cardId: id, status: { not: "CANCELLED" } },
+      where: { cardId: id, status: { in: ["PENDING", "LATE"] } },
       _sum: { amount: true },
     });
     return Number(result._sum.amount ?? 0);

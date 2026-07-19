@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import { ReactNode, useEffect, useId } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { X } from "lucide-react";
 import { createPortal } from "react-dom";
@@ -14,10 +14,26 @@ interface ModalProps {
 const sizes = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-lg", xl: "max-w-2xl" };
 
 export function Modal({ open, onClose, title, children, size = "md" }: ModalProps) {
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open, onClose]);
+
   return createPortal(
     <AnimatePresence>
       {open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={title ? titleId : undefined}
+        >
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -35,7 +51,9 @@ export function Modal({ open, onClose, title, children, size = "md" }: ModalProp
           >
             {title && (
               <div className="sticky top-0 surface flex items-center justify-between border-b border-[rgb(var(--border))] px-5 py-4">
-                <h2 className="text-base font-semibold">{title}</h2>
+                <h2 id={titleId} className="text-base font-semibold">
+                  {title}
+                </h2>
                 <button
                   onClick={onClose}
                   className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
