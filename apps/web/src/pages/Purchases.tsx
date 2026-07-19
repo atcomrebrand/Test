@@ -123,54 +123,64 @@ export default function Purchases() {
             return (
               <div
                 key={p.id}
-                className="flex flex-wrap items-center gap-4 rounded-2xl surface border border-[rgb(var(--border))] p-4 shadow-soft transition-shadow hover:shadow-elevated"
+                className="flex flex-col gap-3 rounded-2xl surface border border-[rgb(var(--border))] p-4 shadow-soft transition-shadow hover:shadow-elevated sm:flex-row sm:items-center sm:gap-4"
               >
-                <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: p.category?.color ?? "#999" }} />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <p className="truncate font-medium">{p.name}</p>
-                    {p.isFavorite && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />}
+                <div className="flex items-center gap-3 sm:contents">
+                  <span
+                    className="h-3 w-3 shrink-0 rounded-full"
+                    style={{ backgroundColor: p.category?.color ?? "#999" }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2 sm:justify-start">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <p className="truncate font-medium">{p.name}</p>
+                        {p.isFavorite && <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" />}
+                      </div>
+                      <p className="shrink-0 font-semibold sm:hidden">{formatCurrency(p.totalAmount)}</p>
+                    </div>
+                    <p className="mt-0.5 truncate text-xs text-muted">
+                      {p.card.name} · {p.category?.name ?? "Sem categoria"} · {formatDate(p.purchaseDate)}
+                    </p>
                   </div>
-                  <p className="text-xs text-muted">
-                    {p.card.name} · {p.category?.name ?? "Sem categoria"} · {formatDate(p.purchaseDate)}
-                  </p>
                 </div>
 
-                <div className="hidden text-xs text-muted sm:block">
-                  {p.kind === "CASH" ? (
-                    <Badge tone="neutral">À vista</Badge>
-                  ) : (
-                    <Badge tone="accent">{paidCount}/{p.installmentsCount} pagas</Badge>
-                  )}
-                </div>
+                <div className="flex items-center justify-between gap-2 sm:contents">
+                  <div className="text-xs text-muted">
+                    {p.kind === "CASH" ? (
+                      <Badge tone="neutral">À vista</Badge>
+                    ) : (
+                      <Badge tone="accent">{paidCount}/{p.installmentsCount} pagas</Badge>
+                    )}
+                  </div>
 
-                <p className="w-28 text-right font-semibold">{formatCurrency(p.totalAmount)}</p>
+                  <p className="hidden w-28 text-right font-semibold sm:block">{formatCurrency(p.totalAmount)}</p>
 
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => updatePurchase.mutate({ id: p.id, data: { isFavorite: !p.isFavorite } })}
-                    className="rounded-lg p-2 transition-colors hover:surface-2"
-                    title="Favoritar"
-                  >
-                    <Star className={`h-4 w-4 ${p.isFavorite ? "fill-amber-400 text-amber-400" : "text-muted"}`} />
-                  </button>
-                  <button onClick={() => openEdit(p)} className="rounded-lg p-2 transition-colors hover:surface-2" title="Editar">
-                    <Pencil className="h-4 w-4 text-muted" />
-                  </button>
-                  <button
-                    onClick={() => duplicate.mutate(p.id)}
-                    className="rounded-lg p-2 transition-colors hover:surface-2"
-                    title="Duplicar"
-                  >
-                    <Copy className="h-4 w-4 text-muted" />
-                  </button>
-                  <button
-                    onClick={() => trash.mutate(p.id)}
-                    className="rounded-lg p-2 transition-colors hover:surface-2"
-                    title="Mover para lixeira"
-                  >
-                    <Trash2 className="h-4 w-4 text-red-500" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => updatePurchase.mutate({ id: p.id, data: { isFavorite: !p.isFavorite } })}
+                      className="rounded-lg p-2 transition-colors hover:surface-2"
+                      title="Favoritar"
+                    >
+                      <Star className={`h-4 w-4 ${p.isFavorite ? "fill-amber-400 text-amber-400" : "text-muted"}`} />
+                    </button>
+                    <button onClick={() => openEdit(p)} className="rounded-lg p-2 transition-colors hover:surface-2" title="Editar">
+                      <Pencil className="h-4 w-4 text-muted" />
+                    </button>
+                    <button
+                      onClick={() => duplicate.mutate(p.id)}
+                      className="rounded-lg p-2 transition-colors hover:surface-2"
+                      title="Duplicar"
+                    >
+                      <Copy className="h-4 w-4 text-muted" />
+                    </button>
+                    <button
+                      onClick={() => trash.mutate(p.id)}
+                      className="rounded-lg p-2 transition-colors hover:surface-2"
+                      title="Mover para lixeira"
+                    >
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );

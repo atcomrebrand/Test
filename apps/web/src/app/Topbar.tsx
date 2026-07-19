@@ -25,11 +25,12 @@ export function Topbar() {
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[rgb(var(--border))] surface/80 px-4 backdrop-blur md:px-6">
       <button
         onClick={() => setCommandPaletteOpen(true)}
-        className="flex h-10 flex-1 max-w-md items-center gap-2 rounded-xl surface-2 px-3 text-sm text-muted transition-colors hover:brightness-95 dark:hover:brightness-110"
+        className="flex h-10 min-w-0 flex-1 max-w-md items-center gap-2 rounded-xl surface-2 px-3 text-sm text-muted transition-colors hover:brightness-95 dark:hover:brightness-110"
       >
-        <Search className="h-4 w-4" />
-        Buscar compras, cartões, categorias...
-        <kbd className="ml-auto rounded surface px-1.5 py-0.5 font-mono text-xs">⌘K</kbd>
+        <Search className="h-4 w-4 shrink-0" />
+        <span className="truncate whitespace-nowrap sm:hidden">Buscar...</span>
+        <span className="hidden truncate whitespace-nowrap sm:inline">Buscar compras, cartões, categorias...</span>
+        <kbd className="ml-auto hidden shrink-0 rounded surface px-1.5 py-0.5 font-mono text-xs sm:inline-block">⌘K</kbd>
       </button>
 
       <div className="flex items-center gap-2">
