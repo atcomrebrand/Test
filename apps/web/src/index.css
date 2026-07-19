@@ -74,3 +74,19 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+ * iOS Safari auto-zooms the whole page when a focused form field has a
+ * computed font-size under 16px, and doesn't zoom back out on blur — so
+ * every tap on a sub-16px input forces the user to manually pinch-zoom out
+ * afterwards. Force 16px on every text-entry field below the `sm` breakpoint
+ * as a safety net, on top of the shared Input/Select/Textarea components
+ * already using text-base for the same reason.
+ */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

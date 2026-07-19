@@ -56,7 +56,7 @@ export function CommandPalette() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar compras, cartões, categorias..."
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted"
+                className="flex-1 bg-transparent text-base outline-none placeholder:text-muted sm:text-sm"
               />
               <kbd className="rounded surface-2 px-1.5 py-0.5 font-mono text-xs text-muted">esc</kbd>
             </div>

@@ -67,7 +67,7 @@ export default function Purchases() {
             placeholder="Buscar por nome, estabelecimento..."
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
-            className="h-10 w-full rounded-xl surface-2 pl-9 pr-3 text-sm outline-none placeholder:text-muted focus:ring-2 focus:ring-accent-500/20"
+            className="h-10 w-full rounded-xl surface-2 pl-9 pr-3 text-base outline-none placeholder:text-muted focus:ring-2 focus:ring-accent-500/20 sm:text-sm"
           />
         </div>
         <Select
