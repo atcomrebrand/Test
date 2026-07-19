@@ -37,6 +37,7 @@ export class TimelineService {
         number: inst.number,
         installmentsCount: inst.purchase.installmentsCount,
         isCash: inst.purchase.kind === "CASH",
+        isRecurring: inst.purchase.kind === "RECURRING",
         status: inst.status,
       });
     }

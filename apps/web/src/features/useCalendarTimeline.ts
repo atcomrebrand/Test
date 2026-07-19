@@ -26,6 +26,7 @@ export interface TimelineGroup {
     number: number;
     installmentsCount: number;
     isCash: boolean;
+    isRecurring: boolean;
     status: string;
   }[];
 }

@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Repeat } from "lucide-react";
+import { matchServiceIcon } from "@/lib/serviceIcons";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select, Textarea, Label } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -94,6 +95,8 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
       downPayment: form.downPayment ? Number(form.downPayment) : 0,
     });
   }, [selectedCard, form.purchaseDate, form.totalAmount, form.installmentsCount, form.downPayment, kind]);
+
+  const serviceMatch = useMemo(() => (kind === "RECURRING" ? matchServiceIcon(form.name) : null), [kind, form.name]);
 
   const activeCards = (cards ?? []).filter((c) => (isEdit ? true : c.active));
 
@@ -275,8 +278,15 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
 
         {!isEdit && preview.length > 0 && kind === "RECURRING" && (
           <div className="col-span-2 flex items-start gap-3 rounded-2xl surface-2 p-4">
-            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-accent-500/10 text-accent-500">
-              <Repeat className="h-4 w-4" />
+            <span
+              className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${serviceMatch ? "" : "bg-accent-500/10 text-accent-500"}`}
+              style={serviceMatch ? { backgroundColor: `${serviceMatch.color}1a` } : undefined}
+            >
+              {serviceMatch ? (
+                <serviceMatch.Icon className="h-4 w-4" style={{ color: serviceMatch.color }} />
+              ) : (
+                <Repeat className="h-4 w-4" />
+              )}
             </span>
             <div className="text-sm">
               <p className="font-semibold">

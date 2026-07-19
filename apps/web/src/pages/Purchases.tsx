@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { PurchaseFormModal } from "@/components/PurchaseFormModal";
+import { PurchaseIcon } from "@/components/PurchaseIcon";
 import { useCards } from "@/features/useCards";
 import { useCategories } from "@/features/useCategories";
 import { useCancelRecurrence, useDuplicatePurchase, usePurchases, useTrashPurchase, useUpdatePurchase } from "@/features/usePurchases";
@@ -127,10 +128,7 @@ export default function Purchases() {
                 className="flex flex-col gap-3 rounded-2xl surface border border-[rgb(var(--border))] p-4 shadow-soft transition-shadow hover:shadow-elevated sm:flex-row sm:items-center sm:gap-4"
               >
                 <div className="flex items-center gap-3 sm:contents">
-                  <span
-                    className="h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: p.category?.color ?? "#999" }}
-                  />
+                  <PurchaseIcon purchase={p} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2 sm:justify-start">
                       <div className="flex min-w-0 items-center gap-2">

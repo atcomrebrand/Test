@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { Wifi } from "lucide-react";
 import { CreditCard } from "@/types";
 import { cn } from "@/lib/cn";
+import { matchBankIcon } from "@/lib/serviceIcons";
 
 interface Props {
   card: CreditCard;
@@ -16,6 +17,31 @@ function shade(hex: string, percent: number) {
   const g = Math.min(255, Math.max(0, ((num >> 8) & 0x00ff) + amt));
   const b = Math.min(255, Math.max(0, (num & 0x0000ff) + amt));
   return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+function bankInitials(bankName: string) {
+  const words = bankName.trim().split(/\s+/).filter(Boolean);
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[1][0]).toUpperCase();
+}
+
+/** Real brand icon when legitimately available (see src/lib/serviceIcons.tsx), a styled monogram otherwise. */
+function BankBadge({ bankName }: { bankName: string }) {
+  const match = matchBankIcon(bankName);
+
+  if (match) {
+    return (
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/95 shadow-sm">
+        <match.Icon className="h-4 w-4" style={{ color: match.color }} />
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/20 text-xs font-bold tracking-tight text-white backdrop-blur-sm">
+      {bankInitials(bankName)}
+    </span>
+  );
 }
 
 export function CreditCardVisual({ card, onClick, className }: Props) {
@@ -36,12 +62,15 @@ export function CreditCardVisual({ card, onClick, className }: Props) {
       <div className="pointer-events-none absolute -right-10 -top-10 h-40 w-40 rounded-full bg-white/10" />
       <div className="pointer-events-none absolute -bottom-16 -left-10 h-40 w-40 rounded-full bg-black/10" />
 
-      <div className="relative flex items-start justify-between">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-white/70">{card.bank}</p>
-          <p className="mt-0.5 text-lg font-bold leading-tight">{card.name}</p>
+      <div className="relative flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2.5">
+          <BankBadge bankName={card.bank} />
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-white/70">{card.bank}</p>
+            <p className="mt-0.5 text-lg font-bold leading-tight">{card.name}</p>
+          </div>
         </div>
-        <Wifi className="h-5 w-5 rotate-90 text-white/80" />
+        <Wifi className="h-5 w-5 shrink-0 rotate-90 text-white/80" />
       </div>
 
       <div className="relative">
