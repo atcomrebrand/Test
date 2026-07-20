@@ -79,4 +79,23 @@ describe("DividendsService.getPortfolioCalendar", () => {
     expect(entries[0].quantityHeld).toBe(10);
     expect(entries[0].estimatedAmount).toBe(10);
   });
+
+  it("checks every owned STOCK/FII ticker, not just the first 15 — a real bug this portfolio hit with 20+ assets", async () => {
+    const TICKER_COUNT = 23;
+    const tickers = Array.from({ length: TICKER_COUNT }, (_, i) => `TICK${i}`);
+
+    const assets = makeAssetRepo({
+      findAllByUser: jest.fn().mockResolvedValue(tickers.map((ticker) => ({ id: ticker, class: "STOCK", ticker, name: ticker }))),
+      listTransactions: jest.fn().mockResolvedValue([tx("BUY", 1, "2026-01-01")]),
+    });
+    const dividendsByTicker = Object.fromEntries(
+      tickers.map((ticker) => [ticker, [{ ticker, type: "DIVIDENDO", rate: 1, exDate: "2026-03-01", paymentDate: "2026-03-15", relatedTo: null }]]),
+    );
+    const dividends = makeDividendsCache(dividendsByTicker);
+
+    const service = new DividendsService(dividends, assets);
+    const entries = await service.getPortfolioCalendar("user-1");
+
+    expect(new Set(entries.map((e) => e.ticker)).size).toBe(TICKER_COUNT);
+  });
 });

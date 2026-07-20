@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { mapWithConcurrency } from "../../../common/utils/concurrency";
 import { AssetRepository } from "../domain/asset.repository";
 import { DividendEvent } from "../domain/market-data.provider";
 import { calculatePosition } from "../domain/position-calculator";
@@ -23,9 +24,13 @@ const MARKET_CALENDAR_TICKERS = [
   "KNRI11", "HGLG11", "MXRF11", "XPML11", "VISC11", "BCFF11", "HGRU11", "VILG11",
 ];
 
-/** Caps how many owned tickers get their own dividend lookup — a portfolio with 40 assets
- *  shouldn't fire 40 requests every time the calendar loads. */
-const MAX_PORTFOLIO_TICKERS = 15;
+/** Bounds how many dividend lookups run at once — a portfolio bulk-imported from a B3 statement
+ *  can easily have 20+ stocks/FIIs, and firing one BRAPI request per ticker with no limit risks
+ *  the same rate-limit trouble AssetsService.findAll works around for quotes. This only throttles
+ *  concurrency, though: every owned ticker still gets checked, none are silently dropped just for
+ *  being past some fixed count — a version of this that capped the LIST itself (instead of just
+ *  the concurrency) used to make the calendar quietly skip tickers in a 20+ asset portfolio. */
+const DIVIDEND_FETCH_CONCURRENCY = 4;
 
 @Injectable()
 export class DividendsService {
@@ -52,29 +57,27 @@ export class DividendsService {
    *  suggestions already use, just against every fetched event instead of only unmatched ones. */
   async getPortfolioCalendar(userId: string): Promise<DividendCalendarEntry[]> {
     const owned = await this.assets.findAllByUser(userId);
-    const eligible = owned.filter((a) => a.class === "STOCK" || a.class === "FII").slice(0, MAX_PORTFOLIO_TICKERS);
+    const eligible = owned.filter((a) => a.class === "STOCK" || a.class === "FII");
     if (eligible.length === 0) return [];
 
-    const results = await Promise.all(
-      eligible.map(async (asset) => {
-        const transactions = await this.assets.listTransactions(asset.id);
-        const txs = transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate }));
+    const results = await mapWithConcurrency(eligible, DIVIDEND_FETCH_CONCURRENCY, async (asset) => {
+      const transactions = await this.assets.listTransactions(asset.id);
+      const txs = transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate }));
 
-        const events = await this.dividendsCache.get(asset.ticker);
-        return events
-          .map((event): DividendCalendarEntry | null => {
-            const positionAsOfDate = event.exDate ?? event.paymentDate;
-            if (!positionAsOfDate) return null;
+      const events = await this.dividendsCache.get(asset.ticker);
+      return events
+        .map((event): DividendCalendarEntry | null => {
+          const positionAsOfDate = event.exDate ?? event.paymentDate;
+          if (!positionAsOfDate) return null;
 
-            const heldAsOf = txs.filter((t) => isoDate(t.transactionDate) <= positionAsOfDate);
-            const quantityHeld = calculatePosition(heldAsOf).quantity;
-            if (quantityHeld <= 0) return null;
+          const heldAsOf = txs.filter((t) => isoDate(t.transactionDate) <= positionAsOfDate);
+          const quantityHeld = calculatePosition(heldAsOf).quantity;
+          if (quantityHeld <= 0) return null;
 
-            return { ...event, name: asset.name, quantityHeld, estimatedAmount: event.rate * quantityHeld };
-          })
-          .filter((e): e is DividendCalendarEntry => e !== null);
-      }),
-    );
+          return { ...event, name: asset.name, quantityHeld, estimatedAmount: event.rate * quantityHeld };
+        })
+        .filter((e): e is DividendCalendarEntry => e !== null);
+    });
 
     return sortByDateDesc(results.flat());
   }

@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { InvestmentAsset, InvestmentTransaction } from "@prisma/client";
+import { mapWithConcurrency } from "../../../common/utils/concurrency";
 import { AssetRepository } from "../domain/asset.repository";
 import { ChartRangeOptions } from "../domain/market-data.provider";
 import { calculatePosition } from "../domain/position-calculator";
@@ -17,21 +18,6 @@ import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto
  *  but because too many requests landed in the same second. Serializing into small batches keeps
  *  every lookup within the rate limit instead of losing a random subset of them. */
 const QUOTE_FETCH_CONCURRENCY = 4;
-
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-
-  async function worker() {
-    while (nextIndex < items.length) {
-      const current = nextIndex++;
-      results[current] = await fn(items[current]);
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
-}
 
 @Injectable()
 export class AssetsService {
