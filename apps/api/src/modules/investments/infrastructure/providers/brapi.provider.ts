@@ -72,32 +72,9 @@ interface BrapiCashDividend {
   label?: string;
 }
 
-interface BrapiQuoteResult {
-  regularMarketPrice?: number;
-  regularMarketChangePercent?: number;
-  currency?: string;
-  shortName?: string;
-  longName?: string;
-  marketCap?: number;
-  priceEarnings?: number;
-  earningsPerShare?: number;
-  regularMarketDayHigh?: number;
-  regularMarketDayLow?: number;
-  regularMarketVolume?: number;
-  fiftyTwoWeekHigh?: number;
-  fiftyTwoWeekLow?: number;
-  dividendYield?: number;
-  logourl?: string;
-  historicalDataPrice?: BrapiHistoricalPoint[];
-  dividendsData?: { cashDividends?: BrapiCashDividend[] };
-}
-
 /** Confirmed against a live call to /api/v2/stocks/quote with a real token (2026-07-20) — the v2
  *  quote payload nests fields under results[n].data instead of directly on results[n] like v1,
- *  and auth moved from a `?token=` query param to an `Authorization: Bearer` header. Only the
- *  plain quote endpoint has been migrated to v2 so far: fetchDetail/fetchHistory/fetchDividends
- *  stay on v1 (fetchRaw) since their range/fundamental/dividends query params haven't been
- *  confirmed to exist (or work the same way) on v2. */
+ *  and auth moved from a `?token=` query param to an `Authorization: Bearer` header. */
 interface BrapiV2QuoteData {
   shortName?: string;
   longName?: string;
@@ -127,6 +104,23 @@ interface BrapiV2DividendsData {
   cashDividends?: BrapiCashDividend[];
 }
 
+/** Confirmed against a live call to /api/v2/stocks/statistics with a real token (2026-07-20).
+ *  Only the fields fetchDetail actually surfaces are declared — the real payload has many more
+ *  (beta, bookValue, priceToBook, sharesOutstanding, etc.) the app has no use for yet. */
+interface BrapiV2StatisticsData {
+  trailingPE?: number;
+  earningsPerShare?: number;
+  dividendYield?: number;
+}
+
+/** Confirmed against a live call to /api/v2/stocks/historical with a real token (2026-07-20) —
+ *  same historicalDataPrice shape as v1 (date/open/high/low/close/volume/adjustedClose), just
+ *  nested under results[0].data alongside usedRange/usedInterval instead of sitting directly on
+ *  results[0]. */
+interface BrapiV2HistoricalData {
+  historicalDataPrice?: BrapiHistoricalPoint[];
+}
+
 function classifyDividendType(label: string | undefined): DividendType {
   const normalized = (label ?? "").toUpperCase();
   if (normalized.includes("JCP") || normalized.includes("JUROS")) return "JCP";
@@ -150,10 +144,17 @@ export class BrapiProvider extends StockQuoteProvider {
     return { price: quote.regularMarketPrice as number, currency: quote.currency ?? "BRL", approximate };
   }
 
+  /** v1 fetched quote + fundamentals + a 3-month history slice in one call via query-param
+   *  "modules"; v2 splits those into three independent endpoints. Statistics and historical are
+   *  best-effort here — a hiccup on either shouldn't take down the whole detail view when the
+   *  quote itself (price, day range, 52-week range, market cap — all on the quote payload) is
+   *  fine, so failures there fall back to just omitting that data instead of throwing. */
   async fetchDetail(ticker: string): Promise<QuoteDetail> {
-    const { quote, approximate } = await this.fetchWithFractionalFallback(ticker, { range: "3mo", interval: "1d", fundamental: "true" });
+    const { quote, approximate } = await this.fetchQuoteV2WithFractionalFallback(ticker);
+    const statistics = await this.fetchStatisticsV2WithFallback(ticker).catch(() => null);
+    const historicalData = await this.fetchHistoricalV2WithFallback(ticker, "3mo", "1d").catch(() => null);
 
-    const history: HistoricalPricePoint[] = (quote.historicalDataPrice ?? [])
+    const history: HistoricalPricePoint[] = (historicalData?.historicalDataPrice ?? [])
       .filter((p) => typeof p.close === "number" || typeof p.adjustedClose === "number")
       .map((p) => ({
         date: new Date(p.date * 1000).toISOString().slice(0, 10),
@@ -172,9 +173,9 @@ export class BrapiProvider extends StockQuoteProvider {
     add("Mínima do dia", quote.regularMarketDayLow ?? null);
     add("Volume", quote.regularMarketVolume ?? null);
     add("Valor de mercado", quote.marketCap ?? null);
-    add("P/L", quote.priceEarnings ?? null);
-    add("LPA", quote.earningsPerShare ?? null);
-    add("Dividend Yield", quote.dividendYield ?? null);
+    add("P/L", statistics?.trailingPE ?? null);
+    add("LPA", statistics?.earningsPerShare ?? null);
+    add("Dividend Yield", statistics?.dividendYield ?? null);
 
     return {
       price: quote.regularMarketPrice as number,
@@ -192,9 +193,9 @@ export class BrapiProvider extends StockQuoteProvider {
    *  [from, to] window since BRAPI has no arbitrary-range parameter. */
   async fetchHistory(ticker: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]> {
     const { range, interval } = brapiRangeParams(options);
-    const { quote } = await this.fetchWithFractionalFallback(ticker, { range, interval });
+    const data = await this.fetchHistoricalV2WithFallback(ticker, range, interval);
 
-    let history: HistoricalPricePoint[] = (quote.historicalDataPrice ?? [])
+    let history: HistoricalPricePoint[] = (data.historicalDataPrice ?? [])
       .filter((p) => typeof p.close === "number" || typeof p.adjustedClose === "number")
       .map((p) => ({
         date: new Date(p.date * 1000).toISOString().slice(0, 10),
@@ -241,28 +242,7 @@ export class BrapiProvider extends StockQuoteProvider {
       .map((s) => ({ ticker: s.stock, name: s.name ?? s.stock, type: s.type, logoUrl: s.logo }));
   }
 
-  /** Tries the exact ticker first (so a fractional-lot code gets its own price whenever BRAPI
-   *  actually has one) and only falls back to the round-lot ticker if that specific code has no
-   *  quote — never silently prefers the fallback just because it's more likely to succeed. */
-  private async fetchWithFractionalFallback(
-    ticker: string,
-    extraParams: Record<string, string> = {},
-  ): Promise<{ quote: BrapiQuoteResult; approximate: boolean }> {
-    try {
-      const quote = await this.fetchRaw(ticker, extraParams);
-      if (typeof quote.regularMarketPrice === "number") return { quote, approximate: false };
-      throw new Error(`BRAPI returned no price for ${ticker}`);
-    } catch (err) {
-      const base = baseTickerFor(ticker);
-      if (!base) throw err;
-      this.logger.warn(`No direct quote for fractional ticker ${ticker}, falling back to ${base}: ${(err as Error).message}`);
-      const quote = await this.fetchRaw(base, extraParams);
-      if (typeof quote.regularMarketPrice !== "number") throw new Error(`BRAPI returned no quote for ${ticker} or ${base}`);
-      return { quote, approximate: true };
-    }
-  }
-
-  /** Same "try exact ticker, fall back to the round lot" logic as fetchWithFractionalFallback,
+  /** Same "try exact ticker, fall back to the round lot" logic as the quote/dividends fallbacks,
    *  but against the v2 quote endpoint. */
   private async fetchQuoteV2WithFractionalFallback(ticker: string): Promise<{ quote: BrapiV2QuoteData; approximate: boolean }> {
     try {
@@ -326,20 +306,65 @@ export class BrapiProvider extends StockQuoteProvider {
     return data;
   }
 
-  private async fetchRaw(ticker: string, extraParams: Record<string, string> = {}): Promise<BrapiQuoteResult> {
-    const token = process.env.BRAPI_TOKEN;
-    const params = new URLSearchParams(extraParams);
-    if (token) params.set("token", token);
-    const query = params.toString();
-    const url = `https://brapi.dev/api/quote/${encodeURIComponent(ticker)}${query ? `?${query}` : ""}`;
-
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) {
-      throw new Error(`BRAPI request failed for ${ticker}: ${res.status}`);
+  /** Same "lookup fails → fall back to round lot" rule as dividends: the fundamentals ratios
+   *  (P/L, LPA, dividend yield) are per-share and unaffected by lot size, so the base ticker's
+   *  numbers are a fine substitute when the fractional ticker itself has no statistics entry. */
+  private async fetchStatisticsV2WithFallback(ticker: string): Promise<BrapiV2StatisticsData> {
+    try {
+      return await this.fetchRawStatisticsV2(ticker);
+    } catch (err) {
+      const base = baseTickerFor(ticker);
+      if (!base) throw err;
+      this.logger.warn(`No v2 statistics data for fractional ticker ${ticker}, falling back to ${base}: ${(err as Error).message}`);
+      return this.fetchRawStatisticsV2(base);
     }
-    const body = (await res.json()) as { results?: BrapiQuoteResult[] };
-    const quote = body.results?.[0];
-    if (!quote) throw new Error(`BRAPI returned no quote for ${ticker}`);
-    return quote;
+  }
+
+  private async fetchRawStatisticsV2(ticker: string): Promise<BrapiV2StatisticsData> {
+    const token = process.env.BRAPI_TOKEN;
+    const url = `https://brapi.dev/api/v2/stocks/statistics?symbols=${encodeURIComponent(ticker)}`;
+
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error(`BRAPI v2 statistics request failed for ${ticker}: ${res.status}`);
+    }
+    const body = (await res.json()) as { results?: { data?: BrapiV2StatisticsData }[] };
+    const data = body.results?.[0]?.data;
+    if (!data) throw new Error(`BRAPI v2 returned no statistics data for ${ticker}`);
+    return data;
+  }
+
+  /** Same round-lot fallback as the other v2 endpoints — a fractional ticker trades the same
+   *  underlying instrument, so its price history is the base ticker's history when BRAPI has no
+   *  fractional-specific series. */
+  private async fetchHistoricalV2WithFallback(ticker: string, range: string, interval: string): Promise<BrapiV2HistoricalData> {
+    try {
+      return await this.fetchRawHistoricalV2(ticker, range, interval);
+    } catch (err) {
+      const base = baseTickerFor(ticker);
+      if (!base) throw err;
+      this.logger.warn(`No v2 historical data for fractional ticker ${ticker}, falling back to ${base}: ${(err as Error).message}`);
+      return this.fetchRawHistoricalV2(base, range, interval);
+    }
+  }
+
+  private async fetchRawHistoricalV2(ticker: string, range: string, interval: string): Promise<BrapiV2HistoricalData> {
+    const token = process.env.BRAPI_TOKEN;
+    const url = `https://brapi.dev/api/v2/stocks/historical?symbols=${encodeURIComponent(ticker)}&range=${range}&interval=${interval}`;
+
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error(`BRAPI v2 historical request failed for ${ticker}: ${res.status}`);
+    }
+    const body = (await res.json()) as { results?: { data?: BrapiV2HistoricalData }[] };
+    const data = body.results?.[0]?.data;
+    if (!data) throw new Error(`BRAPI v2 returned no historical data for ${ticker}`);
+    return data;
   }
 }
