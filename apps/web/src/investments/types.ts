@@ -142,6 +142,65 @@ export interface DividendCalendarEntry {
   estimatedAmount: number | null;
 }
 
+// ---------------------------------------------------------------------------
+// Importação B3
+// ---------------------------------------------------------------------------
+
+export type ImportAssetClass = "STOCK" | "FII";
+
+export interface ImportedTransaction {
+  ticker: string;
+  assetClass: ImportAssetClass;
+  assetName: string | null;
+  type: "BUY" | "SELL";
+  quantity: number;
+  unitPrice: number;
+  transactionDate: string;
+  sourceLabel: string;
+}
+
+export interface ImportedIncome {
+  ticker: string;
+  assetClass: ImportAssetClass;
+  assetName: string | null;
+  type: "DIVIDENDO" | "JCP" | "RENDIMENTO" | "OUTRO";
+  amount: number;
+  paymentDate: string;
+  sourceLabel: string;
+}
+
+export interface ImportSkippedRow {
+  source: "negociacao" | "movimentacao";
+  description: string;
+  reason: string;
+}
+
+export interface DividendSuggestion {
+  ticker: string;
+  assetClass: ImportAssetClass;
+  type: "DIVIDENDO" | "JCP" | "OUTRO";
+  amount: number;
+  paymentDate: string;
+  exDate: string | null;
+  relatedTo: string | null;
+  quantityHeld: number;
+}
+
+export interface B3ImportPreviewResult {
+  transactions: ImportedTransaction[];
+  incomes: ImportedIncome[];
+  skipped: ImportSkippedRow[];
+  suggestedIncomes: DividendSuggestion[];
+  duplicateTransactionsSkipped: number;
+  duplicateIncomesSkipped: number;
+}
+
+export interface B3ImportCommitResult {
+  createdAssets: number;
+  importedTransactions: number;
+  importedIncomes: number;
+}
+
 export type FixedIncomeType = "CDB" | "LCI" | "LCA" | "TESOURO" | "OUTRO";
 export type FixedIncomeLiquidity = "DIARIA" | "NO_VENCIMENTO" | "OUTRO";
 export type FixedIncomeIndexer = "PREFIXADO" | "POS_FIXADO_CDI" | "IPCA_MAIS" | "OUTRO";

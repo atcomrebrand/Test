@@ -4,12 +4,16 @@ import { api } from "@/lib/api";
 import {
   ArticlePreview,
   AssetQuoteDetailResponse,
+  B3ImportCommitResult,
+  B3ImportPreviewResult,
   CashAccount,
   CatalogEntry,
   ChartRangeParams,
   DashboardSummary,
   HistoricalPricePoint,
   DividendCalendarEntry,
+  ImportedIncome,
+  ImportedTransaction,
   InvestmentAsset,
   InvestmentFixedIncome,
   MarketQuoteDetailResponse,
@@ -336,6 +340,31 @@ export function usePortfolioDividends() {
     queryKey: ["investments", "dividends", "portfolio"],
     queryFn: () => api.get<DividendCalendarEntry[]>("/investments/dividends/portfolio"),
     staleTime: 10 * 60 * 1000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Importação B3
+// ---------------------------------------------------------------------------
+
+export function usePreviewB3Import() {
+  return useMutation({
+    mutationFn: (payload: { negociacao: Record<string, unknown>[]; movimentacao: Record<string, unknown>[] }) =>
+      api.post<B3ImportPreviewResult>("/investments/import/b3/preview", payload),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useCommitB3Import() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { transactions: ImportedTransaction[]; incomes: ImportedIncome[] }) =>
+      api.post<B3ImportCommitResult>("/investments/import/b3/commit", payload),
+    onSuccess: (result) => {
+      invalidateAll(qc);
+      toast.success(`Importado! ${result.importedTransactions} negociações e ${result.importedIncomes} proventos.`);
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 
