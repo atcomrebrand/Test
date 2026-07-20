@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { DividendEvent, StockQuoteProvider } from "../domain/market-data.provider";
+import { DividendAssetClass, DividendEvent, StockQuoteProvider } from "../domain/market-data.provider";
 
 /** Corporate actions (dividends/JCP) are declared/paid at most a few times a year, so a day-long
  *  cache is safe and keeps a shared calendar view from re-fetching dozens of tickers on every
@@ -13,13 +13,13 @@ export class DividendsCacheService {
 
   constructor(private readonly stockProvider: StockQuoteProvider) {}
 
-  async get(ticker: string): Promise<DividendEvent[]> {
+  async get(ticker: string, assetClass: DividendAssetClass): Promise<DividendEvent[]> {
     const key = ticker.toUpperCase();
     const cached = this.cache.get(key);
     if (cached && Date.now() - cached.fetchedAt < TTL_MS) return cached.events;
 
     try {
-      const events = await this.stockProvider.fetchDividends(key);
+      const events = await this.stockProvider.fetchDividends(key, assetClass);
       this.cache.set(key, { events, fetchedAt: Date.now() });
       return events;
     } catch (err) {

@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { mapWithConcurrency } from "../../../common/utils/concurrency";
 import { AssetRepository } from "../domain/asset.repository";
-import { DividendEvent } from "../domain/market-data.provider";
+import { DividendAssetClass, DividendEvent } from "../domain/market-data.provider";
 import { calculatePosition } from "../domain/position-calculator";
 import { DividendsCacheService } from "../infrastructure/dividends-cache.service";
 
@@ -17,11 +17,15 @@ export interface DividendCalendarEntry extends DividendEvent {
  *  calendar. Fetching dividend data for the entire B3 catalog (400+ tickers) on every request
  *  would be far too slow and would burn through BRAPI's free-tier rate limit — this keeps the
  *  calendar useful and fast while staying honest (the UI labels it as "principais ativos", not
- *  literally every ticker in existence). */
-const MARKET_CALENDAR_TICKERS = [
-  "ITSA4", "BBAS3", "TAEE11", "VALE3", "PETR4", "PETR3", "BBDC4", "ITUB4", "VIVT3", "CPLE6",
-  "EGIE3", "CMIG4", "TRPL4", "CSMG3", "BBSE3",
-  "KNRI11", "HGLG11", "MXRF11", "XPML11", "VISC11", "BCFF11", "HGRU11", "VILG11",
+ *  literally every ticker in existence). Each ticker is tagged with its class explicitly rather
+ *  than inferred from the "11" suffix — several non-FII "units" (TAEE11) also end in 11, and
+ *  BRAPI's dividends endpoint rejects a ticker sent to the wrong one of its two class-specific
+ *  routes outright (confirmed 2026-07-20: FIIs get a 400 off /api/v2/stocks/dividends). */
+const MARKET_CALENDAR_TICKERS: { ticker: string; class: DividendAssetClass }[] = [
+  ...["ITSA4", "BBAS3", "TAEE11", "VALE3", "PETR4", "PETR3", "BBDC4", "ITUB4", "VIVT3", "CPLE6", "EGIE3", "CMIG4", "TRPL4", "CSMG3", "BBSE3"].map(
+    (ticker) => ({ ticker, class: "STOCK" as const }),
+  ),
+  ...["KNRI11", "HGLG11", "MXRF11", "XPML11", "VISC11", "BCFF11", "HGRU11", "VILG11"].map((ticker) => ({ ticker, class: "FII" as const })),
 ];
 
 /** Bounds how many dividend lookups run at once — a portfolio bulk-imported from a B3 statement
@@ -41,8 +45,8 @@ export class DividendsService {
 
   async getMarketCalendar(): Promise<DividendCalendarEntry[]> {
     const results = await Promise.all(
-      MARKET_CALENDAR_TICKERS.map(async (ticker) => {
-        const events = await this.dividendsCache.get(ticker);
+      MARKET_CALENDAR_TICKERS.map(async ({ ticker, class: assetClass }) => {
+        const events = await this.dividendsCache.get(ticker, assetClass);
         return events.map((event) => ({ ...event, name: null, quantityHeld: null, estimatedAmount: null }));
       }),
     );
@@ -64,7 +68,7 @@ export class DividendsService {
       const transactions = await this.assets.listTransactions(asset.id);
       const txs = transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate }));
 
-      const events = await this.dividendsCache.get(asset.ticker);
+      const events = await this.dividendsCache.get(asset.ticker, asset.class as DividendAssetClass);
       return events
         .map((event): DividendCalendarEntry | null => {
           const positionAsOfDate = event.exDate ?? event.paymentDate;

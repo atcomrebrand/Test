@@ -35,7 +35,7 @@ export class DividendAutoSyncService {
       const txs = transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate }));
       const known = existingIncomes.map((i) => ({ amount: Number(i.amount), paymentDate: isoDate(i.paymentDate) }));
 
-      const events = await this.dividendsCache.get(asset.ticker);
+      const events = await this.dividendsCache.get(asset.ticker, asset.class);
 
       let created = 0;
       for (const event of events) {

@@ -3,6 +3,7 @@ import {
   AssetFundamentals,
   CatalogEntry,
   ChartRangeOptions,
+  DividendAssetClass,
   DividendEvent,
   DividendType,
   daysBetweenIsoDates,
@@ -91,9 +92,20 @@ interface BrapiV2Result {
 /** Confirmed against a live call to /api/v2/stocks/dividends with a real token (2026-07-20) — same
  *  cashDividends field names as v1's dividendsData.cashDividends (rate/paymentDate/lastDatePrior/
  *  relatedTo/label), just moved under results[0].data instead of results[0].dividendsData. Also
- *  exposes stockDividends (splits/groupings/bonus-share events) and subscriptions, unused for now. */
+ *  exposes stockDividends (splits/groupings/bonus-share events) and subscriptions, unused for now.
+ *  STOCKS ONLY — BRAPI rejects this endpoint for FII tickers with a 400 "FII_DIVIDENDS_MISUSE"
+ *  pointing at /api/v2/fii/dividends instead (see BrapiV2FiiDividendsResponse below). */
 interface BrapiV2DividendsData {
   cashDividends?: BrapiCashDividend[];
+}
+
+/** Confirmed against a live call to /api/v2/fii/dividends with a real token (2026-07-20) — same
+ *  per-entry field names as the stocks endpoint (rate/paymentDate/lastDatePrior/relatedTo/label),
+ *  but the entries sit directly under a top-level "dividends" array instead of
+ *  results[0].data.cashDividends. FII-only; the stocks endpoint above rejects FII tickers and
+ *  this one is presumably the mirror case (untested — no FII lookup ever needs the stocks shape). */
+interface BrapiV2FiiDividendsResponse {
+  dividends?: BrapiCashDividend[];
 }
 
 /** Confirmed against a live call to /api/v2/stocks/statistics with a real token (2026-07-20).
@@ -218,14 +230,18 @@ export class BrapiProvider extends StockQuoteProvider {
     return history;
   }
 
-  /** Dividend/JCP payment history via BRAPI v2's dedicated dividends endpoint. Falls back to the
-   *  round-lot ticker only when the exact ticker's lookup fails outright (network/404) — an empty
-   *  cashDividends array for a ticker that *does* resolve is a legitimate answer ("never paid a
+  /** Dividend/JCP payment history via BRAPI v2's dedicated dividends endpoints — a separate one
+   *  per instrument type (confirmed 2026-07-20: /api/v2/stocks/dividends rejects FII tickers
+   *  outright with a 400 "FII_DIVIDENDS_MISUSE" pointing at /api/v2/fii/dividends instead). Falls
+   *  back to the round-lot ticker only when the exact ticker's lookup fails outright (network/404)
+   *  — an empty result for a ticker that *does* resolve is a legitimate answer ("never paid a
    *  dividend"), not a failure to retry. The payment per share is identical regardless of lot
    *  size, so there's no "approximate" flag to track here unlike the quote endpoint. */
-  async fetchDividends(ticker: string): Promise<DividendEvent[]> {
-    const data = await this.fetchDividendsV2WithFallback(ticker);
-    const cashDividends = data.cashDividends ?? [];
+  async fetchDividends(ticker: string, assetClass: DividendAssetClass): Promise<DividendEvent[]> {
+    const cashDividends =
+      assetClass === "FII"
+        ? ((await this.fetchFiiDividendsV2WithFallback(ticker)).dividends ?? [])
+        : ((await this.fetchDividendsV2WithFallback(ticker)).cashDividends ?? []);
 
     return cashDividends
       .filter((d): d is BrapiCashDividend & { rate: number } => typeof d.rate === "number")
@@ -315,6 +331,32 @@ export class BrapiProvider extends StockQuoteProvider {
     const data = body.results?.[0]?.data;
     if (!data) throw new Error(`BRAPI v2 returned no dividends data for ${ticker}`);
     return data;
+  }
+
+  /** Same "lookup fails → fall back to round lot" rule as the stock dividends fallback above. */
+  private async fetchFiiDividendsV2WithFallback(ticker: string): Promise<BrapiV2FiiDividendsResponse> {
+    try {
+      return await this.fetchRawFiiDividendsV2(ticker);
+    } catch (err) {
+      const base = baseTickerFor(ticker);
+      if (!base) throw err;
+      this.logger.warn(`No v2 FII dividends data for fractional ticker ${ticker}, falling back to ${base}: ${(err as Error).message}`);
+      return this.fetchRawFiiDividendsV2(base);
+    }
+  }
+
+  private async fetchRawFiiDividendsV2(ticker: string): Promise<BrapiV2FiiDividendsResponse> {
+    const token = process.env.BRAPI_TOKEN;
+    const url = `https://brapi.dev/api/v2/fii/dividends?symbols=${encodeURIComponent(ticker)}`;
+
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error(`BRAPI v2 FII dividends request failed for ${ticker}: ${res.status}`);
+    }
+    return (await res.json()) as BrapiV2FiiDividendsResponse;
   }
 
   private async fetchRawV2(ticker: string): Promise<BrapiV2QuoteData> {

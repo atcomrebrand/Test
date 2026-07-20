@@ -191,7 +191,7 @@ export class B3ImportService {
 
     const suggestions: DividendSuggestion[] = [];
     for (const [ticker, assetClass] of tickerClass) {
-      const events = await this.dividendsCache.get(ticker);
+      const events = await this.dividendsCache.get(ticker, assetClass);
       const txs = txsByTicker.get(ticker) ?? [];
 
       for (const event of events) {

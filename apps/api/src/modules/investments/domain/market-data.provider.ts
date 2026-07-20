@@ -68,6 +68,11 @@ export function parseChartRangeOptions(range: string | undefined, from: string |
 
 export type DividendType = "DIVIDENDO" | "JCP" | "OUTRO";
 
+/** BRAPI splits dividend data into distinct endpoints per instrument type (confirmed 2026-07-20:
+ *  stocks return a "FII_DIVIDENDS_MISUSE" 400 pointing at the dedicated FII endpoint instead of
+ *  serving the request), so every dividend lookup needs to know which one it's dealing with. */
+export type DividendAssetClass = "STOCK" | "FII";
+
 export interface DividendEvent {
   ticker: string;
   type: DividendType;
@@ -91,8 +96,9 @@ export abstract class StockQuoteProvider {
    *  fixed 3-month window, so it isn't folded into the detail cache. */
   abstract fetchHistory(ticker: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]>;
   /** Dividend/JCP payment history for the dividend calendar. Stocks/FIIs only — crypto has no
-   *  equivalent corporate action, so this isn't on CryptoQuoteProvider. */
-  abstract fetchDividends(ticker: string): Promise<DividendEvent[]>;
+   *  equivalent corporate action, so this isn't on CryptoQuoteProvider. assetClass picks which
+   *  BRAPI endpoint serves the request — see DividendAssetClass. */
+  abstract fetchDividends(ticker: string, assetClass: DividendAssetClass): Promise<DividendEvent[]>;
 }
 
 export abstract class CryptoQuoteProvider {
