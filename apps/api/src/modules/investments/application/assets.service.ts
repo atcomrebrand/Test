@@ -7,6 +7,31 @@ import { calculateStakingYield } from "../domain/staking-calculator";
 import { MarketPriceService } from "../infrastructure/market-price.service";
 import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto } from "./dto/asset.dto";
 
+/** Caps how many quote lookups run at once. Firing one BRAPI/CoinGecko request per asset with no
+ *  limit (as a plain Promise.all would) works fine for a handful of assets, but a portfolio just
+ *  bulk-imported from a B3 statement can easily have 20+ — and each fractional-lot ticker (BBAS3F,
+ *  SAPR4F...) tries two requests (the exact ticker, then its round-lot fallback, since BRAPI never
+ *  has fractional-specific quotes), so that burst can hit 30+ simultaneous requests. BRAPI's free
+ *  tier rate-limits hard, so some of those come back empty — not because the price doesn't exist,
+ *  but because too many requests landed in the same second. Serializing into small batches keeps
+ *  every lookup within the rate limit instead of losing a random subset of them. */
+const QUOTE_FETCH_CONCURRENCY = 4;
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function worker() {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await fn(items[current]);
+    }
+  }
+
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
+
 @Injectable()
 export class AssetsService {
   constructor(
@@ -16,12 +41,10 @@ export class AssetsService {
 
   async findAll(userId: string, assetClass?: string, forceRefresh = false) {
     const rows = await this.assets.findAllByUser(userId, assetClass);
-    return Promise.all(
-      rows.map(async (asset) => {
-        const transactions = await this.assets.listTransactions(asset.id);
-        return this.enrich(asset, transactions, forceRefresh);
-      }),
-    );
+    return mapWithConcurrency(rows, QUOTE_FETCH_CONCURRENCY, async (asset) => {
+      const transactions = await this.assets.listTransactions(asset.id);
+      return this.enrich(asset, transactions, forceRefresh);
+    });
   }
 
   async findOne(userId: string, id: string) {
