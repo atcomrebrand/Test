@@ -112,6 +112,13 @@ export interface MarketQuoteDetailResponse {
   ownedAssetId: string | null;
 }
 
+export interface NewsArticle {
+  title: string;
+  link: string;
+  source: string | null;
+  publishedAt: string;
+}
+
 export type FixedIncomeType = "CDB" | "LCI" | "LCA" | "TESOURO" | "OUTRO";
 export type FixedIncomeLiquidity = "DIARIA" | "NO_VENCIMENTO" | "OUTRO";
 export type FixedIncomeIndexer = "PREFIXADO" | "POS_FIXADO_CDI" | "IPCA_MAIS" | "OUTRO";

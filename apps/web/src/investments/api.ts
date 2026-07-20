@@ -11,6 +11,7 @@ import {
   InvestmentAsset,
   InvestmentFixedIncome,
   MarketQuoteDetailResponse,
+  NewsArticle,
 } from "./types";
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
@@ -283,6 +284,26 @@ export function useAddFixedIncomeInterest() {
       toast.success("Juros registrados!");
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Notícias
+// ---------------------------------------------------------------------------
+
+export function useMarketNews() {
+  return useQuery({
+    queryKey: ["investments", "news", "market"],
+    queryFn: () => api.get<NewsArticle[]>("/investments/news/market"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePortfolioNews() {
+  return useQuery({
+    queryKey: ["investments", "news", "portfolio"],
+    queryFn: () => api.get<NewsArticle[]>("/investments/news/portfolio"),
+    staleTime: 5 * 60 * 1000,
   });
 }
 

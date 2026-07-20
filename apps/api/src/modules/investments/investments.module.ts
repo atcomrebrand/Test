@@ -22,16 +22,24 @@ import { InvestmentsDashboardController } from "./interface/investments-dashboar
 import { CatalogCacheService } from "./infrastructure/catalog-cache.service";
 import { CatalogController } from "./interface/catalog.controller";
 import { MarketExplorerService } from "./application/market-explorer.service";
+import { NewsProvider } from "./domain/news.provider";
+import { GoogleNewsProvider } from "./infrastructure/providers/google-news.provider";
+import { NewsCacheService } from "./infrastructure/news-cache.service";
+import { NewsService } from "./application/news.service";
+import { NewsController } from "./interface/news.controller";
 
 @Module({
-  controllers: [FixedIncomesController, AssetsController, CashAccountsController, InvestmentsDashboardController, CatalogController],
+  controllers: [FixedIncomesController, AssetsController, CashAccountsController, InvestmentsDashboardController, CatalogController, NewsController],
   providers: [
     { provide: StockQuoteProvider, useClass: BrapiProvider },
     { provide: CryptoQuoteProvider, useClass: CoinGeckoProvider },
     { provide: EconomicIndicatorProvider, useClass: BacenProvider },
+    { provide: NewsProvider, useClass: GoogleNewsProvider },
     MarketPriceService,
     EconomicIndicatorCacheService,
     CatalogCacheService,
+    NewsCacheService,
+    NewsService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },
     FixedIncomesService,
     { provide: AssetRepository, useClass: AssetPrismaRepository },

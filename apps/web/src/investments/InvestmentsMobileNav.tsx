@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { MoreHorizontal, LayoutDashboard, Compass, LineChart, PiggyBank, History } from "lucide-react";
+import { MoreHorizontal, LayoutDashboard, Compass, LineChart, PiggyBank, History, Newspaper } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Modal } from "@/components/ui/Modal";
 
@@ -12,6 +12,7 @@ const PRIMARY_ITEMS = [
 
 const MORE_ITEMS = [
   { to: "/investimentos/renda-fixa", label: "Renda Fixa", icon: PiggyBank },
+  { to: "/investimentos/noticias", label: "Notícias", icon: Newspaper },
   { to: "/investimentos/historico", label: "Histórico", icon: History },
 ];
 
