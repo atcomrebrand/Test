@@ -1,8 +1,9 @@
-import { useState } from "react";
-import { CalendarDays } from "lucide-react";
+import { useMemo, useState } from "react";
+import { CalendarDays, Coins } from "lucide-react";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { StatTile } from "@/components/ui/StatTile";
 import { Tabs } from "@/components/ui/Tabs";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useMarketDividends, usePortfolioDividends } from "../api";
@@ -70,6 +71,10 @@ function DividendCalendarList({ entries, showPosition }: { entries: DividendCale
   );
 }
 
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function Dividends() {
   const [tab, setTab] = useState<"market" | "portfolio">("portfolio");
   const { data: marketData, isLoading: marketLoading } = useMarketDividends();
@@ -77,6 +82,16 @@ export default function Dividends() {
 
   const isLoading = tab === "market" ? marketLoading : portfolioLoading;
   const entries = tab === "market" ? marketData : portfolioData;
+
+  /** Only counts events already paid (or, lacking a payment date, past ex-date) — a future/
+   *  scheduled event isn't money "recebido" yet, just declared. */
+  const totalReceived = useMemo(() => {
+    if (tab !== "portfolio" || !portfolioData) return null;
+    const today = todayISO();
+    return portfolioData
+      .filter((e) => (e.paymentDate ?? e.exDate ?? "9999-99-99") <= today)
+      .reduce((sum, e) => sum + (e.estimatedAmount ?? 0), 0);
+  }, [tab, portfolioData]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -96,6 +111,10 @@ export default function Dividends() {
           { value: "market", label: "Todos os ativos" },
         ]}
       />
+
+      {tab === "portfolio" && !portfolioLoading && totalReceived !== null && (
+        <StatTile label="Total recebido (estimado, desde a compra)" value={formatCurrency(totalReceived)} icon={<Coins className="h-4 w-4" />} />
+      )}
 
       {isLoading && (
         <div className="flex flex-col gap-2">

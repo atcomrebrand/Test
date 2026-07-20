@@ -44,7 +44,12 @@ export class DividendsService {
     return sortByDateDesc(results.flat());
   }
 
-  /** Only stocks/FIIs the user actually owns (quantity > 0) — crypto has no dividend concept. */
+  /** Stocks/FIIs the user owns or has ever owned — crypto has no dividend concept. Each event is
+   *  valued against the position actually held on ITS OWN ex-dividend ("data-com") date, not the
+   *  position held today: a stock bought after an old payment date shouldn't show that payment as
+   *  received, and one bought before but partly sold since should still show the full amount held
+   *  back when the entitlement was earned. Same reconstruction B3ImportService's dividend
+   *  suggestions already use, just against every fetched event instead of only unmatched ones. */
   async getPortfolioCalendar(userId: string): Promise<DividendCalendarEntry[]> {
     const owned = await this.assets.findAllByUser(userId);
     const eligible = owned.filter((a) => a.class === "STOCK" || a.class === "FII").slice(0, MAX_PORTFOLIO_TICKERS);
@@ -53,23 +58,30 @@ export class DividendsService {
     const results = await Promise.all(
       eligible.map(async (asset) => {
         const transactions = await this.assets.listTransactions(asset.id);
-        const position = calculatePosition(
-          transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate })),
-        );
-        if (position.quantity <= 0) return [];
+        const txs = transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate }));
 
         const events = await this.dividendsCache.get(asset.ticker);
-        return events.map((event) => ({
-          ...event,
-          name: asset.name,
-          quantityHeld: position.quantity,
-          estimatedAmount: event.rate * position.quantity,
-        }));
+        return events
+          .map((event): DividendCalendarEntry | null => {
+            const positionAsOfDate = event.exDate ?? event.paymentDate;
+            if (!positionAsOfDate) return null;
+
+            const heldAsOf = txs.filter((t) => isoDate(t.transactionDate) <= positionAsOfDate);
+            const quantityHeld = calculatePosition(heldAsOf).quantity;
+            if (quantityHeld <= 0) return null;
+
+            return { ...event, name: asset.name, quantityHeld, estimatedAmount: event.rate * quantityHeld };
+          })
+          .filter((e): e is DividendCalendarEntry => e !== null);
       }),
     );
 
     return sortByDateDesc(results.flat());
   }
+}
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
 }
 
 function sortByDateDesc(entries: DividendCalendarEntry[]): DividendCalendarEntry[] {
