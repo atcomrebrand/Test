@@ -97,6 +97,18 @@ export function useCreateAsset() {
   });
 }
 
+export function useUpdateAsset() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.patch<InvestmentAsset>(`/investments/assets/${id}`, data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Ativo atualizado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useDeleteAsset() {
   const qc = useQueryClient();
   return useMutation({

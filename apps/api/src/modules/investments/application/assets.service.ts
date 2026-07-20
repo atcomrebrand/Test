@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { InvestmentAsset, InvestmentTransaction } from "@prisma/client";
 import { AssetRepository } from "../domain/asset.repository";
 import { calculatePosition } from "../domain/position-calculator";
+import { calculateStakingYield } from "../domain/staking-calculator";
 import { MarketPriceService } from "../infrastructure/market-price.service";
 import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto } from "./dto/asset.dto";
 
@@ -47,6 +48,7 @@ export class AssetsService {
       wallet: dto.wallet,
       network: dto.network,
       notes: dto.notes,
+      stakingApyPercent: dto.stakingApyPercent,
     });
   }
 
@@ -109,6 +111,8 @@ export class AssetsService {
     const dividendsReceived = await this.assets.listIncomes(asset.id).then((incomes) => incomes.reduce((sum, i) => sum + Number(i.amount), 0));
     const dividendYield = currentValue && currentValue > 0 ? (dividendsReceived / currentValue) * 100 : null;
 
+    const staking = this.estimateStaking(asset, position, transactions);
+
     return {
       ...asset,
       position,
@@ -118,7 +122,28 @@ export class AssetsService {
       profitPercent,
       dividendsReceived,
       dividendYield,
+      staking,
     };
+  }
+
+  /** Estimated (not realized) staking yield since the asset's first buy, at the user-configured
+   *  APY — informational only, never mixed into profit/dashboard totals. Real payouts should be
+   *  logged as a STAKING income entry, which does count toward totals like any other income. */
+  private estimateStaking(asset: InvestmentAsset, position: ReturnType<typeof calculatePosition>, transactions: InvestmentTransaction[]) {
+    if (!asset.stakingApyPercent || position.quantity <= 0) return null;
+
+    const buyDates = transactions.filter((t) => t.type === "BUY").map((t) => t.transactionDate.getTime());
+    if (buyDates.length === 0) return null;
+    const sinceDate = new Date(Math.min(...buyDates));
+
+    const result = calculateStakingYield({
+      investedAmount: position.investedAmount,
+      apyPercent: Number(asset.stakingApyPercent),
+      sinceDate,
+      asOfDate: new Date(),
+    });
+
+    return { apyPercent: Number(asset.stakingApyPercent), sinceDate, ...result };
   }
 
   private async getOwned(userId: string, id: string) {

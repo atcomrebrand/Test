@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, TrendingUp, TrendingDown, ArrowLeftRight, Coins } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, TrendingDown, ArrowLeftRight, Coins, Percent, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
@@ -10,6 +10,7 @@ import { useAsset, useAssetQuoteDetail, useRefreshAssetQuote } from "../api";
 import { AssetPriceChart } from "../components/AssetPriceChart";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
+import { StakingConfigModal } from "../components/StakingConfigModal";
 
 function timeAgo(iso: string) {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
@@ -29,6 +30,7 @@ export default function AssetDetail() {
 
   const [transactionOpen, setTransactionOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
+  const [stakingOpen, setStakingOpen] = useState(false);
 
   if (assetLoading) {
     return (
@@ -74,6 +76,12 @@ export default function AssetDetail() {
             <Coins className="h-4 w-4" />
             Provento
           </Button>
+          {asset.class === "CRYPTO" && (
+            <Button variant="outline" size="sm" onClick={() => setStakingOpen(true)}>
+              <Percent className="h-4 w-4" />
+              Staking
+            </Button>
+          )}
         </div>
       </div>
 
@@ -111,6 +119,51 @@ export default function AssetDetail() {
           {detail && detail.history.length > 0 && <AssetPriceChart history={detail.history} positive={positive} />}
         </CardContent>
       </Card>
+
+      {asset.class === "CRYPTO" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Staking</CardTitle>
+            <Button variant="ghost" size="sm" onClick={() => setStakingOpen(true)}>
+              <Pencil className="h-4 w-4" />
+              {asset.stakingApyPercent ? "Editar" : "Configurar"}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {asset.staking ? (
+              <div className="flex flex-col gap-3">
+                <p className="text-sm text-muted">
+                  Taxa configurada: <span className="font-semibold text-[rgb(var(--text))]">{asset.staking.apyPercent}% a.a.</span> — cada
+                  corretora paga uma taxa diferente, então ajuste aqui pra bater com a sua.
+                </p>
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl surface-2 p-3">
+                    <p className="text-xs text-muted">Desde</p>
+                    <p className="font-semibold">{formatDate(asset.staking.sinceDate)}</p>
+                  </div>
+                  <div className="rounded-xl surface-2 p-3">
+                    <p className="text-xs text-muted">Dias acumulando</p>
+                    <p className="font-semibold">{asset.staking.daysHeld}</p>
+                  </div>
+                  <div className="rounded-xl bg-amber-500/10 p-3">
+                    <p className="text-xs text-muted">Rendimento estimado</p>
+                    <p className="font-semibold text-amber-700 dark:text-amber-400">{formatCurrency(asset.staking.estimatedYield)}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-muted">
+                  Isso é uma estimativa (não entra no lucro nem no dashboard) — pra registrar um rendimento que você
+                  recebeu de verdade, use o botão "Provento" e escolha o tipo "Staking".
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted">
+                Sem taxa de staking configurada pra {asset.ticker}. Se você faz staking dessa moeda em alguma corretora,
+                configure a taxa (APY) pra acompanhar o rendimento estimado aqui.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {detail && Object.keys(detail.fundamentals).length > 0 && (
         <Card>
@@ -184,6 +237,7 @@ export default function AssetDetail() {
 
       <TransactionModal assetId={transactionOpen ? asset.id : null} onClose={() => setTransactionOpen(false)} />
       <AssetIncomeModal assetId={incomeOpen ? asset.id : null} onClose={() => setIncomeOpen(false)} />
+      <StakingConfigModal asset={stakingOpen ? asset : null} onClose={() => setStakingOpen(false)} />
     </div>
   );
 }

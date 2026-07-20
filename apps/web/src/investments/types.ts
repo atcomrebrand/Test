@@ -1,6 +1,14 @@
 export type AssetClass = "STOCK" | "FII" | "CRYPTO";
 export type TransactionType = "BUY" | "SELL";
-export type AssetIncomeType = "DIVIDENDO" | "JCP" | "RENDIMENTO" | "OUTRO";
+export type AssetIncomeType = "DIVIDENDO" | "JCP" | "RENDIMENTO" | "STAKING" | "OUTRO";
+
+export interface StakingEstimate {
+  apyPercent: number;
+  sinceDate: string;
+  daysHeld: number;
+  estimatedYield: number;
+  estimatedValue: number;
+}
 
 export interface InvestmentTransaction {
   id: string;
@@ -38,6 +46,7 @@ export interface InvestmentAsset {
   network: string | null;
   notes: string | null;
   createdAt: string;
+  stakingApyPercent: string | null;
   position: Position;
   currentPrice: number | null;
   currentValue: number | null;
@@ -45,6 +54,7 @@ export interface InvestmentAsset {
   profitPercent: number | null;
   dividendsReceived: number;
   dividendYield: number | null;
+  staking: StakingEstimate | null;
   transactions?: InvestmentTransaction[];
   incomeHistory?: InvestmentIncomeRow[];
 }

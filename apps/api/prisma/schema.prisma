@@ -88,6 +88,7 @@ enum InvestmentIncomeType {
   JCP
   RENDIMENTO
   JUROS
+  STAKING
   OUTRO
 }
 
@@ -393,19 +394,23 @@ model FinancingInstallment {
 /// Quantity/average price/current value are always derived from InvestmentTransaction rows,
 /// never stored directly, so they can never drift out of sync.
 model InvestmentAsset {
-  id        String               @id @default(cuid())
-  userId    String
-  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  class     InvestmentAssetClass
-  ticker    String
-  name      String?
-  broker    String?
-  wallet    String? // crypto only
-  network   String? // crypto only
-  notes     String?
-  deletedAt DateTime?
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @updatedAt
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class             InvestmentAssetClass
+  ticker            String
+  name              String?
+  broker            String?
+  wallet            String? // crypto only
+  network           String? // crypto only
+  /// APY de staking (% a.a.) configurado manualmente — cada corretora oferece uma taxa
+  /// diferente pra staking de stablecoins e outras criptos, então não há uma taxa "de mercado"
+  /// única pra buscar automaticamente.
+  stakingApyPercent Decimal?             @db.Decimal(7, 4)
+  notes             String?
+  deletedAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
 
   transactions InvestmentTransaction[]
   incomes      InvestmentIncome[]

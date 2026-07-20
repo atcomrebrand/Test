@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, LineChart, Trash2, ArrowLeftRight, Coins, RefreshCw } from "lucide-react";
+import { Plus, LineChart, Trash2, ArrowLeftRight, Coins, RefreshCw, Percent } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -9,10 +9,11 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { Tabs } from "@/components/ui/Tabs";
 import { formatCurrency } from "@/lib/format";
 import { useAssets, useDeleteAsset, useRefreshAssets } from "../api";
-import { AssetClass } from "../types";
+import { AssetClass, InvestmentAsset } from "../types";
 import { AssetFormModal } from "../components/AssetFormModal";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
+import { StakingConfigModal } from "../components/StakingConfigModal";
 
 const TAB_OPTIONS = [
   { value: "STOCK", label: "Ações" },
@@ -35,6 +36,7 @@ export default function Portfolio() {
   const [formOpen, setFormOpen] = useState(false);
   const [transactionTarget, setTransactionTarget] = useState<string | null>(null);
   const [incomeTarget, setIncomeTarget] = useState<string | null>(null);
+  const [stakingTarget, setStakingTarget] = useState<InvestmentAsset | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -140,7 +142,16 @@ export default function Portfolio() {
                 </p>
               )}
 
-              <div className="flex gap-2">
+              {tab === "CRYPTO" && asset.staking && (
+                <div className="rounded-xl bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+                  <p className="font-semibold">Staking a {asset.staking.apyPercent}% a.a.</p>
+                  <p>
+                    Estimativa acumulada: {formatCurrency(asset.staking.estimatedYield)} ({asset.staking.daysHeld} dias)
+                  </p>
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2">
                 <Button variant="secondary" size="sm" onClick={() => setTransactionTarget(asset.id)}>
                   <ArrowLeftRight className="h-4 w-4" />
                   Compra/Venda
@@ -149,6 +160,12 @@ export default function Portfolio() {
                   <Coins className="h-4 w-4" />
                   Provento
                 </Button>
+                {tab === "CRYPTO" && (
+                  <Button variant="outline" size="sm" onClick={() => setStakingTarget(asset)}>
+                    <Percent className="h-4 w-4" />
+                    Staking
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -158,6 +175,7 @@ export default function Portfolio() {
       <AssetFormModal open={formOpen} onClose={() => setFormOpen(false)} assetClass={tab} />
       <TransactionModal assetId={transactionTarget} onClose={() => setTransactionTarget(null)} />
       <AssetIncomeModal assetId={incomeTarget} onClose={() => setIncomeTarget(null)} />
+      <StakingConfigModal asset={stakingTarget} onClose={() => setStakingTarget(null)} />
     </div>
   );
 }

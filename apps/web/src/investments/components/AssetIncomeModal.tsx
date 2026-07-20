@@ -13,6 +13,7 @@ const TYPE_OPTIONS = [
   { value: "DIVIDENDO", label: "Dividendo" },
   { value: "JCP", label: "JCP" },
   { value: "RENDIMENTO", label: "Rendimento" },
+  { value: "STAKING", label: "Staking" },
   { value: "OUTRO", label: "Outro" },
 ];
 

@@ -9,6 +9,7 @@ export interface CreateAssetData {
   wallet?: string;
   network?: string;
   notes?: string;
+  stakingApyPercent?: number;
 }
 
 export interface CreateTransactionData {

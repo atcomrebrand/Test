@@ -41,6 +41,7 @@ export class AssetPrismaRepository extends AssetRepository {
           wallet: data.wallet,
           network: data.network,
           notes: data.notes,
+          stakingApyPercent: data.stakingApyPercent,
         },
       });
       await tx.investmentAuditLog.create({

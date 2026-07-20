@@ -3,7 +3,7 @@ import { IsDateString, IsIn, IsNumber, IsOptional, IsPositive, IsString, Min, Mi
 
 const ASSET_CLASSES = ["STOCK", "FII", "CRYPTO"] as const;
 const TRANSACTION_TYPES = ["BUY", "SELL"] as const;
-const INCOME_TYPES = ["DIVIDENDO", "JCP", "RENDIMENTO", "OUTRO"] as const;
+const INCOME_TYPES = ["DIVIDENDO", "JCP", "RENDIMENTO", "STAKING", "OUTRO"] as const;
 
 export class CreateAssetDto {
   @IsIn(ASSET_CLASSES)
@@ -34,6 +34,14 @@ export class CreateAssetDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  /** Staking APY (% a.a.) — configurable because it varies per exchange, mainly relevant for
+   *  stablecoins (USDT, USDC, BUSD...) but usable for any crypto that offers staking. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  stakingApyPercent?: number;
 }
 
 export class UpdateAssetDto {
@@ -42,6 +50,7 @@ export class UpdateAssetDto {
   @IsOptional() @IsString() wallet?: string;
   @IsOptional() @IsString() network?: string;
   @IsOptional() @IsString() notes?: string;
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) stakingApyPercent?: number;
 }
 
 export class CreateTransactionDto {
