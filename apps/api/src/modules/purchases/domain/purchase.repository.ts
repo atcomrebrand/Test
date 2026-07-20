@@ -29,7 +29,6 @@ export interface CreatePurchaseWithInstallments {
     purchaseDate: Date;
     kind: string;
     installmentsCount: number;
-    downPayment?: number;
     isRecurring?: boolean;
     recurrenceEndDate?: Date;
     tags?: string[];

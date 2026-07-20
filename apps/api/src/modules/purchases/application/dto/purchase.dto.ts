@@ -36,11 +36,24 @@ export class CreatePurchaseDto {
   @IsString()
   notes?: string;
 
+  /** Required for CASH (the amount) and RECURRING (the monthly amount) — ignored for INSTALLMENT, where it's computed as installmentAmount × installmentsCount. */
+  @IsOptional()
   @IsNumber()
   @IsPositive()
-  totalAmount!: number;
+  totalAmount?: number;
 
-  /** Purchase date for CASH/INSTALLMENT; due date of the next charge for RECURRING (see installment-generator.ts). */
+  /** Required for INSTALLMENT — the fixed value of each parcela (no total-splitting, no down payment). */
+  @IsOptional()
+  @IsNumber()
+  @IsPositive()
+  installmentAmount?: number;
+
+  /**
+   * Purchase date for a brand-new CASH/INSTALLMENT purchase (translated to an invoice month via
+   * the card's closing day). For RECURRING, or an INSTALLMENT already `paidInstallmentsCount` in
+   * progress, this is instead the due date of the next open charge/parcela, anchored directly —
+   * see installment-generator.ts.
+   */
   @IsDateString()
   purchaseDate!: string;
 
@@ -54,10 +67,12 @@ export class CreatePurchaseDto {
   @Max(48)
   installmentsCount?: number;
 
+  /** INSTALLMENT only: how many parcelas (from #1) are already paid, for a plan already in progress. */
   @IsOptional()
-  @IsNumber()
+  @Type(() => Number)
+  @IsInt()
   @Min(0)
-  downPayment?: number;
+  paidInstallmentsCount?: number;
 
   @IsOptional()
   @IsBoolean()

@@ -8,7 +8,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { useCards } from "@/features/useCards";
 import { useCategories } from "@/features/useCategories";
 import { useCreatePurchase, useUpdatePurchase } from "@/features/usePurchases";
-import { previewInstallments, previewRecurringOccurrence } from "@/lib/installmentPreview";
+import { previewInstallments, previewInstallmentsInProgress, previewRecurringOccurrence } from "@/lib/installmentPreview";
 import { formatCurrency, formatDate, monthLabel } from "@/lib/format";
 import { Purchase } from "@/types";
 
@@ -37,9 +37,11 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
     merchant: "",
     notes: "",
     totalAmount: "",
+    installmentAmount: "",
     purchaseDate: todayISO(),
-    installmentsCount: "1",
-    downPayment: "",
+    installmentsCount: "2",
+    inProgress: false,
+    paidInstallmentsCount: "0",
     recurrenceEndDate: "",
     isFavorite: false,
     tags: "",
@@ -48,6 +50,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
   useEffect(() => {
     if (purchase) {
       setKind(purchase.kind);
+      const firstInstallmentAmount = purchase.installments?.[0]?.amount;
       setForm({
         name: purchase.name,
         cardId: purchase.cardId,
@@ -55,9 +58,11 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         merchant: purchase.merchant ?? "",
         notes: purchase.notes ?? "",
         totalAmount: String(purchase.totalAmount),
+        installmentAmount: String(firstInstallmentAmount ?? Number(purchase.totalAmount) / (purchase.installmentsCount || 1)),
         purchaseDate: purchase.purchaseDate.slice(0, 10),
         installmentsCount: String(purchase.installmentsCount),
-        downPayment: purchase.downPayment ? String(purchase.downPayment) : "",
+        inProgress: false,
+        paidInstallmentsCount: "0",
         recurrenceEndDate: purchase.recurrenceEndDate ? purchase.recurrenceEndDate.slice(0, 10) : "",
         isFavorite: purchase.isFavorite,
         tags: purchase.tags.join(", "),
@@ -71,9 +76,11 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
         merchant: "",
         notes: "",
         totalAmount: "",
+        installmentAmount: "",
         purchaseDate: todayISO(),
-        installmentsCount: "1",
-        downPayment: "",
+        installmentsCount: "2",
+        inProgress: false,
+        paidInstallmentsCount: "0",
         recurrenceEndDate: "",
         isFavorite: false,
         tags: "",
@@ -83,6 +90,8 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
   }, [purchase, open, cards]);
 
   const selectedCard = cards?.find((c) => c.id === form.cardId);
+  /** Assinaturas e parcelamentos já em andamento cobram num dia conhecido direto — sem passar pelo fechamento da fatura. */
+  const skipsClosingDay = kind === "RECURRING" || (kind === "INSTALLMENT" && form.inProgress);
 
   const preview = useMemo(() => {
     if (!selectedCard || kind === "CASH") return [];
@@ -93,19 +102,39 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
       });
       return occurrence ? [occurrence] : [];
     }
+    const installmentAmount = Number(form.installmentAmount) || 0;
+    const installmentsCount = Number(form.installmentsCount) || 1;
+    if (form.inProgress) {
+      return previewInstallmentsInProgress({
+        nextDueDate: new Date(form.purchaseDate + "T12:00:00"),
+        installmentAmount,
+        installmentsCount,
+        paidInstallmentsCount: Number(form.paidInstallmentsCount) || 0,
+      });
+    }
     return previewInstallments({
       purchaseDate: new Date(form.purchaseDate + "T12:00:00"),
       closingDay: selectedCard.closingDay,
       dueDay: selectedCard.dueDay,
-      totalAmount: Number(form.totalAmount) || 0,
-      installmentsCount: Number(form.installmentsCount) || 1,
-      downPayment: form.downPayment ? Number(form.downPayment) : 0,
+      installmentAmount,
+      installmentsCount,
     });
-  }, [selectedCard, form.purchaseDate, form.totalAmount, form.installmentsCount, form.downPayment, kind]);
+  }, [
+    selectedCard,
+    form.purchaseDate,
+    form.totalAmount,
+    form.installmentAmount,
+    form.installmentsCount,
+    form.inProgress,
+    form.paidInstallmentsCount,
+    kind,
+  ]);
 
   const serviceMatch = useMemo(() => (kind === "RECURRING" ? matchServiceIcon(form.name) : null), [kind, form.name]);
 
   const activeCards = (cards ?? []).filter((c) => (isEdit ? true : c.active));
+
+  const installmentTotal = (Number(form.installmentAmount) || 0) * (Number(form.installmentsCount) || 0);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -115,21 +144,28 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
       categoryId: form.categoryId || undefined,
       merchant: form.merchant || undefined,
       notes: form.notes || undefined,
-      totalAmount: Number(form.totalAmount),
       purchaseDate: new Date(form.purchaseDate + "T12:00:00").toISOString(),
       kind,
-      installmentsCount: kind === "RECURRING" ? undefined : Number(form.installmentsCount),
-      downPayment: kind === "INSTALLMENT" && form.downPayment ? Number(form.downPayment) : undefined,
-      recurrenceEndDate:
-        kind === "RECURRING" && form.recurrenceEndDate
-          ? new Date(form.recurrenceEndDate + "T12:00:00").toISOString()
-          : undefined,
       isFavorite: form.isFavorite,
       tags: form.tags
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean),
     };
+
+    if (kind === "INSTALLMENT") {
+      payload.installmentAmount = Number(form.installmentAmount);
+      payload.installmentsCount = Number(form.installmentsCount);
+      payload.paidInstallmentsCount = form.inProgress ? Number(form.paidInstallmentsCount) || 0 : undefined;
+    } else if (kind === "RECURRING") {
+      payload.totalAmount = Number(form.totalAmount);
+      payload.recurrenceEndDate = form.recurrenceEndDate
+        ? new Date(form.recurrenceEndDate + "T12:00:00").toISOString()
+        : undefined;
+    } else {
+      payload.totalAmount = Number(form.totalAmount);
+      payload.installmentsCount = 1;
+    }
 
     const onSuccess = () => onClose();
     if (isEdit && purchase) {
@@ -159,7 +195,7 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
           disabled={isEdit}
           options={activeCards.map((c) => ({
             value: c.id,
-            label: kind === "RECURRING" ? c.name : `${c.name} (fecha dia ${c.closingDay})`,
+            label: skipsClosingDay ? c.name : `${c.name} (fecha dia ${c.closingDay})`,
           }))}
           value={form.cardId}
           onChange={(e) => setForm({ ...form, cardId: e.target.value })}
@@ -174,25 +210,45 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
 
         <Input label="Estabelecimento" value={form.merchant} onChange={(e) => setForm({ ...form, merchant: e.target.value })} />
         <Input
-          label={kind === "RECURRING" ? "Próximo pagamento" : "Data da compra"}
+          label={kind === "RECURRING" ? "Próximo pagamento" : skipsClosingDay ? "Data da próxima parcela" : "Data da compra"}
           type="date"
           disabled={isEdit}
           value={form.purchaseDate}
           onChange={(e) => setForm({ ...form, purchaseDate: e.target.value })}
-          hint={kind === "RECURRING" ? "Dia em que essa assinatura cobra no cartão — não a fatura inteira." : undefined}
+          hint={
+            kind === "RECURRING"
+              ? "Dia em que essa assinatura cobra no cartão — não a fatura inteira."
+              : skipsClosingDay
+                ? "Data de vencimento da parcela em aberto mais próxima."
+                : undefined
+          }
           required
         />
 
-        <Input
-          label={kind === "RECURRING" ? "Valor mensal (R$)" : "Valor total (R$)"}
-          type="number"
-          step="0.01"
-          min="0.01"
-          disabled={isEdit}
-          value={form.totalAmount}
-          onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
-          required
-        />
+        {kind === "INSTALLMENT" ? (
+          <Input
+            label="Valor da parcela (R$)"
+            type="number"
+            step="0.01"
+            min="0.01"
+            disabled={isEdit}
+            value={form.installmentAmount}
+            onChange={(e) => setForm({ ...form, installmentAmount: e.target.value })}
+            hint="O valor de cada parcela — sem cálculo de juros, o mesmo número que aparece na fatura."
+            required
+          />
+        ) : (
+          <Input
+            label={kind === "RECURRING" ? "Valor mensal (R$)" : "Valor total (R$)"}
+            type="number"
+            step="0.01"
+            min="0.01"
+            disabled={isEdit}
+            value={form.totalAmount}
+            onChange={(e) => setForm({ ...form, totalAmount: e.target.value })}
+            required
+          />
+        )}
 
         <div>
           <Label>Tipo de compra</Label>
@@ -217,14 +273,28 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
               value={form.installmentsCount}
               onChange={(e) => setForm({ ...form, installmentsCount: e.target.value })}
             />
-            <Input
-              label="Entrada (opcional)"
-              type="number"
-              step="0.01"
-              min="0"
-              value={form.downPayment}
-              onChange={(e) => setForm({ ...form, downPayment: e.target.value })}
-            />
+            <label className="flex items-center gap-2 self-end pb-2.5 text-sm">
+              <input
+                type="checkbox"
+                checked={form.inProgress}
+                onChange={(e) => setForm({ ...form, inProgress: e.target.checked })}
+                className="h-4 w-4 rounded accent-accent-500"
+              />
+              Esse parcelamento já está em andamento
+            </label>
+
+            {form.inProgress && (
+              <Input
+                className="sm:col-span-2"
+                label="Parcelas já pagas"
+                type="number"
+                min="0"
+                max={String(Math.max(0, (Number(form.installmentsCount) || 2) - 1))}
+                value={form.paidInstallmentsCount}
+                onChange={(e) => setForm({ ...form, paidInstallmentsCount: e.target.value })}
+                hint="As parcelas já pagas entram automaticamente marcadas como pagas."
+              />
+            )}
           </>
         )}
 
@@ -266,6 +336,16 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
           Marcar como favorita
         </label>
 
+        {!isEdit && kind === "INSTALLMENT" && installmentTotal > 0 && (
+          <div className="sm:col-span-2 rounded-2xl surface-2 p-4">
+            <p className="text-sm text-muted">
+              {form.installmentsCount}x de{" "}
+              <span className="font-semibold text-[rgb(var(--text))]">{formatCurrency(Number(form.installmentAmount) || 0)}</span>{" "}
+              = total de <span className="font-semibold text-[rgb(var(--text))]">{formatCurrency(installmentTotal)}</span>
+            </p>
+          </div>
+        )}
+
         {!isEdit && preview.length > 0 && kind !== "RECURRING" && (
           <div className="sm:col-span-2 rounded-2xl surface-2 p-4">
             <p className="mb-2 text-sm font-semibold">
@@ -277,12 +357,19 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
                   <span className="text-muted">
                     {preview.length > 1 ? `Parcela ${p.number}/${preview.length}` : "Pagamento único"} · {monthLabel(p.referenceMonth, p.referenceYear, true)}
                   </span>
-                  <span className="font-medium">{formatCurrency(p.amount)}</span>
+                  <span className="flex items-center gap-2">
+                    {p.status === "PAID" && (
+                      <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        paga
+                      </span>
+                    )}
+                    <span className="font-medium">{formatCurrency(p.amount)}</span>
+                  </span>
                 </div>
               ))}
             </div>
             <p className="mt-2 text-xs text-muted">
-              Primeiro vencimento: {formatDate(preview[0].dueDate)}
+              {form.inProgress ? "Próxima parcela em aberto" : "Primeiro vencimento"}: {formatDate(preview.find((p) => p.status !== "PAID")?.dueDate ?? preview[0].dueDate)}
             </p>
           </div>
         )}

@@ -53,7 +53,9 @@ export const HELP_TOPICS: HelpTopic[] = [
     summary:
       "Toda compra — parcelada, à vista ou assinatura recorrente (tipo Netflix) — é lançada aqui. Ao preencher valor e número de parcelas, você já vê uma prévia de cada parcela e em qual mês ela cai.",
     tips: [
-      "Em compra à vista ou parcelada, a data é quando você comprou, e o sistema calcula a fatura certa pelo dia de fechamento do cartão.",
+      "Em parcelada, você informa o valor de cada parcela direto (não o total) — é o mesmo número que aparece na sua fatura, sem entrada e sem cálculo de juros.",
+      "Parcelamento já em andamento? Marque \"já está em andamento\", diga quantas parcelas já foram pagas e a data da próxima em aberto — o sistema marca as anteriores como pagas automaticamente.",
+      "Em compra à vista ou parcelada nova, a data é quando você comprou, e o sistema calcula a fatura certa pelo dia de fechamento do cartão.",
       "Em assinatura, a data é o \"Próximo pagamento\" — o dia em que ela cobra no cartão todo mês, direto, sem passar pelo cálculo de fechamento de fatura.",
       "Marque \"Favorita\" pra destacar compras importantes e filtrar por elas depois.",
       "Use \"Duplicar\" pra repetir rapidamente uma compra parecida sem preencher tudo de novo.",

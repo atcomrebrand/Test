@@ -1,4 +1,4 @@
-import { generateInstallments, generateRecurringOccurrences } from "./installment-generator";
+import { generateInstallments, generateInstallmentsInProgress, generateRecurringOccurrences } from "./installment-generator";
 
 describe("generateInstallments", () => {
   it("puts a purchase made on/before the closing day into the current invoice", () => {
@@ -6,7 +6,7 @@ describe("generateInstallments", () => {
       purchaseDate: new Date(2026, 6, 8), // July 8th
       closingDay: 10,
       dueDay: 17,
-      totalAmount: 1200,
+      installmentAmount: 1200,
       installmentsCount: 1,
     });
 
@@ -19,7 +19,7 @@ describe("generateInstallments", () => {
       purchaseDate: new Date(2026, 6, 12), // July 12th
       closingDay: 10,
       dueDay: 17,
-      totalAmount: 1200,
+      installmentAmount: 1200,
       installmentsCount: 1,
     });
 
@@ -32,7 +32,7 @@ describe("generateInstallments", () => {
       purchaseDate: new Date(2026, 11, 15), // Dec 15th
       closingDay: 10,
       dueDay: 5,
-      totalAmount: 100,
+      installmentAmount: 100,
       installmentsCount: 3,
     });
 
@@ -43,31 +43,16 @@ describe("generateInstallments", () => {
     ]);
   });
 
-  it("splits amounts evenly and puts the rounding remainder on the last installment", () => {
+  it("charges the exact same fixed amount every installment, with no splitting or remainder", () => {
     const result = generateInstallments({
       purchaseDate: new Date(2026, 0, 1),
       closingDay: 10,
       dueDay: 5,
-      totalAmount: 100,
+      installmentAmount: 33.33,
       installmentsCount: 3,
     });
 
-    expect(result.map((i) => i.amount)).toEqual([33.33, 33.33, 33.34]);
-    const sum = result.reduce((acc, i) => acc + i.amount, 0);
-    expect(Math.round(sum * 100) / 100).toBe(100);
-  });
-
-  it("subtracts the down payment before dividing installments", () => {
-    const result = generateInstallments({
-      purchaseDate: new Date(2026, 0, 1),
-      closingDay: 10,
-      dueDay: 5,
-      totalAmount: 1000,
-      installmentsCount: 2,
-      downPayment: 200,
-    });
-
-    expect(result.map((i) => i.amount)).toEqual([400, 400]);
+    expect(result.map((i) => i.amount)).toEqual([33.33, 33.33, 33.33]);
   });
 
   it("generates a single installment for cash purchases", () => {
@@ -75,7 +60,7 @@ describe("generateInstallments", () => {
       purchaseDate: new Date(2026, 3, 1),
       closingDay: 10,
       dueDay: 5,
-      totalAmount: 250,
+      installmentAmount: 250,
       installmentsCount: 1,
     });
 
@@ -83,25 +68,12 @@ describe("generateInstallments", () => {
     expect(result[0].amount).toBe(250);
   });
 
-  it("rejects a down payment greater than or equal to the total", () => {
-    expect(() =>
-      generateInstallments({
-        purchaseDate: new Date(),
-        closingDay: 10,
-        dueDay: 5,
-        totalAmount: 100,
-        installmentsCount: 2,
-        downPayment: 100,
-      }),
-    ).toThrow();
-  });
-
   it("sets the due date to the card's due day in the reference month", () => {
     const result = generateInstallments({
       purchaseDate: new Date(2026, 6, 8),
       closingDay: 10,
       dueDay: 22,
-      totalAmount: 100,
+      installmentAmount: 100,
       installmentsCount: 1,
     });
 
@@ -114,7 +86,7 @@ describe("generateInstallments", () => {
       purchaseDate: new Date(2026, 6, 15), // July 15th
       closingDay: 29,
       dueDay: 29,
-      totalAmount: 100,
+      installmentAmount: 100,
       installmentsCount: 1,
     });
 
@@ -127,7 +99,7 @@ describe("generateInstallments", () => {
       purchaseDate: new Date(2026, 0, 15), // Jan 15th, closes before day 31 so lands on January invoice
       closingDay: 31,
       dueDay: 31,
-      totalAmount: 100,
+      installmentAmount: 100,
       installmentsCount: 2,
     });
 
@@ -135,6 +107,76 @@ describe("generateInstallments", () => {
     expect(result[0].dueDate.getDate()).toBe(31);
     expect(result[1].dueDate.getMonth()).toBe(1); // February 2026 has 28 days
     expect(result[1].dueDate.getDate()).toBe(28);
+  });
+});
+
+describe("generateInstallmentsInProgress", () => {
+  it("marks the first N parcelas as PAID and anchors the schedule on nextDueDate", () => {
+    const result = generateInstallmentsInProgress({
+      nextDueDate: new Date(2026, 5, 10), // June 10th — due date of parcela #4 (3 already paid)
+      installmentAmount: 150,
+      installmentsCount: 6,
+      paidInstallmentsCount: 3,
+    });
+
+    expect(result.map((i) => i.status)).toEqual(["PAID", "PAID", "PAID", "PENDING", "PENDING", "PENDING"]);
+    expect(result.map((i) => [i.dueDate.getFullYear(), i.dueDate.getMonth(), i.dueDate.getDate()])).toEqual([
+      [2026, 2, 10], // March
+      [2026, 3, 10], // April
+      [2026, 4, 10], // May
+      [2026, 5, 10], // June — matches nextDueDate
+      [2026, 6, 10], // July
+      [2026, 7, 10], // August
+    ]);
+    expect(result[0].paidAt).toEqual(result[0].dueDate);
+    expect(result[0].paidAmount).toBe(150);
+    expect(result[3].paidAt).toBeNull();
+    expect(result[3].paidAmount).toBeNull();
+  });
+
+  it("supports a brand-new plan logged as in-progress with 0 paid (equivalent to a fresh start)", () => {
+    const result = generateInstallmentsInProgress({
+      nextDueDate: new Date(2026, 0, 15),
+      installmentAmount: 80,
+      installmentsCount: 3,
+      paidInstallmentsCount: 0,
+    });
+
+    expect(result.every((i) => i.status === "PENDING")).toBe(true);
+    expect(result.map((i) => i.dueDate.getDate())).toEqual([15, 15, 15]);
+  });
+
+  it("clamps back-dated due days for shorter months", () => {
+    const result = generateInstallmentsInProgress({
+      nextDueDate: new Date(2026, 2, 31), // March 31st — parcela #3
+      installmentAmount: 100,
+      installmentsCount: 5,
+      paidInstallmentsCount: 2,
+    });
+
+    expect(result.map((i) => i.dueDate.getDate())).toEqual([31, 28, 31, 30, 31]); // Jan 31, Feb 28, Mar 31, Apr 30, May 31
+  });
+
+  it("rejects paidInstallmentsCount equal to or greater than the total", () => {
+    expect(() =>
+      generateInstallmentsInProgress({
+        nextDueDate: new Date(),
+        installmentAmount: 100,
+        installmentsCount: 3,
+        paidInstallmentsCount: 3,
+      }),
+    ).toThrow();
+  });
+
+  it("rejects a negative paidInstallmentsCount", () => {
+    expect(() =>
+      generateInstallmentsInProgress({
+        nextDueDate: new Date(),
+        installmentAmount: 100,
+        installmentsCount: 3,
+        paidInstallmentsCount: -1,
+      }),
+    ).toThrow();
   });
 });
 

@@ -4,9 +4,8 @@ export interface GenerateInstallmentsInput {
   purchaseDate: Date;
   closingDay: number;
   dueDay: number;
-  totalAmount: number;
+  installmentAmount: number;
   installmentsCount: number;
-  downPayment?: number;
 }
 
 export interface GeneratedInstallment {
@@ -15,49 +14,89 @@ export interface GeneratedInstallment {
   referenceMonth: number; // 1-12
   referenceYear: number;
   dueDate: Date;
+  status?: "PENDING" | "PAID";
+  paidAt?: Date | null;
+  paidAmount?: number | null;
 }
 
 /**
- * Core billing-cycle engine.
+ * Core billing-cycle engine, for a brand-new purchase.
  *
  * A purchase made on/before the card's closing day lands on the *current*
  * invoice; made after the closing day, it rolls to *next month*'s invoice.
  * From there, installment N simply advances N-1 months from that reference
- * invoice. Amounts are split evenly with the rounding remainder absorbed by
- * the last installment, so the sum always equals the financed total exactly
- * (never more, never less) — this is a hard invariant of the product.
+ * invoice. Every installment charges the same fixed `installmentAmount` —
+ * that's the number printed on the receipt ("10x de R$ 50"), not a total
+ * that gets divided, so there's no rounding remainder to absorb.
  */
 export function generateInstallments(input: GenerateInstallmentsInput): GeneratedInstallment[] {
-  const { purchaseDate, closingDay, dueDay, totalAmount, installmentsCount, downPayment = 0 } = input;
+  const { purchaseDate, closingDay, dueDay, installmentAmount, installmentsCount } = input;
 
   if (installmentsCount < 1) throw new Error("Número de parcelas deve ser ao menos 1.");
-  if (totalAmount <= 0) throw new Error("Valor total deve ser maior que zero.");
-  if (downPayment < 0) throw new Error("Entrada não pode ser negativa.");
-  if (downPayment >= totalAmount) throw new Error("Entrada não pode ser maior ou igual ao valor total.");
+  if (installmentAmount <= 0) throw new Error("Valor da parcela deve ser maior que zero.");
 
-  const financedAmount = round2(totalAmount - downPayment);
   const firstReference = firstReferenceMonth(purchaseDate, closingDay);
+  const amount = round2(installmentAmount);
 
-  const baseAmountCents = Math.floor((financedAmount * 100) / installmentsCount);
-  const remainderCents = Math.round(financedAmount * 100) - baseAmountCents * installmentsCount;
-
-  const installments: GeneratedInstallment[] = [];
-
-  for (let i = 0; i < installmentsCount; i++) {
+  return Array.from({ length: installmentsCount }, (_, i) => {
     const { year, month } = addMonths(firstReference.year, firstReference.month, i);
-    const isLast = i === installmentsCount - 1;
-    const amountCents = baseAmountCents + (isLast ? remainderCents : 0);
-
-    installments.push({
+    return {
       number: i + 1,
-      amount: amountCents / 100,
+      amount,
       referenceMonth: month,
       referenceYear: year,
       dueDate: dateForDayInMonth(year, month, dueDay),
-    });
+    };
+  });
+}
+
+export interface GenerateInstallmentsInProgressInput {
+  /** Due date of the next unpaid parcela. */
+  nextDueDate: Date;
+  installmentAmount: number;
+  installmentsCount: number;
+  /** How many parcelas, starting from #1, are already paid. */
+  paidInstallmentsCount: number;
+}
+
+/**
+ * Same engine as {@link generateInstallments}, but for an installment plan
+ * that's already partway through outside this app (e.g. logging a purchase
+ * you financed a few months ago). Instead of a purchase date + closing day,
+ * `nextDueDate` anchors the first *unpaid* parcela directly, and the first
+ * `paidInstallmentsCount` parcelas come back marked PAID.
+ */
+export function generateInstallmentsInProgress(input: GenerateInstallmentsInProgressInput): GeneratedInstallment[] {
+  const { nextDueDate, installmentAmount, installmentsCount, paidInstallmentsCount } = input;
+
+  if (installmentsCount < 1) throw new Error("Número de parcelas deve ser ao menos 1.");
+  if (installmentAmount <= 0) throw new Error("Valor da parcela deve ser maior que zero.");
+  if (paidInstallmentsCount < 0) throw new Error("Número de parcelas pagas não pode ser negativo.");
+  if (paidInstallmentsCount >= installmentsCount) {
+    throw new Error("Número de parcelas pagas deve ser menor que o número total de parcelas.");
   }
 
-  return installments;
+  const anchorNumber = paidInstallmentsCount + 1; // 1-based number of the parcela due on nextDueDate
+  const day = nextDueDate.getDate();
+  const amount = round2(installmentAmount);
+
+  return Array.from({ length: installmentsCount }, (_, idx) => {
+    const number = idx + 1;
+    const { year, month } = addMonths(nextDueDate.getFullYear(), nextDueDate.getMonth() + 1, number - anchorNumber);
+    const dueDate = dateForDayInMonth(year, month, day);
+    const isPaid = number <= paidInstallmentsCount;
+
+    return {
+      number,
+      amount,
+      referenceMonth: month,
+      referenceYear: year,
+      dueDate,
+      status: isPaid ? "PAID" : "PENDING",
+      paidAt: isPaid ? dueDate : null,
+      paidAmount: isPaid ? amount : null,
+    };
+  });
 }
 
 export interface GenerateRecurringOccurrencesInput {

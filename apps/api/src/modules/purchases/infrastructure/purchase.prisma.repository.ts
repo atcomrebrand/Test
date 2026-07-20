@@ -85,18 +85,34 @@ export class PurchasePrismaRepository extends PurchaseRepository {
     return this.prisma.$transaction(async (tx) => {
       const purchase = await tx.purchase.create({ data: data.purchase as any });
 
-      await tx.installment.createMany({
-        data: data.installments.map((i) => ({
-          userId: data.purchase.userId,
-          purchaseId: purchase.id,
-          cardId: data.cardId,
-          number: i.number,
-          amount: i.amount,
-          referenceMonth: i.referenceMonth,
-          referenceYear: i.referenceYear,
-          dueDate: i.dueDate,
-        })),
-      });
+      // Individual creates (not createMany) so already-paid parcelas — logged for an
+      // in-progress installment plan — can get their matching Payment row right away.
+      for (const i of data.installments) {
+        const installment = await tx.installment.create({
+          data: {
+            userId: data.purchase.userId,
+            purchaseId: purchase.id,
+            cardId: data.cardId,
+            number: i.number,
+            amount: i.amount,
+            referenceMonth: i.referenceMonth,
+            referenceYear: i.referenceYear,
+            dueDate: i.dueDate,
+            status: i.status ?? "PENDING",
+          },
+        });
+
+        if (i.status === "PAID") {
+          await tx.payment.create({
+            data: {
+              userId: data.purchase.userId,
+              installmentId: installment.id,
+              amountPaid: i.paidAmount ?? i.amount,
+              paidAt: i.paidAt ?? new Date(),
+            },
+          });
+        }
+      }
 
       await tx.auditLog.create({
         data: {

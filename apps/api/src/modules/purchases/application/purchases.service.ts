@@ -1,7 +1,12 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { PurchaseRepository } from "../domain/purchase.repository";
 import { CardRepository } from "../../cards/domain/card.repository";
-import { GeneratedInstallment, generateInstallments, generateRecurringOccurrences } from "../domain/installment-generator";
+import {
+  GeneratedInstallment,
+  generateInstallments,
+  generateInstallmentsInProgress,
+  generateRecurringOccurrences,
+} from "../domain/installment-generator";
 import { CreatePurchaseDto, PurchaseQueryDto, UpdatePurchaseDto } from "./dto/purchase.dto";
 import { NotificationsService } from "../../notifications/notifications.service";
 
@@ -58,17 +63,21 @@ export class PurchasesService {
     if (!card.active) throw new BadRequestException("Não é possível lançar compras em um cartão inativo.");
 
     const kind = dto.kind ?? (dto.installmentsCount && dto.installmentsCount > 1 ? "INSTALLMENT" : "CASH");
-    const purchaseDate = new Date(dto.purchaseDate);
+    const anchorDate = new Date(dto.purchaseDate);
     const recurrenceEndDate = dto.recurrenceEndDate ? new Date(dto.recurrenceEndDate) : undefined;
 
     let installments: GeneratedInstallment[];
     let installmentsCount: number;
+    let totalAmount: number;
 
     if (kind === "RECURRING") {
+      if (!dto.totalAmount) throw new BadRequestException("Informe o valor mensal da assinatura.");
+      totalAmount = dto.totalAmount;
+
       const batchCount = recurrenceEndDate ? RECURRING_MAX_BATCH : RECURRING_HORIZON_MONTHS;
       installments = generateRecurringOccurrences({
-        nextPaymentDate: purchaseDate,
-        monthlyAmount: dto.totalAmount,
+        nextPaymentDate: anchorDate,
+        monthlyAmount: totalAmount,
         count: batchCount,
       });
 
@@ -80,22 +89,42 @@ export class PurchasesService {
         }
       }
       installmentsCount = installments.length;
+    } else if (kind === "INSTALLMENT") {
+      if (!dto.installmentAmount) throw new BadRequestException("Informe o valor da parcela.");
+      installmentsCount = dto.installmentsCount ?? 2;
+      const paidInstallmentsCount = dto.paidInstallmentsCount ?? 0;
+      if (paidInstallmentsCount >= installmentsCount) {
+        throw new BadRequestException("Número de parcelas pagas deve ser menor que o total de parcelas.");
+      }
+
+      installments =
+        paidInstallmentsCount > 0
+          ? generateInstallmentsInProgress({
+              nextDueDate: anchorDate,
+              installmentAmount: dto.installmentAmount,
+              installmentsCount,
+              paidInstallmentsCount,
+            })
+          : generateInstallments({
+              purchaseDate: anchorDate,
+              closingDay: card.closingDay,
+              dueDay: card.dueDay,
+              installmentAmount: dto.installmentAmount,
+              installmentsCount,
+            });
+
+      totalAmount = Math.round(dto.installmentAmount * installmentsCount * 100) / 100;
     } else {
-      installmentsCount = kind === "CASH" ? 1 : (dto.installmentsCount ?? 1);
+      if (!dto.totalAmount) throw new BadRequestException("Informe o valor da compra.");
+      totalAmount = dto.totalAmount;
+      installmentsCount = 1;
       installments = generateInstallments({
-        purchaseDate,
+        purchaseDate: anchorDate,
         closingDay: card.closingDay,
         dueDay: card.dueDay,
-        totalAmount: dto.totalAmount,
-        installmentsCount,
-        downPayment: dto.downPayment,
+        installmentAmount: totalAmount,
+        installmentsCount: 1,
       });
-
-      const financedSum = Math.round(installments.reduce((acc, i) => acc + i.amount, 0) * 100) / 100;
-      const expectedFinanced = Math.round((dto.totalAmount - (dto.downPayment ?? 0)) * 100) / 100;
-      if (financedSum !== expectedFinanced) {
-        throw new BadRequestException("Inconsistência no cálculo das parcelas. Operação abortada.");
-      }
     }
 
     const purchase = await this.purchases.createWithInstallments({
@@ -106,11 +135,10 @@ export class PurchasesService {
         name: dto.name,
         merchant: dto.merchant,
         notes: dto.notes,
-        totalAmount: dto.totalAmount,
-        purchaseDate,
+        totalAmount,
+        purchaseDate: anchorDate,
         kind,
         installmentsCount,
-        downPayment: kind === "RECURRING" ? undefined : dto.downPayment,
         isRecurring: kind === "RECURRING",
         recurrenceEndDate,
         tags: dto.tags ?? [],
@@ -194,17 +222,22 @@ export class PurchasesService {
     if (!original) throw new NotFoundException("Compra não encontrada.");
     if (original.userId !== userId) throw new ForbiddenException();
 
+    const isInstallment = original.kind === "INSTALLMENT";
+    const installmentAmount = isInstallment
+      ? Number(original.installments?.[0]?.amount ?? original.totalAmount)
+      : undefined;
+
     return this.create(userId, {
       name: `${original.name} (cópia)`,
       cardId: original.cardId,
       categoryId: original.categoryId ?? undefined,
       merchant: original.merchant ?? undefined,
       notes: original.notes ?? undefined,
-      totalAmount: Number(original.totalAmount),
+      totalAmount: isInstallment ? undefined : Number(original.totalAmount),
+      installmentAmount,
       purchaseDate: new Date().toISOString(),
       kind: original.kind,
       installmentsCount: original.kind === "RECURRING" ? undefined : original.installmentsCount,
-      downPayment: original.downPayment ? Number(original.downPayment) : undefined,
       tags: original.tags,
     });
   }

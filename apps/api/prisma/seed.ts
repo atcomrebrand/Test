@@ -110,12 +110,14 @@ async function main() {
   }) {
     const installmentsCount = opts.installmentsCount ?? 1;
     const kind = opts.kind ?? (installmentsCount > 1 ? "INSTALLMENT" : "CASH");
+    const installmentAmount = Math.round((opts.totalAmount / installmentsCount) * 100) / 100;
+    const totalAmount = Math.round(installmentAmount * installmentsCount * 100) / 100;
 
     const generated = generateInstallments({
       purchaseDate: opts.purchaseDate,
       closingDay: opts.card.closingDay,
       dueDay: opts.card.dueDay,
-      totalAmount: opts.totalAmount,
+      installmentAmount,
       installmentsCount,
     });
 
@@ -126,7 +128,7 @@ async function main() {
         categoryId: cat(opts.categoryName),
         name: opts.name,
         merchant: opts.merchant,
-        totalAmount: opts.totalAmount,
+        totalAmount,
         purchaseDate: opts.purchaseDate,
         kind,
         installmentsCount,
