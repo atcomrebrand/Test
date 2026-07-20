@@ -15,6 +15,16 @@ interface BrapiHistoricalPoint {
   adjustedClose?: number;
 }
 
+/** B3 appends "F" to a ticker to mark the fractional-lot market segment (e.g. BBSE3F trades the
+ *  same underlying stock as BBSE3, just in odd lots). BRAPI's quote list includes these as
+ *  separate entries but its quote endpoint doesn't price them — always resolve to the base
+ *  round-lot ticker instead. */
+const FRACTIONAL_TICKER_PATTERN = /^([A-Z]{4}\d{1,2})F$/;
+
+function stripFractionalSuffix(ticker: string): string {
+  return ticker.toUpperCase().match(FRACTIONAL_TICKER_PATTERN)?.[1] ?? ticker;
+}
+
 interface BrapiQuoteResult {
   regularMarketPrice?: number;
   regularMarketChangePercent?: number;
@@ -93,10 +103,12 @@ export class BrapiProvider extends StockQuoteProvider {
     const body = (await res.json()) as { stocks?: BrapiListEntry[] };
     return (body.stocks ?? [])
       .filter((s): s is BrapiListEntry & { stock: string } => typeof s.stock === "string")
+      .filter((s) => !FRACTIONAL_TICKER_PATTERN.test(s.stock.toUpperCase()))
       .map((s) => ({ ticker: s.stock, name: s.name ?? s.stock, type: s.type, logoUrl: s.logo }));
   }
 
-  private async fetchRaw(ticker: string, extraParams: Record<string, string> = {}): Promise<BrapiQuoteResult> {
+  private async fetchRaw(rawTicker: string, extraParams: Record<string, string> = {}): Promise<BrapiQuoteResult> {
+    const ticker = stripFractionalSuffix(rawTicker);
     const token = process.env.BRAPI_TOKEN;
     const params = new URLSearchParams(extraParams);
     if (token) params.set("token", token);
