@@ -11,6 +11,8 @@ interface Props {
   open: boolean;
   onClose: () => void;
   assetClass: AssetClass;
+  /** Pre-fill from "Explorar" so picking an already-searched asset doesn't require searching again. */
+  prefill?: { ticker: string; name?: string };
 }
 
 const CLASS_LABEL: Record<AssetClass, string> = { STOCK: "ação", FII: "FII", CRYPTO: "criptomoeda" };
@@ -19,7 +21,7 @@ const CLASS_LABEL: Record<AssetClass, string> = { STOCK: "ação", FII: "FII", C
  *  exchange and isn't something we can look up automatically. */
 const STABLECOIN_TICKERS = ["USDT", "USDC", "BUSD", "DAI", "FRAX", "TUSD"];
 
-export function AssetFormModal({ open, onClose, assetClass }: Props) {
+export function AssetFormModal({ open, onClose, assetClass, prefill }: Props) {
   const create = useCreateAsset();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -36,6 +38,19 @@ export function AssetFormModal({ open, onClose, assetClass }: Props) {
   }, [search]);
 
   const [selected, setSelected] = useState(false);
+
+  // Only re-apply the prefill when the modal opens — not on every `prefill` reference change —
+  // same reasoning as the PayoffQuoteModal fix: a background refetch elsewhere must not wipe form state.
+  useEffect(() => {
+    if (open && prefill) {
+      setTicker(prefill.ticker);
+      setName(prefill.name ?? prefill.ticker);
+      setSearch(prefill.name ?? prefill.ticker);
+      setSelected(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   const { data: results, isFetching } = useAssetCatalog(assetClass, debouncedSearch);
   const showResults = search.trim().length >= 2 && !selected;
 

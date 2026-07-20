@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { MoreHorizontal, LayoutDashboard, LineChart, PiggyBank, History } from "lucide-react";
+import { MoreHorizontal, LayoutDashboard, Compass, LineChart, PiggyBank, History } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Modal } from "@/components/ui/Modal";
 
 const PRIMARY_ITEMS = [
   { to: "/investimentos", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/investimentos/explorar", label: "Explorar", icon: Compass },
   { to: "/investimentos/carteira", label: "Carteira", icon: LineChart },
-  { to: "/investimentos/renda-fixa", label: "Renda Fixa", icon: PiggyBank },
 ];
 
-const MORE_ITEMS = [{ to: "/investimentos/historico", label: "Histórico", icon: History }];
+const MORE_ITEMS = [
+  { to: "/investimentos/renda-fixa", label: "Renda Fixa", icon: PiggyBank },
+  { to: "/investimentos/historico", label: "Histórico", icon: History },
+];
 
 /** Same primary-items + "Mais" pattern as the main app's MobileNav, so the investments module
  *  feels like part of the same product on mobile instead of a bolted-on horizontal scroller. */

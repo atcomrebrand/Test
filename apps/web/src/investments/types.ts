@@ -90,6 +90,13 @@ export interface AssetQuoteDetailResponse {
   detail: AssetQuoteDetail | null;
 }
 
+export interface MarketQuoteDetailResponse {
+  ticker: string;
+  class: AssetClass;
+  detail: AssetQuoteDetail | null;
+  ownedAssetId: string | null;
+}
+
 export type FixedIncomeType = "CDB" | "LCI" | "LCA" | "TESOURO" | "OUTRO";
 export type FixedIncomeLiquidity = "DIARIA" | "NO_VENCIMENTO" | "OUTRO";
 export type FixedIncomeIndexer = "PREFIXADO" | "POS_FIXADO_CDI" | "IPCA_MAIS" | "OUTRO";

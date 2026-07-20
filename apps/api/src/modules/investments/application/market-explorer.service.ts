@@ -15,11 +15,11 @@ export class MarketExplorerService {
     private readonly assets: AssetRepository,
   ) {}
 
-  async getQuoteDetail(userId: string, assetClass: "STOCK" | "FII" | "CRYPTO", ticker: string) {
+  async getQuoteDetail(userId: string, assetClass: "STOCK" | "FII" | "CRYPTO", ticker: string, forceRefresh = false) {
     const normalizedTicker = assetClass === "CRYPTO" ? ticker : ticker.toUpperCase();
 
     const [detail, owned] = await Promise.all([
-      this.marketPrice.getDetail(assetClass, normalizedTicker),
+      this.marketPrice.getDetail(assetClass, normalizedTicker, { forceRefresh }),
       this.assets.findByUserAndTicker(userId, assetClass, normalizedTicker),
     ]);
 

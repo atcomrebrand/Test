@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
-import { AssetQuoteDetailResponse, CashAccount, CatalogEntry, DashboardSummary, InvestmentAsset, InvestmentFixedIncome } from "./types";
+import { AssetQuoteDetailResponse, CashAccount, CatalogEntry, DashboardSummary, InvestmentAsset, InvestmentFixedIncome, MarketQuoteDetailResponse } from "./types";
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["investments"] });
@@ -41,6 +41,28 @@ export function useAssetCatalog(assetClass: string, query: string) {
     queryFn: () => api.get<CatalogEntry[]>("/investments/catalog", { params: { class: assetClass, query } }),
     enabled: query.trim().length >= 2,
     staleTime: 60_000,
+  });
+}
+
+/** Powers "Explorar" — price/chart/fundamentals for any ticker, owned or not. */
+export function useMarketQuoteDetail(assetClass: string, ticker: string | null) {
+  return useQuery({
+    queryKey: ["investments", "market", assetClass, ticker],
+    queryFn: () => api.get<MarketQuoteDetailResponse>("/investments/catalog/quote-detail", { params: { class: assetClass, ticker } }),
+    enabled: !!ticker,
+  });
+}
+
+export function useRefreshMarketQuoteDetail(assetClass: string, ticker: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.get<MarketQuoteDetailResponse>("/investments/catalog/quote-detail", { params: { class: assetClass, ticker, refresh: "true" } }),
+    onSuccess: (data) => {
+      qc.setQueryData(["investments", "market", assetClass, ticker], data);
+      toast.success("Preço atualizado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 

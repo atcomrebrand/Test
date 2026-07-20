@@ -21,7 +21,12 @@ export class CatalogController {
   }
 
   @Get("quote-detail")
-  quoteDetail(@CurrentUser() user: AuthUser, @Query("class") assetClass: "STOCK" | "FII" | "CRYPTO", @Query("ticker") ticker: string) {
-    return this.explorer.getQuoteDetail(user.userId, assetClass ?? "STOCK", ticker);
+  quoteDetail(
+    @CurrentUser() user: AuthUser,
+    @Query("class") assetClass: "STOCK" | "FII" | "CRYPTO",
+    @Query("ticker") ticker: string,
+    @Query("refresh") refresh?: string,
+  ) {
+    return this.explorer.getQuoteDetail(user.userId, assetClass ?? "STOCK", ticker, refresh === "true");
   }
 }
