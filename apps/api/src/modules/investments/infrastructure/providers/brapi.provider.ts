@@ -119,6 +119,14 @@ interface BrapiV2Result {
   data?: BrapiV2QuoteData;
 }
 
+/** Confirmed against a live call to /api/v2/stocks/dividends with a real token (2026-07-20) — same
+ *  cashDividends field names as v1's dividendsData.cashDividends (rate/paymentDate/lastDatePrior/
+ *  relatedTo/label), just moved under results[0].data instead of results[0].dividendsData. Also
+ *  exposes stockDividends (splits/groupings/bonus-share events) and subscriptions, unused for now. */
+interface BrapiV2DividendsData {
+  cashDividends?: BrapiCashDividend[];
+}
+
 function classifyDividendType(label: string | undefined): DividendType {
   const normalized = (label ?? "").toUpperCase();
   if (normalized.includes("JCP") || normalized.includes("JUROS")) return "JCP";
@@ -200,12 +208,14 @@ export class BrapiProvider extends StockQuoteProvider {
     return history;
   }
 
-  /** Dividend/JCP payment history via BRAPI's `dividends=true` module. Reuses the fractional-lot
-   *  fallback for robustness, but the `approximate` flag is irrelevant here — the payment per
-   *  share is identical regardless of lot size, so it's discarded. */
+  /** Dividend/JCP payment history via BRAPI v2's dedicated dividends endpoint. Falls back to the
+   *  round-lot ticker only when the exact ticker's lookup fails outright (network/404) — an empty
+   *  cashDividends array for a ticker that *does* resolve is a legitimate answer ("never paid a
+   *  dividend"), not a failure to retry. The payment per share is identical regardless of lot
+   *  size, so there's no "approximate" flag to track here unlike the quote endpoint. */
   async fetchDividends(ticker: string): Promise<DividendEvent[]> {
-    const { quote } = await this.fetchWithFractionalFallback(ticker, { dividends: "true" });
-    const cashDividends = quote.dividendsData?.cashDividends ?? [];
+    const data = await this.fetchDividendsV2WithFallback(ticker);
+    const cashDividends = data.cashDividends ?? [];
 
     return cashDividends
       .filter((d): d is BrapiCashDividend & { rate: number } => typeof d.rate === "number")
@@ -267,6 +277,36 @@ export class BrapiProvider extends StockQuoteProvider {
       if (typeof quote.regularMarketPrice !== "number") throw new Error(`BRAPI v2 returned no quote for ${ticker} or ${base}`);
       return { quote, approximate: true };
     }
+  }
+
+  /** Falls back to the round-lot ticker only when the lookup itself fails — a successful lookup
+   *  with empty arrays is a valid answer for the exact ticker, not a reason to retry. */
+  private async fetchDividendsV2WithFallback(ticker: string): Promise<BrapiV2DividendsData> {
+    try {
+      return await this.fetchRawDividendsV2(ticker);
+    } catch (err) {
+      const base = baseTickerFor(ticker);
+      if (!base) throw err;
+      this.logger.warn(`No v2 dividends data for fractional ticker ${ticker}, falling back to ${base}: ${(err as Error).message}`);
+      return this.fetchRawDividendsV2(base);
+    }
+  }
+
+  private async fetchRawDividendsV2(ticker: string): Promise<BrapiV2DividendsData> {
+    const token = process.env.BRAPI_TOKEN;
+    const url = `https://brapi.dev/api/v2/stocks/dividends?symbols=${encodeURIComponent(ticker)}`;
+
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error(`BRAPI v2 dividends request failed for ${ticker}: ${res.status}`);
+    }
+    const body = (await res.json()) as { results?: { data?: BrapiV2DividendsData }[] };
+    const data = body.results?.[0]?.data;
+    if (!data) throw new Error(`BRAPI v2 returned no dividends data for ${ticker}`);
+    return data;
   }
 
   private async fetchRawV2(ticker: string): Promise<BrapiV2QuoteData> {
