@@ -13,9 +13,15 @@ import { AssetRepository } from "./domain/asset.repository";
 import { AssetPrismaRepository } from "./infrastructure/asset.prisma.repository";
 import { AssetsService } from "./application/assets.service";
 import { AssetsController } from "./interface/assets.controller";
+import { CashAccountRepository } from "./domain/cash-account.repository";
+import { CashAccountPrismaRepository } from "./infrastructure/cash-account.prisma.repository";
+import { CashAccountsService } from "./application/cash-accounts.service";
+import { CashAccountsController } from "./interface/cash-accounts.controller";
+import { InvestmentsDashboardService } from "./application/investments-dashboard.service";
+import { InvestmentsDashboardController } from "./interface/investments-dashboard.controller";
 
 @Module({
-  controllers: [FixedIncomesController, AssetsController],
+  controllers: [FixedIncomesController, AssetsController, CashAccountsController, InvestmentsDashboardController],
   providers: [
     { provide: StockQuoteProvider, useClass: BrapiProvider },
     { provide: CryptoQuoteProvider, useClass: CoinGeckoProvider },
@@ -26,7 +32,10 @@ import { AssetsController } from "./interface/assets.controller";
     FixedIncomesService,
     { provide: AssetRepository, useClass: AssetPrismaRepository },
     AssetsService,
+    { provide: CashAccountRepository, useClass: CashAccountPrismaRepository },
+    CashAccountsService,
+    InvestmentsDashboardService,
   ],
-  exports: [MarketPriceService, EconomicIndicatorCacheService, FixedIncomeRepository, AssetRepository],
+  exports: [MarketPriceService, EconomicIndicatorCacheService, FixedIncomeRepository, AssetRepository, CashAccountRepository],
 })
 export class InvestmentsModule {}
