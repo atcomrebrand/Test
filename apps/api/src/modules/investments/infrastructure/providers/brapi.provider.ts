@@ -92,6 +92,33 @@ interface BrapiQuoteResult {
   dividendsData?: { cashDividends?: BrapiCashDividend[] };
 }
 
+/** Confirmed against a live call to /api/v2/stocks/quote with a real token (2026-07-20) — the v2
+ *  quote payload nests fields under results[n].data instead of directly on results[n] like v1,
+ *  and auth moved from a `?token=` query param to an `Authorization: Bearer` header. Only the
+ *  plain quote endpoint has been migrated to v2 so far: fetchDetail/fetchHistory/fetchDividends
+ *  stay on v1 (fetchRaw) since their range/fundamental/dividends query params haven't been
+ *  confirmed to exist (or work the same way) on v2. */
+interface BrapiV2QuoteData {
+  shortName?: string;
+  longName?: string;
+  currency?: string;
+  regularMarketPrice?: number;
+  regularMarketChangePercent?: number;
+  regularMarketDayHigh?: number;
+  regularMarketDayLow?: number;
+  regularMarketVolume?: number;
+  marketCap?: number;
+  fiftyTwoWeekHigh?: number;
+  fiftyTwoWeekLow?: number;
+  logourl?: string;
+}
+
+interface BrapiV2Result {
+  requestedSymbol?: string;
+  symbol?: string;
+  data?: BrapiV2QuoteData;
+}
+
 function classifyDividendType(label: string | undefined): DividendType {
   const normalized = (label ?? "").toUpperCase();
   if (normalized.includes("JCP") || normalized.includes("JUROS")) return "JCP";
@@ -111,7 +138,7 @@ export class BrapiProvider extends StockQuoteProvider {
   private readonly logger = new Logger(BrapiProvider.name);
 
   async fetchQuote(ticker: string): Promise<QuoteResult> {
-    const { quote, approximate } = await this.fetchWithFractionalFallback(ticker);
+    const { quote, approximate } = await this.fetchQuoteV2WithFractionalFallback(ticker);
     return { price: quote.regularMarketPrice as number, currency: quote.currency ?? "BRL", approximate };
   }
 
@@ -223,6 +250,40 @@ export class BrapiProvider extends StockQuoteProvider {
       if (typeof quote.regularMarketPrice !== "number") throw new Error(`BRAPI returned no quote for ${ticker} or ${base}`);
       return { quote, approximate: true };
     }
+  }
+
+  /** Same "try exact ticker, fall back to the round lot" logic as fetchWithFractionalFallback,
+   *  but against the v2 quote endpoint. */
+  private async fetchQuoteV2WithFractionalFallback(ticker: string): Promise<{ quote: BrapiV2QuoteData; approximate: boolean }> {
+    try {
+      const quote = await this.fetchRawV2(ticker);
+      if (typeof quote.regularMarketPrice === "number") return { quote, approximate: false };
+      throw new Error(`BRAPI v2 returned no price for ${ticker}`);
+    } catch (err) {
+      const base = baseTickerFor(ticker);
+      if (!base) throw err;
+      this.logger.warn(`No direct v2 quote for fractional ticker ${ticker}, falling back to ${base}: ${(err as Error).message}`);
+      const quote = await this.fetchRawV2(base);
+      if (typeof quote.regularMarketPrice !== "number") throw new Error(`BRAPI v2 returned no quote for ${ticker} or ${base}`);
+      return { quote, approximate: true };
+    }
+  }
+
+  private async fetchRawV2(ticker: string): Promise<BrapiV2QuoteData> {
+    const token = process.env.BRAPI_TOKEN;
+    const url = `https://brapi.dev/api/v2/stocks/quote?symbols=${encodeURIComponent(ticker)}`;
+
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error(`BRAPI v2 request failed for ${ticker}: ${res.status}`);
+    }
+    const body = (await res.json()) as { results?: BrapiV2Result[] };
+    const data = body.results?.[0]?.data;
+    if (!data) throw new Error(`BRAPI v2 returned no quote for ${ticker}`);
+    return data;
   }
 
   private async fetchRaw(ticker: string, extraParams: Record<string, string> = {}): Promise<BrapiQuoteResult> {
