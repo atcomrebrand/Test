@@ -12,14 +12,6 @@ import {
   StockQuoteProvider,
 } from "../../domain/market-data.provider";
 
-interface BrapiListEntry {
-  stock?: string;
-  name?: string;
-  type?: string;
-  sector?: string;
-  logo?: string;
-}
-
 interface BrapiHistoricalPoint {
   date: number; // unix seconds
   close?: number;
@@ -119,6 +111,23 @@ interface BrapiV2StatisticsData {
  *  results[0]. */
 interface BrapiV2HistoricalData {
   historicalDataPrice?: BrapiHistoricalPoint[];
+}
+
+/** Confirmed against a live call to /api/v2/tickers with a real token (2026-07-20) — replaces
+ *  v1's single-shot /api/quote/list. assetType is "stock" | "fund" | "bdr", same three values v1
+ *  reported, so CatalogCacheService's existing `type === "fund"` FII filter needs no changes.
+ *  Paginated (2310+ tickers total): requesting limit=1000 keeps the full catalog to 3 pages. */
+interface BrapiV2TickerEntry {
+  symbol?: string;
+  name?: string;
+  longName?: string;
+  assetType?: string;
+  logoUrl?: string;
+}
+
+interface BrapiV2TickersPage {
+  results?: BrapiV2TickerEntry[];
+  pagination?: { hasNextPage?: boolean };
 }
 
 function classifyDividendType(label: string | undefined): DividendType {
@@ -230,16 +239,35 @@ export class BrapiProvider extends StockQuoteProvider {
       }));
   }
 
+  /** Called once a day at most (CatalogCacheService's TTL) — 3 sequential requests at limit=1000
+   *  is negligible at that rate. MAX_PAGES is a runaway guard, not a real limit: B3 has ~2310
+   *  tickers today (3 pages), nowhere near the 20-page/20000-ticker ceiling here. */
   async listCatalog(): Promise<CatalogEntry[]> {
-    const token = process.env.BRAPI_TOKEN;
-    const url = `https://brapi.dev/api/quote/list${token ? `?token=${token}` : ""}`;
-    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) throw new Error(`BRAPI list request failed: ${res.status}`);
+    const MAX_PAGES = 20;
+    const entries: CatalogEntry[] = [];
 
-    const body = (await res.json()) as { stocks?: BrapiListEntry[] };
-    return (body.stocks ?? [])
-      .filter((s): s is BrapiListEntry & { stock: string } => typeof s.stock === "string")
-      .map((s) => ({ ticker: s.stock, name: s.name ?? s.stock, type: s.type, logoUrl: s.logo }));
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const body = await this.fetchTickersPageV2(page);
+      for (const e of body.results ?? []) {
+        if (typeof e.symbol !== "string") continue;
+        entries.push({ ticker: e.symbol, name: e.longName ?? e.name ?? e.symbol, type: e.assetType, logoUrl: e.logoUrl });
+      }
+      if (!body.pagination?.hasNextPage) break;
+    }
+
+    return entries;
+  }
+
+  private async fetchTickersPageV2(page: number): Promise<BrapiV2TickersPage> {
+    const token = process.env.BRAPI_TOKEN;
+    const url = `https://brapi.dev/api/v2/tickers?page=${page}&limit=1000`;
+
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`BRAPI v2 tickers request failed (page ${page}): ${res.status}`);
+    return (await res.json()) as BrapiV2TickersPage;
   }
 
   /** Same "try exact ticker, fall back to the round lot" logic as the quote/dividends fallbacks,
