@@ -15,9 +15,7 @@ import { Download, RotateCcw, UserX } from "lucide-react";
 import { getToken } from "@/lib/api";
 
 const ALERT_ITEMS: { key: keyof import("@/types").Settings; label: string; description: string }[] = [
-  { key: "alertUpcomingDue", label: "Fatura próxima do vencimento", description: "Avisa quando faltam 3 dias ou menos." },
   { key: "alertLimitWarning", label: "Limite quase no fim", description: "Avisa ao ultrapassar o percentual configurado." },
-  { key: "alertLateInstall", label: "Parcelas atrasadas", description: "Avisa quando houver parcelas em atraso." },
   { key: "alertSpendingJump", label: "Aumento de gastos", description: "Avisa quando o próximo mês for bem mais caro." },
 ];
 
@@ -100,6 +98,21 @@ export default function SettingsPage() {
             value={settings.limitWarningPct}
             onChange={(e) => update.mutate({ limitWarningPct: Number(e.target.value) })}
           />
+          <label className="col-span-2 flex cursor-pointer items-center justify-between gap-4 rounded-xl surface-2 p-3">
+            <div>
+              <p className="text-sm font-medium">Incluir financiamentos nos totais gerais</p>
+              <p className="text-xs text-muted">
+                Soma as parcelas de financiamento (carro, moto, casa) no Dashboard — comprometido do mês, saldo
+                restante e evolução de gastos.
+              </p>
+            </div>
+            <input
+              type="checkbox"
+              checked={settings.includeFinancingInTotals}
+              onChange={(e) => update.mutate({ includeFinancingInTotals: e.target.checked })}
+              className="h-5 w-5 shrink-0 rounded accent-accent-500"
+            />
+          </label>
         </CardContent>
       </Card>
 

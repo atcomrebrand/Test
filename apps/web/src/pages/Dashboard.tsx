@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Wallet, CalendarClock, ListChecks, TrendingUp, ReceiptText, AlertTriangle, Landmark, ArrowRight } from "lucide-react";
+import { Wallet, CalendarClock, ListChecks, TrendingUp, ReceiptText, AlertTriangle, Landmark, ArrowRight, SlidersHorizontal } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -40,6 +40,17 @@ export default function Dashboard() {
 
       <OnboardingChecklist hasCards={Boolean(summary.nextClosing)} hasPurchases={summary.recentPurchases.length > 0} />
 
+      <div className="mb-3 flex items-center justify-end">
+        <Link
+          to="/settings"
+          className="flex items-center gap-1.5 text-xs text-muted transition-colors hover:text-[rgb(var(--text))]"
+          title="Mudar em Configurações"
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5" />
+          {summary.includeFinancingInTotals ? "Totais incluem financiamentos" : "Totais não incluem financiamentos"}
+        </Link>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
           label="Comprometido este mês"
@@ -61,17 +72,15 @@ export default function Dashboard() {
         <StatTile
           label="Parcelas em aberto"
           value={String(summary.openInstallmentsCount)}
-          sublabel={summary.lateInstallmentsCount > 0 ? `${summary.lateInstallmentsCount} atrasada(s)` : undefined}
           icon={<ListChecks className="h-4 w-4" />}
-          tone={summary.lateInstallmentsCount > 0 ? "danger" : "default"}
           delay={0.15}
         />
       </div>
 
-      {summary.lateInstallmentsCount > 0 && (
+      {summary.financing.lateCount > 0 && (
         <div className="mt-4 flex items-center gap-3 rounded-2xl border border-red-500/30 bg-red-500/5 px-4 py-3 text-sm text-red-600 dark:text-red-400">
           <AlertTriangle className="h-4 w-4 shrink-0" />
-          Você possui {summary.lateInstallmentsCount} parcela(s) atrasada(s). Regularize para evitar juros.
+          Você possui {summary.financing.lateCount} parcela(s) de financiamento atrasada(s).
         </div>
       )}
 

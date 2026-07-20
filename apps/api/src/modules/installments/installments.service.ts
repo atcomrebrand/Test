@@ -7,16 +7,33 @@ import { InstallmentQueryDto, PayInstallmentDto, UpdateInstallmentStatusDto } fr
 export class InstallmentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Idempotently promotes overdue PENDING installments to LATE. Cheap enough to run per-request. */
-  async refreshLateStatuses(userId: string) {
-    await this.prisma.installment.updateMany({
-      where: { userId, status: "PENDING", dueDate: { lt: new Date() } },
-      data: { status: "LATE" },
+  /**
+   * Card installments settle themselves — the card issuer auto-debits the invoice, so once the
+   * due date has passed there's nothing left for the user to confirm. Idempotently flips overdue
+   * PENDING (and any pre-existing LATE, from before this behavior) installments to PAID, with a
+   * matching Payment row, opportunistically on read. Cheap enough to run per-request.
+   */
+  async autoSettleOverdueInstallments(userId: string) {
+    const overdue = await this.prisma.installment.findMany({
+      where: { userId, status: { in: ["PENDING", "LATE"] }, dueDate: { lt: new Date() } },
+      select: { id: true, amount: true, dueDate: true },
     });
+    if (overdue.length === 0) return;
+
+    await this.prisma.$transaction(
+      overdue.flatMap((i) => [
+        this.prisma.installment.update({ where: { id: i.id }, data: { status: "PAID" } }),
+        this.prisma.payment.upsert({
+          where: { installmentId: i.id },
+          create: { userId, installmentId: i.id, amountPaid: i.amount, paidAt: i.dueDate },
+          update: {},
+        }),
+      ]),
+    );
   }
 
   async findAll(userId: string, query: InstallmentQueryDto) {
-    await this.refreshLateStatuses(userId);
+    await this.autoSettleOverdueInstallments(userId);
 
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 50;
@@ -89,15 +106,17 @@ export class InstallmentsService {
     return this.prisma.installment.findUnique({ where: { id }, include: { payment: true } });
   }
 
+  /**
+   * Reverts an auto-settled (or manually-paid) installment back to PENDING. Note this is a
+   * momentary override for a past-due installment: the next opportunistic sweep will settle it
+   * back to PAID again, since auto-settlement doesn't distinguish "never touched" from "undone".
+   */
   async unpay(userId: string, id: string) {
     const installment = await this.getOwned(userId, id);
     if (installment.status !== "PAID") throw new BadRequestException("Parcela não está paga.");
 
     await this.prisma.$transaction([
-      this.prisma.installment.update({
-        where: { id },
-        data: { status: installment.dueDate < new Date() ? "LATE" : "PENDING" },
-      }),
+      this.prisma.installment.update({ where: { id }, data: { status: "PENDING" } }),
       this.prisma.payment.deleteMany({ where: { installmentId: id } }),
     ]);
 

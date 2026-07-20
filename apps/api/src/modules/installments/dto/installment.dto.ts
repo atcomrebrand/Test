@@ -17,8 +17,8 @@ export class InstallmentQueryDto {
 }
 
 export class UpdateInstallmentStatusDto {
-  @IsIn(["PENDING", "LATE", "CANCELLED"])
-  status!: "PENDING" | "LATE" | "CANCELLED";
+  @IsIn(["CANCELLED"])
+  status!: "CANCELLED";
 }
 
 export class PayInstallmentDto {

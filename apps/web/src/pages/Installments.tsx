@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ListChecks, Check, Undo2, Ban, ChevronLeft, ChevronRight } from "lucide-react";
+import { ListChecks, Undo2, Ban, ChevronLeft, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Select } from "@/components/ui/Input";
 import { Badge, STATUS_LABEL, STATUS_TONE } from "@/components/ui/Badge";
@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { useCards } from "@/features/useCards";
-import { useInstallments, usePayInstallment, useUnpayInstallment, useUpdateInstallmentStatus } from "@/features/useInstallments";
+import { useInstallments, useUnpayInstallment, useUpdateInstallmentStatus } from "@/features/useInstallments";
 import { formatCurrency, formatDate, monthLabel } from "@/lib/format";
 import { Installment } from "@/types";
 
@@ -15,7 +15,6 @@ const STATUS_OPTIONS = [
   { value: "", label: "Todos os status" },
   { value: "PENDING", label: "Pendente" },
   { value: "PAID", label: "Pago" },
-  { value: "LATE", label: "Atrasado" },
   { value: "CANCELLED", label: "Cancelado" },
 ];
 
@@ -28,7 +27,6 @@ export default function Installments() {
     cardId: filters.cardId || undefined,
     pageSize: 20,
   });
-  const pay = usePayInstallment();
   const unpay = useUnpayInstallment();
   const updateStatus = useUpdateInstallmentStatus();
 
@@ -37,7 +35,10 @@ export default function Installments() {
 
   return (
     <div>
-      <PageHeader title="Parcelas" description="Controle o status de cada parcela lançada." />
+      <PageHeader
+        title="Parcelas"
+        description="Cada parcela é marcada como paga automaticamente quando o vencimento chega — não precisa confirmar nada."
+      />
 
       <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl surface border border-[rgb(var(--border))] p-3">
         <Select
@@ -86,7 +87,7 @@ export default function Installments() {
                   <p className="font-semibold">{formatCurrency(inst.amount)}</p>
                 </div>
                 <div className="mt-3 flex items-center justify-end gap-1 border-t border-[rgb(var(--border))] pt-2">
-                  <InstallmentRowActions inst={inst} pay={pay} unpay={unpay} updateStatus={updateStatus} />
+                  <InstallmentRowActions inst={inst} unpay={unpay} updateStatus={updateStatus} />
                 </div>
               </div>
             ))}
@@ -126,7 +127,7 @@ export default function Installments() {
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1">
-                        <InstallmentRowActions inst={inst} pay={pay} unpay={unpay} updateStatus={updateStatus} />
+                        <InstallmentRowActions inst={inst} unpay={unpay} updateStatus={updateStatus} />
                       </div>
                     </td>
                   </tr>
@@ -161,32 +162,27 @@ export default function Installments() {
 
 interface InstallmentRowActionsProps {
   inst: Installment;
-  pay: ReturnType<typeof usePayInstallment>;
   unpay: ReturnType<typeof useUnpayInstallment>;
   updateStatus: ReturnType<typeof useUpdateInstallmentStatus>;
 }
 
-function InstallmentRowActions({ inst, pay, unpay, updateStatus }: InstallmentRowActionsProps) {
+/** Payment is automatic on the due date — the only manual actions left are correcting a mistake or cancelling. */
+function InstallmentRowActions({ inst, unpay, updateStatus }: InstallmentRowActionsProps) {
   if (inst.status === "PAID") {
     return (
-      <button onClick={() => unpay.mutate(inst.id)} className="rounded-lg p-1.5 transition-colors hover:surface-2" title="Reverter pagamento">
+      <button onClick={() => unpay.mutate(inst.id)} className="rounded-lg p-1.5 transition-colors hover:surface-2" title="Desfazer (marcar como não paga)">
         <Undo2 className="h-4 w-4 text-muted" />
       </button>
     );
   }
   if (inst.status === "CANCELLED") return null;
   return (
-    <>
-      <button onClick={() => pay.mutate({ id: inst.id })} className="rounded-lg p-1.5 transition-colors hover:surface-2" title="Marcar como paga">
-        <Check className="h-4 w-4 text-emerald-500" />
-      </button>
-      <button
-        onClick={() => updateStatus.mutate({ id: inst.id, status: "CANCELLED" })}
-        className="rounded-lg p-1.5 transition-colors hover:surface-2"
-        title="Cancelar parcela"
-      >
-        <Ban className="h-4 w-4 text-amber-500" />
-      </button>
-    </>
+    <button
+      onClick={() => updateStatus.mutate({ id: inst.id, status: "CANCELLED" })}
+      className="rounded-lg p-1.5 transition-colors hover:surface-2"
+      title="Cancelar parcela"
+    >
+      <Ban className="h-4 w-4 text-amber-500" />
+    </button>
   );
 }

@@ -87,11 +87,17 @@ export interface DashboardSummary {
   estimatedNextInvoice: number;
   totalRemaining: number;
   openInstallmentsCount: number;
-  lateInstallmentsCount: number;
   recentPurchases: Purchase[];
   nextClosing: { cardId: string; cardName: string; date: string } | null;
   nextDue: { cardId: string; cardName: string; date: string } | null;
   limitUsage: { totalLimit: number; totalSpent: number; usagePct: number };
+  includeFinancingInTotals: boolean;
+  financing: {
+    activeCount: number;
+    committedThisMonth: number;
+    totalRemaining: number;
+    lateCount: number;
+  };
 }
 
 export interface Notification {
@@ -106,12 +112,11 @@ export interface Notification {
 export interface Settings {
   theme: Theme;
   currency: string;
-  alertUpcomingDue: boolean;
   alertLimitWarning: boolean;
-  alertLateInstall: boolean;
   alertSpendingJump: boolean;
   limitWarningPct: number;
   dashboardWidgets: string[];
+  includeFinancingInTotals: boolean;
 }
 
 export type FinancingKind = "CAR" | "MOTORCYCLE" | "HOUSE" | "OTHER";

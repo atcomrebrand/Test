@@ -1,7 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationType } from "@prisma/client";
-import { nextOccurrenceOfDay } from "../../common/date/day-of-month";
 
 const START_OF_TODAY = () => {
   const d = new Date();
@@ -37,19 +36,6 @@ export class NotificationsService {
     if (!settings) return;
 
     const cards = await this.prisma.card.findMany({ where: { userId, active: true } });
-    const today = new Date();
-
-    if (settings.alertUpcomingDue) {
-      for (const card of cards) {
-        const nextDue = nextOccurrenceOfDay(today, card.dueDay);
-        const daysUntil = Math.ceil((nextDue.getTime() - today.getTime()) / 86400000);
-        if (daysUntil <= 3 && daysUntil >= 0) {
-          await this.createIfNotExists(userId, "UPCOMING_DUE", `Fatura do cartão ${card.name} vence em breve`, {
-            message: `Sua fatura do ${card.name} vence em ${daysUntil} dia(s), no dia ${nextDue.getDate()}.`,
-          });
-        }
-      }
-    }
 
     if (settings.alertLimitWarning) {
       for (const card of cards) {
@@ -61,15 +47,6 @@ export class NotificationsService {
             message: `Você já utilizou ${pct.toFixed(0)}% do limite do cartão ${card.name}.`,
           });
         }
-      }
-    }
-
-    if (settings.alertLateInstall) {
-      const lateCount = await this.prisma.installment.count({ where: { userId, status: "LATE" } });
-      if (lateCount > 0) {
-        await this.createIfNotExists(userId, "LATE_INSTALLMENT", "Você possui parcelas atrasadas", {
-          message: `Você tem ${lateCount} parcela(s) em atraso. Regularize para evitar juros.`,
-        });
       }
     }
 

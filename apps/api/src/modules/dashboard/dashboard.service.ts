@@ -13,31 +13,45 @@ export class DashboardService {
   ) {}
 
   async summary(userId: string) {
-    await Promise.all([this.installments.refreshLateStatuses(userId), this.purchases.extendRecurringPurchases(userId)]);
+    await Promise.all([this.installments.autoSettleOverdueInstallments(userId), this.purchases.extendRecurringPurchases(userId)]);
+
+    const settings = await this.prisma.setting.findUnique({ where: { userId } });
+    const includeFinancing = settings?.includeFinancingInTotals ?? true;
 
     const now = new Date();
     const thisMonth = { year: now.getFullYear(), month: now.getMonth() + 1 };
     const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const nextMonth = { year: nextMonthDate.getFullYear(), month: nextMonthDate.getMonth() + 1 };
 
-    const [committedThisMonth, committedNextMonth, remainingAgg, openCount, recentPurchases, cards, lateCount] =
-      await Promise.all([
-        this.sumByMonth(userId, thisMonth.year, thisMonth.month),
-        this.sumByMonth(userId, nextMonth.year, nextMonth.month),
-        this.prisma.installment.aggregate({
-          where: { userId, status: { in: ["PENDING", "LATE"] } },
-          _sum: { amount: true },
-        }),
-        this.prisma.installment.count({ where: { userId, status: { in: ["PENDING", "LATE"] } } }),
-        this.prisma.purchase.findMany({
-          where: { userId, deletedAt: null },
-          include: { card: true, category: true },
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        }),
-        this.prisma.card.findMany({ where: { userId, active: true } }),
-        this.prisma.installment.count({ where: { userId, status: "LATE" } }),
-      ]);
+    const [
+      cardsCommittedThisMonth,
+      cardsCommittedNextMonth,
+      remainingAgg,
+      openCount,
+      recentPurchases,
+      cards,
+      financingAmounts,
+      financingLateCount,
+      financingActiveCount,
+    ] = await Promise.all([
+      this.sumByMonth(userId, thisMonth.year, thisMonth.month),
+      this.sumByMonth(userId, nextMonth.year, nextMonth.month),
+      this.prisma.installment.aggregate({
+        where: { userId, status: { in: ["PENDING", "LATE"] } },
+        _sum: { amount: true },
+      }),
+      this.prisma.installment.count({ where: { userId, status: { in: ["PENDING", "LATE"] } } }),
+      this.prisma.purchase.findMany({
+        where: { userId, deletedAt: null },
+        include: { card: true, category: true },
+        orderBy: { createdAt: "desc" },
+        take: 5,
+      }),
+      this.prisma.card.findMany({ where: { userId, active: true } }),
+      this.financingAmountsByMonth(userId, thisMonth, nextMonth),
+      this.prisma.financingInstallment.count({ where: { userId, status: "LATE" } }),
+      this.prisma.financing.count({ where: { userId, active: true } }),
+    ]);
 
     let nextClosing: { cardId: string; cardName: string; date: Date } | null = null;
     let nextDue: { cardId: string; cardName: string; date: Date } | null = null;
@@ -58,13 +72,18 @@ export class DashboardService {
       totalSpent += Number(spentAgg._sum.amount ?? 0);
     }
 
+    const financingThisMonth = includeFinancing ? financingAmounts.thisMonth : 0;
+    const financingNextMonth = includeFinancing ? financingAmounts.nextMonth : 0;
+    const financingRemaining = includeFinancing ? financingAmounts.remaining : 0;
+    const committedThisMonth = cardsCommittedThisMonth + financingThisMonth;
+    const committedNextMonth = cardsCommittedNextMonth + financingNextMonth;
+
     return {
       committedThisMonth,
       committedNextMonth,
       estimatedNextInvoice: committedNextMonth,
-      totalRemaining: Number(remainingAgg._sum.amount ?? 0),
+      totalRemaining: Number(remainingAgg._sum.amount ?? 0) + financingRemaining,
       openInstallmentsCount: openCount,
-      lateInstallmentsCount: lateCount,
       recentPurchases,
       nextClosing,
       nextDue,
@@ -73,10 +92,20 @@ export class DashboardService {
         totalSpent,
         usagePct: totalLimit > 0 ? Math.min((totalSpent / totalLimit) * 100, 100) : 0,
       },
+      includeFinancingInTotals: includeFinancing,
+      financing: {
+        activeCount: financingActiveCount,
+        committedThisMonth: financingAmounts.thisMonth,
+        totalRemaining: financingAmounts.remaining,
+        lateCount: financingLateCount,
+      },
     };
   }
 
   async spendingEvolution(userId: string) {
+    const settings = await this.prisma.setting.findUnique({ where: { userId } });
+    const includeFinancing = settings?.includeFinancingInTotals ?? true;
+
     const now = new Date();
     const months: { year: number; month: number }[] = [];
     for (let offset = -5; offset <= 6; offset++) {
@@ -84,9 +113,52 @@ export class DashboardService {
       months.push({ year: d.getFullYear(), month: d.getMonth() + 1 });
     }
 
-    const results = await Promise.all(months.map((m) => this.sumByMonth(userId, m.year, m.month)));
+    const results = await Promise.all(
+      months.map(async (m) => {
+        const cardsTotal = await this.sumByMonth(userId, m.year, m.month);
+        if (!includeFinancing) return cardsTotal;
+        const monthStart = new Date(m.year, m.month - 1, 1);
+        const monthEnd = new Date(m.year, m.month, 1);
+        const financingAgg = await this.prisma.financingInstallment.aggregate({
+          where: { userId, dueDate: { gte: monthStart, lt: monthEnd }, status: { not: "CANCELLED" } },
+          _sum: { amount: true },
+        });
+        return cardsTotal + Number(financingAgg._sum.amount ?? 0);
+      }),
+    );
 
     return months.map((m, idx) => ({ year: m.year, month: m.month, total: results[idx] }));
+  }
+
+  private async financingAmountsByMonth(
+    userId: string,
+    thisMonth: { year: number; month: number },
+    nextMonth: { year: number; month: number },
+  ) {
+    const thisMonthStart = new Date(thisMonth.year, thisMonth.month - 1, 1);
+    const thisMonthEnd = new Date(thisMonth.year, thisMonth.month, 1);
+    const nextMonthEnd = new Date(nextMonth.year, nextMonth.month, 1);
+
+    const [thisMonthAgg, nextMonthAgg, remainingAgg] = await Promise.all([
+      this.prisma.financingInstallment.aggregate({
+        where: { userId, dueDate: { gte: thisMonthStart, lt: thisMonthEnd }, status: { not: "CANCELLED" } },
+        _sum: { amount: true },
+      }),
+      this.prisma.financingInstallment.aggregate({
+        where: { userId, dueDate: { gte: thisMonthEnd, lt: nextMonthEnd }, status: { not: "CANCELLED" } },
+        _sum: { amount: true },
+      }),
+      this.prisma.financingInstallment.aggregate({
+        where: { userId, status: { in: ["PENDING", "LATE"] } },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    return {
+      thisMonth: Number(thisMonthAgg._sum.amount ?? 0),
+      nextMonth: Number(nextMonthAgg._sum.amount ?? 0),
+      remaining: Number(remainingAgg._sum.amount ?? 0),
+    };
   }
 
   async byCategory(userId: string) {
