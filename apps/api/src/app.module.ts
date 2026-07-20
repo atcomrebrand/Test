@@ -18,6 +18,7 @@ import { SettingsModule } from "./modules/settings/settings.module";
 import { ExportModule } from "./modules/export/export.module";
 import { AccountModule } from "./modules/account/account.module";
 import { FinancingsModule } from "./modules/financings/financings.module";
+import { InvestmentsModule } from "./modules/investments/investments.module";
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { FinancingsModule } from "./modules/financings/financings.module";
     ExportModule,
     AccountModule,
     FinancingsModule,
+    InvestmentsModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

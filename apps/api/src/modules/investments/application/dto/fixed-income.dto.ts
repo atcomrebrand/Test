@@ -1,0 +1,79 @@
+import { Type } from "class-transformer";
+import { IsDateString, IsIn, IsNumber, IsOptional, IsPositive, IsString, Min, MinLength } from "class-validator";
+
+const TYPES = ["CDB", "LCI", "LCA", "TESOURO", "OUTRO"] as const;
+const LIQUIDITIES = ["DIARIA", "NO_VENCIMENTO", "OUTRO"] as const;
+const INDEXERS = ["PREFIXADO", "POS_FIXADO_CDI", "IPCA_MAIS", "OUTRO"] as const;
+const INCOME_TYPES = ["JUROS", "OUTRO"] as const;
+
+export class CreateFixedIncomeDto {
+  @IsString()
+  @MinLength(1)
+  institution!: string;
+
+  @IsIn(TYPES)
+  type!: (typeof TYPES)[number];
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  principalAmount!: number;
+
+  @IsDateString()
+  applicationDate!: string;
+
+  @IsDateString()
+  maturityDate!: string;
+
+  @IsIn(LIQUIDITIES)
+  liquidity!: (typeof LIQUIDITIES)[number];
+
+  @IsIn(INDEXERS)
+  indexer!: (typeof INDEXERS)[number];
+
+  /** Required for PREFIXADO/IPCA_MAIS, ignored otherwise. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  fixedRatePercent?: number;
+
+  /** Required for POS_FIXADO_CDI (e.g. 110 = 110% do CDI), ignored otherwise. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  cdiPercent?: number;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class UpdateFixedIncomeDto {
+  @IsOptional() @IsString() @MinLength(1) institution?: string;
+  @IsOptional() @IsString() notes?: string;
+}
+
+export class RedeemFixedIncomeDto {
+  @IsOptional()
+  @IsDateString()
+  redeemedAt?: string;
+}
+
+export class AddFixedIncomeInterestDto {
+  @IsOptional()
+  @IsIn(INCOME_TYPES)
+  type?: (typeof INCOME_TYPES)[number];
+
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  amount!: number;
+
+  @IsDateString()
+  paymentDate!: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}

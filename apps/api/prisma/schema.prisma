@@ -67,6 +67,53 @@ enum RecurringBillingCycle {
 }
 
 // ---------------------------------------------------------------------------
+// Investments module enums (isolated from the credit-card domain above)
+// ---------------------------------------------------------------------------
+
+/// Fundos ("FUND") kept as structure-only for now — no dedicated CRUD/UI yet.
+enum InvestmentAssetClass {
+  STOCK
+  FII
+  CRYPTO
+  FUND
+}
+
+enum InvestmentTransactionType {
+  BUY
+  SELL
+}
+
+enum InvestmentIncomeType {
+  DIVIDENDO
+  JCP
+  RENDIMENTO
+  JUROS
+  OUTRO
+}
+
+enum FixedIncomeType {
+  CDB
+  LCI
+  LCA
+  TESOURO
+  OUTRO
+}
+
+enum FixedIncomeLiquidity {
+  DIARIA
+  NO_VENCIMENTO
+  OUTRO
+}
+
+/// POS_FIXADO_CDI uses cdiPercent; PREFIXADO and IPCA_MAIS use fixedRatePercent (IPCA_MAIS as the spread over IPCA).
+enum FixedIncomeIndexer {
+  PREFIXADO
+  POS_FIXADO_CDI
+  IPCA_MAIS
+  OUTRO
+}
+
+// ---------------------------------------------------------------------------
 // Core entities
 // ---------------------------------------------------------------------------
 
@@ -89,6 +136,15 @@ model User {
   financings            Financing[]
   financingInstallments FinancingInstallment[]
   financingPayoffQuotes FinancingPayoffQuote[]
+
+  investmentAssets        InvestmentAsset[]
+  investmentTransactions  InvestmentTransaction[]
+  investmentIncomes       InvestmentIncome[]
+  investmentFixedIncomes  InvestmentFixedIncome[]
+  investmentContributions InvestmentContribution[]
+  investmentCashAccounts  InvestmentCashAccount[]
+  investmentAuditLogs     InvestmentAuditLog[]
+  investmentSetting       InvestmentSetting?
 
   @@map("users")
 }
@@ -326,4 +382,184 @@ model FinancingInstallment {
   @@index([userId, status])
   @@index([userId, dueDate])
   @@map("financing_installments")
+}
+
+// ---------------------------------------------------------------------------
+// Investments module ("/investimentos") — fully isolated from the tables
+// above. Only relation back to User (auth/ownership) is shared.
+// ---------------------------------------------------------------------------
+
+/// A held position: a stock/FII ticker, a crypto coin, or (structure-only) a fund quota.
+/// Quantity/average price/current value are always derived from InvestmentTransaction rows,
+/// never stored directly, so they can never drift out of sync.
+model InvestmentAsset {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class     InvestmentAssetClass
+  ticker    String
+  name      String?
+  broker    String?
+  wallet    String? // crypto only
+  network   String? // crypto only
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  transactions InvestmentTransaction[]
+  incomes      InvestmentIncome[]
+
+  @@index([userId, class])
+  @@index([userId, deletedAt])
+  @@map("investment_assets")
+}
+
+/// A single buy/sell lot. Never deleted (financial record) — correct via update if entered wrong.
+model InvestmentTransaction {
+  id              String                    @id @default(cuid())
+  userId          String
+  user            User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId         String
+  asset           InvestmentAsset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type            InvestmentTransactionType
+  quantity        Decimal                   @db.Decimal(20, 8)
+  unitPrice       Decimal                   @db.Decimal(20, 8)
+  fees            Decimal                   @default(0) @db.Decimal(12, 2)
+  transactionDate DateTime
+  notes           String?
+  createdAt       DateTime                  @default(now())
+
+  @@index([assetId, transactionDate])
+  @@index([userId, transactionDate])
+  @@map("investment_transactions")
+}
+
+/// Dividendos/JCP/rendimentos (stocks & FIIs) or juros (renda fixa). Exactly one of
+/// assetId/fixedIncomeId is set — enforced in the application layer.
+model InvestmentIncome {
+  id            String                 @id @default(cuid())
+  userId        String
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId       String?
+  asset         InvestmentAsset?       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fixedIncomeId String?
+  fixedIncome   InvestmentFixedIncome? @relation(fields: [fixedIncomeId], references: [id], onDelete: Cascade)
+  type          InvestmentIncomeType
+  amount        Decimal                @db.Decimal(14, 2)
+  paymentDate   DateTime
+  notes         String?
+  createdAt     DateTime               @default(now())
+
+  @@index([userId, paymentDate])
+  @@index([assetId])
+  @@index([fixedIncomeId])
+  @@map("investment_incomes")
+}
+
+/// CDB/LCI/LCA/Tesouro Direto applications. Always exposes gross AND net (after IR/IOF) value —
+/// see FixedIncomeCalculator. Never hard-deleted; withdraw via redeemedAt/redeemedNetAmount.
+model InvestmentFixedIncome {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution       String
+  type              FixedIncomeType
+  principalAmount   Decimal              @db.Decimal(14, 2)
+  applicationDate   DateTime
+  maturityDate      DateTime
+  liquidity         FixedIncomeLiquidity
+  indexer           FixedIncomeIndexer
+  /// PREFIXADO: taxa fixa a.a. IPCA_MAIS: spread a.a. sobre o IPCA. Unused for POS_FIXADO_CDI.
+  fixedRatePercent  Decimal?             @db.Decimal(7, 4)
+  /// POS_FIXADO_CDI only — e.g. 110 = 110% do CDI.
+  cdiPercent        Decimal?             @db.Decimal(7, 4)
+  redeemedAt        DateTime?
+  redeemedNetAmount Decimal?             @db.Decimal(14, 2)
+  notes             String?
+  deletedAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  incomes InvestmentIncome[]
+
+  @@index([userId, deletedAt])
+  @@index([userId, maturityDate])
+  @@map("investment_fixed_incomes")
+}
+
+/// Aportes: money moved into the portfolio, not necessarily tied to one specific asset yet.
+/// Backend-only for now (dedicated CRUD/UI is a later round) — feeds the dashboard's
+/// "aportes do mês" metric alongside buy transactions and fixed-income applications.
+model InvestmentContribution {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  amount    Decimal  @db.Decimal(14, 2)
+  category  String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@map("investment_contributions")
+}
+
+/// Caixa / contas bancárias — simple balance tracked manually, counted in patrimônio total.
+model InvestmentCashAccount {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  institution String?
+  balance     Decimal   @default(0) @db.Decimal(14, 2)
+  notes       String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, deletedAt])
+  @@map("investment_cash_accounts")
+}
+
+/// TTL cache for external market-data lookups (BRAPI/CoinGecko/Bacen) — the interface layer
+/// must never call those providers directly, only through this cache.
+model InvestmentPriceCache {
+  id         String               @id @default(cuid())
+  symbol     String
+  assetClass InvestmentAssetClass
+  price      Decimal              @db.Decimal(20, 8)
+  currency   String               @default("BRL")
+  source     String
+  fetchedAt  DateTime             @default(now())
+
+  @@unique([symbol, assetClass])
+  @@map("investment_price_cache")
+}
+
+model InvestmentAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  changes   Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@map("investment_audit_logs")
+}
+
+model InvestmentSetting {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency               String   @default("BRL")
+  autoUpdatePrices       Boolean  @default(true)
+  assetDropAlertPercent  Int?
+  cryptoDropAlertPercent Int?
+  updatedAt              DateTime @updatedAt
+
+  @@map("investment_settings")
 }
