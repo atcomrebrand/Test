@@ -100,6 +100,18 @@ else
   JWT_SECRET="$(cat /root/.parcelas_jwt_secret)"
 fi
 
+# BRAPI_TOKEN é opcional: sem ele a API de cotações (brapi.dev) funciona, só que com um rate
+# limit bem mais apertado no tier gratuito. Passe a sua (cadastro grátis em brapi.dev) na hora
+# de rodar o script — nunca fica hardcoded aqui nem no repositório, só persistida localmente
+# nesta VPS pra reexecuções futuras não precisarem informá-la de novo:
+#   BRAPI_TOKEN=sua_chave_aqui bash -c "$(curl -fsSL <raw-url-deste-arquivo>)"
+if [ -n "${BRAPI_TOKEN:-}" ]; then
+  echo "$BRAPI_TOKEN" > /root/.parcelas_brapi_token
+  chmod 600 /root/.parcelas_brapi_token
+elif [ -f /root/.parcelas_brapi_token ]; then
+  BRAPI_TOKEN="$(cat /root/.parcelas_brapi_token)"
+fi
+
 cat > "$ENV_FILE" <<EOF
 DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:5432/$DB_NAME?schema=public"
 JWT_SECRET="$JWT_SECRET"
@@ -107,6 +119,9 @@ JWT_EXPIRES_IN="7d"
 PORT=$API_PORT
 WEB_ORIGIN="http://$SERVER_IP"
 EOF
+if [ -n "${BRAPI_TOKEN:-}" ]; then
+  echo "BRAPI_TOKEN=\"$BRAPI_TOKEN\"" >> "$ENV_FILE"
+fi
 chown "$APP_USER":"$APP_USER" "$ENV_FILE"
 chmod 600 "$ENV_FILE"
 
@@ -197,6 +212,12 @@ echo " Backend (systemd): systemctl status parcelas-api"
 echo " Logs do backend:   journalctl -u parcelas-api -f"
 echo " Config Nginx:       /etc/nginx/sites-available/parcelas"
 echo " .env do backend:    $ENV_FILE (permissões 600, contém segredos)"
+if [ -n "${BRAPI_TOKEN:-}" ]; then
+  echo " Token BRAPI:        configurado"
+else
+  echo " Token BRAPI:        não configurado (rate limit de cotações mais baixo)"
+  echo "                     rode de novo com: BRAPI_TOKEN=sua_chave bash -c \"\$(curl -fsSL <url>)\""
+fi
 echo
 echo " Para atualizar após um novo push no repositório, rode este mesmo"
 echo " script novamente: ele é seguro para reexecutar."

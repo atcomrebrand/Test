@@ -13,6 +13,21 @@ curl -fsSL https://raw.githubusercontent.com/atcomrebrand/test/claude/credit-car
 
 Ao final, o script imprime a URL de acesso (`http://SEU_IP`) e o login de demonstração.
 
+### Token da BRAPI (opcional, recomendado)
+
+O módulo de investimentos busca cotações de ações/FIIs na [brapi.dev](https://brapi.dev). Sem
+token, funciona, mas com um rate limit bem apertado — um portfólio com vários ativos pode ver
+"alguns" preços faltando quando várias cotações são buscadas de uma vez. Cadastro grátis em
+brapi.dev gera um token que aumenta bastante esse limite. Para configurar (na primeira instalação
+ou numa reexecução), passe-o assim — nunca fica hardcoded no script nem no repositório, só
+persistido localmente na própria VPS (`/root/.parcelas_brapi_token`, permissão 600):
+
+```bash
+BRAPI_TOKEN=sua_chave_aqui bash -c "$(curl -fsSL https://raw.githubusercontent.com/atcomrebrand/test/claude/credit-card-installments-system-8o6tq0/deploy/setup-vps.sh)"
+```
+
+Reexecuções seguintes (mesmo sem passar `BRAPI_TOKEN` de novo) continuam usando o token já salvo.
+
 ## O que o script instala
 
 - Node.js 20 LTS + pnpm
