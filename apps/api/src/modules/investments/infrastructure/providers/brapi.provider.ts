@@ -3,6 +3,8 @@ import {
   AssetFundamentals,
   CatalogEntry,
   ChartRangeOptions,
+  DividendEvent,
+  DividendType,
   daysBetweenIsoDates,
   HistoricalPricePoint,
   QuoteDetail,
@@ -61,6 +63,15 @@ function brapiRangeParams(options: ChartRangeOptions): { range: string; interval
   }
 }
 
+interface BrapiCashDividend {
+  rate?: number;
+  paymentDate?: string;
+  /** Ex-dividend ("data-com") date — BRAPI's field name for it. */
+  lastDatePrior?: string;
+  relatedTo?: string;
+  label?: string;
+}
+
 interface BrapiQuoteResult {
   regularMarketPrice?: number;
   regularMarketChangePercent?: number;
@@ -78,6 +89,20 @@ interface BrapiQuoteResult {
   dividendYield?: number;
   logourl?: string;
   historicalDataPrice?: BrapiHistoricalPoint[];
+  dividendsData?: { cashDividends?: BrapiCashDividend[] };
+}
+
+function classifyDividendType(label: string | undefined): DividendType {
+  const normalized = (label ?? "").toUpperCase();
+  if (normalized.includes("JCP") || normalized.includes("JUROS")) return "JCP";
+  if (normalized.includes("DIVIDENDO")) return "DIVIDENDO";
+  return "OUTRO";
+}
+
+function normalizeBrapiDate(value: string | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
 }
 
 /** brapi.dev — free-tier quote provider for B3 stocks/FIIs. Priority provider per spec. */
@@ -146,6 +171,25 @@ export class BrapiProvider extends StockQuoteProvider {
     }
 
     return history;
+  }
+
+  /** Dividend/JCP payment history via BRAPI's `dividends=true` module. Reuses the fractional-lot
+   *  fallback for robustness, but the `approximate` flag is irrelevant here — the payment per
+   *  share is identical regardless of lot size, so it's discarded. */
+  async fetchDividends(ticker: string): Promise<DividendEvent[]> {
+    const { quote } = await this.fetchWithFractionalFallback(ticker, { dividends: "true" });
+    const cashDividends = quote.dividendsData?.cashDividends ?? [];
+
+    return cashDividends
+      .filter((d): d is BrapiCashDividend & { rate: number } => typeof d.rate === "number")
+      .map((d) => ({
+        ticker: ticker.toUpperCase(),
+        type: classifyDividendType(d.label),
+        rate: d.rate,
+        exDate: normalizeBrapiDate(d.lastDatePrior),
+        paymentDate: normalizeBrapiDate(d.paymentDate),
+        relatedTo: d.relatedTo ?? null,
+      }));
   }
 
   async listCatalog(): Promise<CatalogEntry[]> {

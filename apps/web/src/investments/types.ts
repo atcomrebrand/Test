@@ -119,6 +119,20 @@ export interface NewsArticle {
   publishedAt: string;
 }
 
+export type DividendType = "DIVIDENDO" | "JCP" | "OUTRO";
+
+export interface DividendCalendarEntry {
+  ticker: string;
+  name: string | null;
+  type: DividendType;
+  rate: number;
+  exDate: string | null;
+  paymentDate: string | null;
+  relatedTo: string | null;
+  quantityHeld: number | null;
+  estimatedAmount: number | null;
+}
+
 export type FixedIncomeType = "CDB" | "LCI" | "LCA" | "TESOURO" | "OUTRO";
 export type FixedIncomeLiquidity = "DIARIA" | "NO_VENCIMENTO" | "OUTRO";
 export type FixedIncomeIndexer = "PREFIXADO" | "POS_FIXADO_CDI" | "IPCA_MAIS" | "OUTRO";

@@ -25,6 +25,7 @@ import AssetDetail from "./investments/pages/AssetDetail";
 import FixedIncomePage from "./investments/pages/FixedIncomePage";
 import History from "./investments/pages/History";
 import News from "./investments/pages/News";
+import Dividends from "./investments/pages/Dividends";
 
 export default function App() {
   return (
@@ -57,6 +58,7 @@ export default function App() {
           <Route path="/investimentos/renda-fixa" element={<FixedIncomePage />} />
           <Route path="/investimentos/historico" element={<History />} />
           <Route path="/investimentos/noticias" element={<News />} />
+          <Route path="/investimentos/proventos" element={<Dividends />} />
         </Route>
       </Route>
 

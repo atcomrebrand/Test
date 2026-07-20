@@ -8,6 +8,7 @@ import {
   ChartRangeParams,
   DashboardSummary,
   HistoricalPricePoint,
+  DividendCalendarEntry,
   InvestmentAsset,
   InvestmentFixedIncome,
   MarketQuoteDetailResponse,
@@ -304,6 +305,26 @@ export function usePortfolioNews() {
     queryKey: ["investments", "news", "portfolio"],
     queryFn: () => api.get<NewsArticle[]>("/investments/news/portfolio"),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Calendário de proventos
+// ---------------------------------------------------------------------------
+
+export function useMarketDividends() {
+  return useQuery({
+    queryKey: ["investments", "dividends", "market"],
+    queryFn: () => api.get<DividendCalendarEntry[]>("/investments/dividends/market"),
+    staleTime: 10 * 60 * 1000,
+  });
+}
+
+export function usePortfolioDividends() {
+  return useQuery({
+    queryKey: ["investments", "dividends", "portfolio"],
+    queryFn: () => api.get<DividendCalendarEntry[]>("/investments/dividends/portfolio"),
+    staleTime: 10 * 60 * 1000,
   });
 }
 

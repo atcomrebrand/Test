@@ -27,9 +27,20 @@ import { GoogleNewsProvider } from "./infrastructure/providers/google-news.provi
 import { NewsCacheService } from "./infrastructure/news-cache.service";
 import { NewsService } from "./application/news.service";
 import { NewsController } from "./interface/news.controller";
+import { DividendsCacheService } from "./infrastructure/dividends-cache.service";
+import { DividendsService } from "./application/dividends.service";
+import { DividendsController } from "./interface/dividends.controller";
 
 @Module({
-  controllers: [FixedIncomesController, AssetsController, CashAccountsController, InvestmentsDashboardController, CatalogController, NewsController],
+  controllers: [
+    FixedIncomesController,
+    AssetsController,
+    CashAccountsController,
+    InvestmentsDashboardController,
+    CatalogController,
+    NewsController,
+    DividendsController,
+  ],
   providers: [
     { provide: StockQuoteProvider, useClass: BrapiProvider },
     { provide: CryptoQuoteProvider, useClass: CoinGeckoProvider },
@@ -40,6 +51,8 @@ import { NewsController } from "./interface/news.controller";
     CatalogCacheService,
     NewsCacheService,
     NewsService,
+    DividendsCacheService,
+    DividendsService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },
     FixedIncomesService,
     { provide: AssetRepository, useClass: AssetPrismaRepository },

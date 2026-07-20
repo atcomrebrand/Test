@@ -66,6 +66,21 @@ export function parseChartRangeOptions(range: string | undefined, from: string |
   return { range: normalizedRange };
 }
 
+export type DividendType = "DIVIDENDO" | "JCP" | "OUTRO";
+
+export interface DividendEvent {
+  ticker: string;
+  type: DividendType;
+  /** Value per share/cota, in the instrument's currency. */
+  rate: number;
+  /** Ex-dividend ("data-com") date — the asset must be held by this date to receive the payment. */
+  exDate: string | null;
+  /** Date the payment is/was made. */
+  paymentDate: string | null;
+  /** Free-text description of what the payment refers to (e.g. "1º trimestre 2024"). */
+  relatedTo: string | null;
+}
+
 export abstract class StockQuoteProvider {
   abstract fetchQuote(ticker: string): Promise<QuoteResult>;
   abstract fetchDetail(ticker: string): Promise<QuoteDetail>;
@@ -75,6 +90,9 @@ export abstract class StockQuoteProvider {
   /** Price history for a given time range — a distinct, low-frequency lookup from fetchDetail's
    *  fixed 3-month window, so it isn't folded into the detail cache. */
   abstract fetchHistory(ticker: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]>;
+  /** Dividend/JCP payment history for the dividend calendar. Stocks/FIIs only — crypto has no
+   *  equivalent corporate action, so this isn't on CryptoQuoteProvider. */
+  abstract fetchDividends(ticker: string): Promise<DividendEvent[]>;
 }
 
 export abstract class CryptoQuoteProvider {

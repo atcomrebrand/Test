@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { ArrowLeft, LayoutDashboard, Compass, LineChart, PiggyBank, History, Newspaper } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Compass, LineChart, PiggyBank, History, Newspaper, CalendarDays } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { InvestmentsMobileNav } from "./InvestmentsMobileNav";
 
@@ -8,6 +8,7 @@ const INVESTMENT_NAV = [
   { to: "/investimentos/explorar", label: "Explorar", icon: Compass },
   { to: "/investimentos/carteira", label: "Carteira", icon: LineChart },
   { to: "/investimentos/renda-fixa", label: "Renda Fixa", icon: PiggyBank },
+  { to: "/investimentos/proventos", label: "Proventos", icon: CalendarDays },
   { to: "/investimentos/noticias", label: "Notícias", icon: Newspaper },
   { to: "/investimentos/historico", label: "Histórico", icon: History },
 ];
