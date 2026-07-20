@@ -1,5 +1,13 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { AssetFundamentals, HistoricalPricePoint, QuoteDetail, QuoteResult, StockQuoteProvider } from "../../domain/market-data.provider";
+import { AssetFundamentals, CatalogEntry, HistoricalPricePoint, QuoteDetail, QuoteResult, StockQuoteProvider } from "../../domain/market-data.provider";
+
+interface BrapiListEntry {
+  stock?: string;
+  name?: string;
+  type?: string;
+  sector?: string;
+  logo?: string;
+}
 
 interface BrapiHistoricalPoint {
   date: number; // unix seconds
@@ -74,6 +82,18 @@ export class BrapiProvider extends StockQuoteProvider {
       history,
       fundamentals,
     };
+  }
+
+  async listCatalog(): Promise<CatalogEntry[]> {
+    const token = process.env.BRAPI_TOKEN;
+    const url = `https://brapi.dev/api/quote/list${token ? `?token=${token}` : ""}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`BRAPI list request failed: ${res.status}`);
+
+    const body = (await res.json()) as { stocks?: BrapiListEntry[] };
+    return (body.stocks ?? [])
+      .filter((s): s is BrapiListEntry & { stock: string } => typeof s.stock === "string")
+      .map((s) => ({ ticker: s.stock, name: s.name ?? s.stock, type: s.type, logoUrl: s.logo }));
   }
 
   private async fetchRaw(ticker: string, extraParams: Record<string, string> = {}): Promise<BrapiQuoteResult> {

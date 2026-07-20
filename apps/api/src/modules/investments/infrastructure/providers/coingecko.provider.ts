@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { AssetFundamentals, HistoricalPricePoint, QuoteDetail, QuoteResult, CryptoQuoteProvider } from "../../domain/market-data.provider";
+import { AssetFundamentals, CatalogEntry, HistoricalPricePoint, QuoteDetail, QuoteResult, CryptoQuoteProvider } from "../../domain/market-data.provider";
 
 /** Convenience map so users can type a familiar ticker (BTC) instead of memorizing CoinGecko's
  *  coin id (bitcoin). Anything not listed here is assumed to already be a valid CoinGecko id. */
@@ -91,5 +91,17 @@ export class CoinGeckoProvider extends CryptoQuoteProvider {
       history,
       fundamentals,
     };
+  }
+
+  /** Top 250 coins by market cap. The catalog's `ticker` is the CoinGecko id itself (not the
+   *  symbol) so a selection round-trips perfectly through fetchQuote/fetchDetail regardless of
+   *  whether the symbol is in the SYMBOL_TO_COINGECKO_ID convenience map above. */
+  async listCatalog(): Promise<CatalogEntry[]> {
+    const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=brl&order=market_cap_desc&per_page=250&page=1&sparkline=false";
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`CoinGecko markets request failed: ${res.status}`);
+
+    const body = (await res.json()) as { id: string; symbol: string; name: string; image?: string }[];
+    return body.map((c) => ({ ticker: c.id, name: `${c.name} (${c.symbol.toUpperCase()})`, logoUrl: c.image }));
   }
 }

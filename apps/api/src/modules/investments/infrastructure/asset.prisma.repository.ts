@@ -11,7 +11,7 @@ export class AssetPrismaRepository extends AssetRepository {
   findAllByUser(userId: string, assetClass?: string) {
     return this.prisma.investmentAsset.findMany({
       where: { userId, deletedAt: null, ...(assetClass ? { class: assetClass as any } : {}) },
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ favorite: "desc" }, { createdAt: "desc" }],
     });
   }
 

@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDateString, IsIn, IsNumber, IsOptional, IsPositive, IsString, Min, MinLength } from "class-validator";
+import { IsBoolean, IsDateString, IsIn, IsNumber, IsOptional, IsPositive, IsString, Min, MinLength } from "class-validator";
 
 const ASSET_CLASSES = ["STOCK", "FII", "CRYPTO"] as const;
 const TRANSACTION_TYPES = ["BUY", "SELL"] as const;
@@ -51,6 +51,7 @@ export class UpdateAssetDto {
   @IsOptional() @IsString() network?: string;
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) stakingApyPercent?: number;
+  @IsOptional() @IsBoolean() favorite?: boolean;
 }
 
 export class CreateTransactionDto {

@@ -24,14 +24,27 @@ export interface QuoteDetail extends QuoteResult {
   fundamentals: AssetFundamentals;
 }
 
+export interface CatalogEntry {
+  ticker: string;
+  name: string;
+  /** e.g. B3 sector for stocks, or the type BRAPI reports (stock/fund/bdr). */
+  type?: string;
+  logoUrl?: string;
+}
+
 export abstract class StockQuoteProvider {
   abstract fetchQuote(ticker: string): Promise<QuoteResult>;
   abstract fetchDetail(ticker: string): Promise<QuoteDetail>;
+  /** Full B3 ticker list (stocks + FIIs) — used to power the "browse instead of type blind"
+   *  asset picker. Large but changes rarely, so callers should cache it themselves. */
+  abstract listCatalog(): Promise<CatalogEntry[]>;
 }
 
 export abstract class CryptoQuoteProvider {
   abstract fetchQuote(coinId: string): Promise<QuoteResult>;
   abstract fetchDetail(coinId: string): Promise<QuoteDetail>;
+  /** Top coins by market cap — same idea as StockQuoteProvider.listCatalog(). */
+  abstract listCatalog(): Promise<CatalogEntry[]>;
 }
 
 export abstract class EconomicIndicatorProvider {

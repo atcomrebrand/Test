@@ -407,6 +407,7 @@ model InvestmentAsset {
   /// diferente pra staking de stablecoins e outras criptos, então não há uma taxa "de mercado"
   /// única pra buscar automaticamente.
   stakingApyPercent Decimal?             @db.Decimal(7, 4)
+  favorite          Boolean              @default(false)
   notes             String?
   deletedAt         DateTime?
   createdAt         DateTime             @default(now())
