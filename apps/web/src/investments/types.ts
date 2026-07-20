@@ -57,6 +57,9 @@ export interface InvestmentAsset {
   favorite: boolean;
   position: Position;
   currentPrice: number | null;
+  /** True when currentPrice/currentValue/profit are based on a substitute price (e.g. a B3
+   *  fractional-lot ticker priced via its round-lot counterpart), not an exact quote. */
+  priceIsApproximate: boolean;
   currentValue: number | null;
   profit: number | null;
   profitPercent: number | null;
@@ -81,6 +84,9 @@ export interface AssetQuoteDetail {
   history: HistoricalPricePoint[];
   fundamentals: AssetFundamentals;
   fetchedAt: string;
+  /** True when this price substitutes for an instrument that can't be priced directly (e.g. a B3
+   *  fractional-lot ticker priced via its round-lot counterpart) — never treat it as exact. */
+  approximate: boolean;
 }
 
 export interface AssetQuoteDetailResponse {

@@ -537,6 +537,10 @@ model InvestmentPriceCache {
   price         Decimal              @db.Decimal(20, 8)
   currency      String               @default("BRL")
   changePercent Decimal?             @db.Decimal(10, 4)
+  /// True when this price is a substitute for an instrument BRAPI/CoinGecko can't price directly
+  /// (e.g. a B3 fractional-lot ticker priced via its round-lot counterpart) — must stay disclosed
+  /// across cache hits, not just on the first fetch.
+  approximate   Boolean              @default(false)
   source        String
   fetchedAt     DateTime             @default(now())
   /// Historical price series ({date, close}[]) — populated only when the detail view was fetched.

@@ -1,5 +1,6 @@
-import { RefreshCw, TrendingUp, TrendingDown } from "lucide-react";
+import { RefreshCw, TrendingUp, TrendingDown, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency } from "@/lib/format";
@@ -37,7 +38,20 @@ export function QuoteDetailCard({ detail, isLoading, onRefresh, refreshing }: Pr
           ) : detail ? (
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-3xl font-bold">{formatCurrency(detail.price, detail.currency)}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-3xl font-bold">{formatCurrency(detail.price, detail.currency)}</p>
+                  {detail.approximate && (
+                    <Badge tone="warning" className="gap-1">
+                      <TriangleAlert className="h-3 w-3" />
+                      Aproximado
+                    </Badge>
+                  )}
+                </div>
+                {detail.approximate && (
+                  <p className="mt-1 max-w-sm text-xs text-amber-600 dark:text-amber-400">
+                    Mercado fracionário não tem cotação própria disponível — preço baseado no lote padrão.
+                  </p>
+                )}
                 {detail.changePercent !== null && (
                   <p className={`mt-1 flex items-center gap-1 text-sm font-semibold ${positive ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
                     {positive ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}

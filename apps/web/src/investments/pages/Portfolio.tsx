@@ -98,7 +98,7 @@ export default function Portfolio() {
                 <div className="flex items-center gap-2">
                   {asset.currentPrice !== null && (
                     <span className="text-right text-xs">
-                      <span className="block text-muted">ao vivo</span>
+                      <span className="block text-muted">{asset.priceIsApproximate ? "ao vivo (aprox.)" : "ao vivo"}</span>
                       <span className="font-semibold">{formatCurrency(asset.currentPrice)}</span>
                     </span>
                   )}

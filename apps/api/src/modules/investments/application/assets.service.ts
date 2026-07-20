@@ -103,7 +103,9 @@ export class AssetsService {
       transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate })),
     );
 
-    const currentPrice = position.quantity > 0 ? await this.marketPrice.getPrice(asset.class, asset.ticker, { forceRefresh }) : null;
+    const priceResult = position.quantity > 0 ? await this.marketPrice.getPrice(asset.class, asset.ticker, { forceRefresh }) : null;
+    const currentPrice = priceResult?.price ?? null;
+    const priceIsApproximate = priceResult?.approximate ?? false;
     const currentValue = currentPrice !== null ? position.quantity * currentPrice : null;
     const profit = currentValue !== null ? currentValue - position.investedAmount : null;
     const profitPercent = currentValue !== null && position.investedAmount > 0 ? (profit! / position.investedAmount) * 100 : null;
@@ -117,6 +119,7 @@ export class AssetsService {
       ...asset,
       position,
       currentPrice,
+      priceIsApproximate,
       currentValue,
       profit,
       profitPercent,

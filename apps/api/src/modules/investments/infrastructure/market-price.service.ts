@@ -15,6 +15,9 @@ export interface AssetQuoteDetail {
   history: HistoricalPricePoint[];
   fundamentals: AssetFundamentals;
   fetchedAt: Date;
+  /** True when the price is a substitute for an instrument that can't be priced directly (e.g. a
+   *  B3 fractional-lot ticker priced via its round-lot counterpart). */
+  approximate: boolean;
 }
 
 /**
@@ -34,25 +37,29 @@ export class MarketPriceService {
   ) {}
 
   /** Returns the last known price even if today's refresh failed, or null if never fetched. */
-  async getPrice(assetClass: InvestmentAssetClass, symbol: string, options: { forceRefresh?: boolean } = {}): Promise<number | null> {
+  async getPrice(
+    assetClass: InvestmentAssetClass,
+    symbol: string,
+    options: { forceRefresh?: boolean } = {},
+  ): Promise<{ price: number; approximate: boolean } | null> {
     const cached = await this.prisma.investmentPriceCache.findUnique({
       where: { symbol_assetClass: { symbol, assetClass } },
     });
 
     const isFresh = cached && !options.forceRefresh && Date.now() - cached.fetchedAt.getTime() < PRICE_TTL_MS;
-    if (isFresh) return Number(cached.price);
+    if (isFresh) return { price: Number(cached.price), approximate: cached.approximate };
 
     try {
       const quote = await this.fetchQuoteFromProvider(assetClass, symbol);
       await this.prisma.investmentPriceCache.upsert({
         where: { symbol_assetClass: { symbol, assetClass } },
-        create: { symbol, assetClass, price: quote.price, currency: quote.currency, source: this.sourceFor(assetClass) },
-        update: { price: quote.price, currency: quote.currency, fetchedAt: new Date(), source: this.sourceFor(assetClass) },
+        create: { symbol, assetClass, price: quote.price, currency: quote.currency, approximate: quote.approximate ?? false, source: this.sourceFor(assetClass) },
+        update: { price: quote.price, currency: quote.currency, approximate: quote.approximate ?? false, fetchedAt: new Date(), source: this.sourceFor(assetClass) },
       });
-      return quote.price;
+      return { price: quote.price, approximate: quote.approximate ?? false };
     } catch (err) {
       this.logger.warn(`Quote refresh failed for ${assetClass} ${symbol}: ${(err as Error).message}`);
-      return cached ? Number(cached.price) : null;
+      return cached ? { price: Number(cached.price), approximate: cached.approximate } : null;
     }
   }
 
@@ -73,6 +80,7 @@ export class MarketPriceService {
         history: (cached.history as unknown as HistoricalPricePoint[]) ?? [],
         fundamentals: (cached.fundamentals as AssetFundamentals) ?? {},
         fetchedAt: cached.fetchedAt,
+        approximate: cached.approximate,
       };
     }
 
@@ -86,6 +94,7 @@ export class MarketPriceService {
           price: detail.price,
           currency: detail.currency,
           changePercent: detail.changePercent,
+          approximate: detail.approximate ?? false,
           source: this.sourceFor(assetClass),
           history: detail.history as any,
           fundamentals: detail.fundamentals as any,
@@ -94,6 +103,7 @@ export class MarketPriceService {
           price: detail.price,
           currency: detail.currency,
           changePercent: detail.changePercent,
+          approximate: detail.approximate ?? false,
           fetchedAt: new Date(),
           source: this.sourceFor(assetClass),
           history: detail.history as any,
@@ -107,6 +117,7 @@ export class MarketPriceService {
         history: detail.history,
         fundamentals: detail.fundamentals,
         fetchedAt: saved.fetchedAt,
+        approximate: saved.approximate,
       };
     } catch (err) {
       this.logger.warn(`Detail refresh failed for ${assetClass} ${symbol}: ${(err as Error).message}`);
@@ -118,6 +129,7 @@ export class MarketPriceService {
         history: (cached.history as unknown as HistoricalPricePoint[]) ?? [],
         fundamentals: (cached.fundamentals as AssetFundamentals) ?? {},
         fetchedAt: cached.fetchedAt,
+        approximate: cached.approximate,
       };
     }
   }

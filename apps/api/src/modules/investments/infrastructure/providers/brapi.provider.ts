@@ -16,13 +16,14 @@ interface BrapiHistoricalPoint {
 }
 
 /** B3 appends "F" to a ticker to mark the fractional-lot market segment (e.g. BBSE3F trades the
- *  same underlying stock as BBSE3, just in odd lots). BRAPI's quote list includes these as
- *  separate entries but its quote endpoint doesn't price them — always resolve to the base
- *  round-lot ticker instead. */
+ *  same underlying stock as BBSE3, just in odd lots, at its own price — usually close to but not
+ *  identical to the round-lot price). BRAPI's quote endpoint only prices the round-lot ticker, so
+ *  a fractional ticker is priced via its base ticker as a best-effort fallback, always flagged
+ *  `approximate: true` rather than presented as an exact fractional-market quote. */
 const FRACTIONAL_TICKER_PATTERN = /^([A-Z]{4}\d{1,2})F$/;
 
-function stripFractionalSuffix(ticker: string): string {
-  return ticker.toUpperCase().match(FRACTIONAL_TICKER_PATTERN)?.[1] ?? ticker;
+function baseTickerFor(ticker: string): string | null {
+  return ticker.toUpperCase().match(FRACTIONAL_TICKER_PATTERN)?.[1] ?? null;
 }
 
 interface BrapiQuoteResult {
@@ -50,18 +51,12 @@ export class BrapiProvider extends StockQuoteProvider {
   private readonly logger = new Logger(BrapiProvider.name);
 
   async fetchQuote(ticker: string): Promise<QuoteResult> {
-    const quote = await this.fetchRaw(ticker);
-    if (typeof quote.regularMarketPrice !== "number") {
-      throw new Error(`BRAPI returned no quote for ${ticker}`);
-    }
-    return { price: quote.regularMarketPrice, currency: quote.currency ?? "BRL" };
+    const { quote, approximate } = await this.fetchWithFractionalFallback(ticker);
+    return { price: quote.regularMarketPrice as number, currency: quote.currency ?? "BRL", approximate };
   }
 
   async fetchDetail(ticker: string): Promise<QuoteDetail> {
-    const quote = await this.fetchRaw(ticker, { range: "3mo", interval: "1d", fundamental: "true" });
-    if (typeof quote.regularMarketPrice !== "number") {
-      throw new Error(`BRAPI returned no quote for ${ticker}`);
-    }
+    const { quote, approximate } = await this.fetchWithFractionalFallback(ticker, { range: "3mo", interval: "1d", fundamental: "true" });
 
     const history: HistoricalPricePoint[] = (quote.historicalDataPrice ?? [])
       .filter((p) => typeof p.close === "number" || typeof p.adjustedClose === "number")
@@ -75,6 +70,7 @@ export class BrapiProvider extends StockQuoteProvider {
       if (value !== undefined && value !== null) fundamentals[label] = value;
     };
     add("Nome", quote.longName ?? quote.shortName ?? null);
+    if (approximate) add("Aviso", "Preço aproximado — baseado no lote padrão, mercado fracionário não tem cotação própria disponível");
     add("Máxima 52 semanas", quote.fiftyTwoWeekHigh ?? null);
     add("Mínima 52 semanas", quote.fiftyTwoWeekLow ?? null);
     add("Máxima do dia", quote.regularMarketDayHigh ?? null);
@@ -86,11 +82,12 @@ export class BrapiProvider extends StockQuoteProvider {
     add("Dividend Yield", quote.dividendYield ?? null);
 
     return {
-      price: quote.regularMarketPrice,
+      price: quote.regularMarketPrice as number,
       currency: quote.currency ?? "BRL",
       changePercent: quote.regularMarketChangePercent ?? null,
       history,
       fundamentals,
+      approximate,
     };
   }
 
@@ -103,12 +100,31 @@ export class BrapiProvider extends StockQuoteProvider {
     const body = (await res.json()) as { stocks?: BrapiListEntry[] };
     return (body.stocks ?? [])
       .filter((s): s is BrapiListEntry & { stock: string } => typeof s.stock === "string")
-      .filter((s) => !FRACTIONAL_TICKER_PATTERN.test(s.stock.toUpperCase()))
       .map((s) => ({ ticker: s.stock, name: s.name ?? s.stock, type: s.type, logoUrl: s.logo }));
   }
 
-  private async fetchRaw(rawTicker: string, extraParams: Record<string, string> = {}): Promise<BrapiQuoteResult> {
-    const ticker = stripFractionalSuffix(rawTicker);
+  /** Tries the exact ticker first (so a fractional-lot code gets its own price whenever BRAPI
+   *  actually has one) and only falls back to the round-lot ticker if that specific code has no
+   *  quote — never silently prefers the fallback just because it's more likely to succeed. */
+  private async fetchWithFractionalFallback(
+    ticker: string,
+    extraParams: Record<string, string> = {},
+  ): Promise<{ quote: BrapiQuoteResult; approximate: boolean }> {
+    try {
+      const quote = await this.fetchRaw(ticker, extraParams);
+      if (typeof quote.regularMarketPrice === "number") return { quote, approximate: false };
+      throw new Error(`BRAPI returned no price for ${ticker}`);
+    } catch (err) {
+      const base = baseTickerFor(ticker);
+      if (!base) throw err;
+      this.logger.warn(`No direct quote for fractional ticker ${ticker}, falling back to ${base}: ${(err as Error).message}`);
+      const quote = await this.fetchRaw(base, extraParams);
+      if (typeof quote.regularMarketPrice !== "number") throw new Error(`BRAPI returned no quote for ${ticker} or ${base}`);
+      return { quote, approximate: true };
+    }
+  }
+
+  private async fetchRaw(ticker: string, extraParams: Record<string, string> = {}): Promise<BrapiQuoteResult> {
     const token = process.env.BRAPI_TOKEN;
     const params = new URLSearchParams(extraParams);
     if (token) params.set("token", token);

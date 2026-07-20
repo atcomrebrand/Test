@@ -150,10 +150,15 @@ export default function AssetDetail() {
               <p className="font-semibold">{formatCurrency(asset.position.investedAmount)}</p>
             </div>
             <div>
-              <p className="text-xs text-muted">Valor atual</p>
+              <p className="text-xs text-muted">Valor atual{asset.priceIsApproximate ? " (aprox.)" : ""}</p>
               <p className="font-semibold">{asset.currentValue !== null ? formatCurrency(asset.currentValue) : "—"}</p>
             </div>
           </div>
+          {asset.priceIsApproximate && (
+            <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+              Mercado fracionário não tem cotação própria — valor calculado com o preço do lote padrão.
+            </p>
+          )}
           {asset.profit !== null && (
             <div className={`mt-4 rounded-xl p-3 text-sm font-semibold ${asset.profit >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
               {formatCurrency(asset.profit)} ({asset.profitPercent?.toFixed(2)}%)

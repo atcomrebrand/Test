@@ -7,6 +7,10 @@
 export interface QuoteResult {
   price: number;
   currency: string;
+  /** True when the provider couldn't price this exact instrument and substituted a related one
+   *  (e.g. a B3 fractional-lot ticker priced via its round-lot counterpart) — must be disclosed
+   *  to the user, never presented as an exact quote. */
+  approximate?: boolean;
 }
 
 export interface HistoricalPricePoint {
