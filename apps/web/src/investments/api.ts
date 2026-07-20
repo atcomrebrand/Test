@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
 import {
+  ArticlePreview,
   AssetQuoteDetailResponse,
   CashAccount,
   CatalogEntry,
@@ -305,6 +306,16 @@ export function usePortfolioNews() {
     queryKey: ["investments", "news", "portfolio"],
     queryFn: () => api.get<NewsArticle[]>("/investments/news/portfolio"),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+/** Rich in-app preview for the article popup — real Open Graph data from the article's own page. */
+export function useArticlePreview(link: string | null) {
+  return useQuery({
+    queryKey: ["investments", "news", "preview", link],
+    queryFn: () => api.get<ArticlePreview>("/investments/news/preview", { params: { link } }),
+    enabled: !!link,
+    staleTime: 30 * 60 * 1000,
   });
 }
 

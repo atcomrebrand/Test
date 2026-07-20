@@ -25,6 +25,7 @@ import { MarketExplorerService } from "./application/market-explorer.service";
 import { NewsProvider } from "./domain/news.provider";
 import { GoogleNewsProvider } from "./infrastructure/providers/google-news.provider";
 import { NewsCacheService } from "./infrastructure/news-cache.service";
+import { ArticlePreviewService } from "./infrastructure/article-preview.service";
 import { NewsService } from "./application/news.service";
 import { NewsController } from "./interface/news.controller";
 import { DividendsCacheService } from "./infrastructure/dividends-cache.service";
@@ -50,6 +51,7 @@ import { DividendsController } from "./interface/dividends.controller";
     EconomicIndicatorCacheService,
     CatalogCacheService,
     NewsCacheService,
+    ArticlePreviewService,
     NewsService,
     DividendsCacheService,
     DividendsService,

@@ -117,6 +117,15 @@ export interface NewsArticle {
   link: string;
   source: string | null;
   publishedAt: string;
+  description: string | null;
+}
+
+export interface ArticlePreview {
+  title: string | null;
+  description: string | null;
+  imageUrl: string | null;
+  siteName: string | null;
+  url: string;
 }
 
 export type DividendType = "DIVIDENDO" | "JCP" | "OUTRO";

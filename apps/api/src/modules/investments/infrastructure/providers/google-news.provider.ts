@@ -40,7 +40,24 @@ function decodeXmlEntities(value: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
     .replace(/&amp;/g, "&");
+}
+
+/** Google News' <description> is almost always just the title re-wrapped in an HTML link plus the
+ *  source name — not a real content snippet. This strips the HTML and, if what's left is just a
+ *  duplicate of the title/source, returns null rather than showing the same headline twice. */
+function extractSnippet(item: string, title: string, source: string | null): string | null {
+  const raw = extractTag(item, "description");
+  if (!raw) return null;
+
+  const withoutTags = raw.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  let remainder = withoutTags;
+  if (title) remainder = remainder.replace(title, "");
+  if (source) remainder = remainder.replace(source, "");
+  remainder = remainder.trim();
+
+  return remainder.length >= 15 ? withoutTags : null;
 }
 
 /** Google News titles are formatted "Headline - Source Name" — the dedicated <source> tag is
@@ -55,6 +72,7 @@ function parseItem(item: string): NewsArticle | null {
   const publishedAt = pubDate && !Number.isNaN(Date.parse(pubDate)) ? new Date(pubDate).toISOString() : new Date().toISOString();
 
   const title = source && rawTitle.endsWith(` - ${source}`) ? rawTitle.slice(0, rawTitle.length - source.length - 3) : rawTitle;
+  const description = extractSnippet(item, title, source);
 
-  return { title, link, source, publishedAt };
+  return { title, link, source, publishedAt, description };
 }
