@@ -36,4 +36,8 @@ export abstract class AssetRepository {
   abstract addIncome(data: { userId: string; assetId: string; type: string; amount: number; paymentDate: Date; notes?: string }): Promise<InvestmentIncome>;
   abstract listIncomes(assetId: string): Promise<InvestmentIncome[]>;
   abstract sumIncomesByUser(userId: string, since?: Date): Promise<number>;
+  /** All of a user's transactions across every asset, ticker included — used by the B3 import's
+   *  dedup/backfill logic instead of listing assets then N+1-querying each one's transactions. */
+  abstract listAllTransactionsByUser(userId: string): Promise<(InvestmentTransaction & { asset: { ticker: string; class: string } })[]>;
+  abstract listAllIncomesByUser(userId: string): Promise<(InvestmentIncome & { asset: { ticker: string; class: string } | null })[]>;
 }

@@ -137,4 +137,18 @@ export class AssetPrismaRepository extends AssetRepository {
     });
     return Number(agg._sum.amount ?? 0);
   }
+
+  listAllTransactionsByUser(userId: string) {
+    return this.prisma.investmentTransaction.findMany({
+      where: { userId },
+      include: { asset: { select: { ticker: true, class: true } } },
+    });
+  }
+
+  listAllIncomesByUser(userId: string) {
+    return this.prisma.investmentIncome.findMany({
+      where: { userId, assetId: { not: null } },
+      include: { asset: { select: { ticker: true, class: true } } },
+    });
+  }
 }

@@ -2,12 +2,19 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import helmet from "helmet";
+import { json, urlencoded } from "express";
 import { AppModule } from "./app.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, { cors: false });
+  const app = await NestFactory.create(AppModule, { cors: false, bodyParser: false });
+
+  // Express's default 100kb JSON limit is too small for the B3 statement import (a full year of
+  // "Movimentação" can be several thousand rows) — raised globally since no other endpoint needs
+  // anywhere near this, so the higher cap costs nothing elsewhere.
+  app.use(json({ limit: "15mb" }));
+  app.use(urlencoded({ extended: true, limit: "15mb" }));
 
   app.use(helmet());
   app.enableCors({
