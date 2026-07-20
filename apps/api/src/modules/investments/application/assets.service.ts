@@ -12,12 +12,12 @@ export class AssetsService {
     private readonly marketPrice: MarketPriceService,
   ) {}
 
-  async findAll(userId: string, assetClass?: string) {
+  async findAll(userId: string, assetClass?: string, forceRefresh = false) {
     const rows = await this.assets.findAllByUser(userId, assetClass);
     return Promise.all(
       rows.map(async (asset) => {
         const transactions = await this.assets.listTransactions(asset.id);
-        return this.enrich(asset, transactions);
+        return this.enrich(asset, transactions, forceRefresh);
       }),
     );
   }
@@ -28,6 +28,13 @@ export class AssetsService {
     if (!full) throw new NotFoundException("Ativo não encontrado.");
     const enriched = await this.enrich(asset, full.transactions);
     return { ...enriched, transactions: full.transactions, incomeHistory: full.incomes };
+  }
+
+  /** Live price + change% + price history + fundamentals — the asset detail page. */
+  async getQuoteDetail(userId: string, id: string, forceRefresh = false) {
+    const asset = await this.getOwned(userId, id);
+    const detail = await this.marketPrice.getDetail(asset.class, asset.ticker, { forceRefresh });
+    return { ticker: asset.ticker, class: asset.class, name: asset.name, detail };
   }
 
   create(userId: string, dto: CreateAssetDto) {
@@ -89,12 +96,12 @@ export class AssetsService {
     });
   }
 
-  private async enrich(asset: InvestmentAsset, transactions: InvestmentTransaction[]) {
+  private async enrich(asset: InvestmentAsset, transactions: InvestmentTransaction[], forceRefresh = false) {
     const position = calculatePosition(
       transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate })),
     );
 
-    const currentPrice = position.quantity > 0 ? await this.marketPrice.getPrice(asset.class, asset.ticker) : null;
+    const currentPrice = position.quantity > 0 ? await this.marketPrice.getPrice(asset.class, asset.ticker, { forceRefresh }) : null;
     const currentValue = currentPrice !== null ? position.quantity * currentPrice : null;
     const profit = currentValue !== null ? currentValue - position.investedAmount : null;
     const profitPercent = currentValue !== null && position.investedAmount > 0 ? (profit! / position.investedAmount) * 100 : null;

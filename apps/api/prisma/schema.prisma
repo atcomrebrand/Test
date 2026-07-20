@@ -525,13 +525,18 @@ model InvestmentCashAccount {
 /// TTL cache for external market-data lookups (BRAPI/CoinGecko/Bacen) — the interface layer
 /// must never call those providers directly, only through this cache.
 model InvestmentPriceCache {
-  id         String               @id @default(cuid())
-  symbol     String
-  assetClass InvestmentAssetClass
-  price      Decimal              @db.Decimal(20, 8)
-  currency   String               @default("BRL")
-  source     String
-  fetchedAt  DateTime             @default(now())
+  id            String               @id @default(cuid())
+  symbol        String
+  assetClass    InvestmentAssetClass
+  price         Decimal              @db.Decimal(20, 8)
+  currency      String               @default("BRL")
+  changePercent Decimal?             @db.Decimal(10, 4)
+  source        String
+  fetchedAt     DateTime             @default(now())
+  /// Historical price series ({date, close}[]) — populated only when the detail view was fetched.
+  history       Json?
+  /// Loose key/value fundamentals (P/L, market cap, 52w high/low, etc.) — provider-dependent.
+  fundamentals  Json?
 
   @@unique([symbol, assetClass])
   @@map("investment_price_cache")

@@ -49,6 +49,29 @@ export interface InvestmentAsset {
   incomeHistory?: InvestmentIncomeRow[];
 }
 
+export interface HistoricalPricePoint {
+  date: string;
+  close: number;
+}
+
+export type AssetFundamentals = Record<string, number | string | null>;
+
+export interface AssetQuoteDetail {
+  price: number;
+  currency: string;
+  changePercent: number | null;
+  history: HistoricalPricePoint[];
+  fundamentals: AssetFundamentals;
+  fetchedAt: string;
+}
+
+export interface AssetQuoteDetailResponse {
+  ticker: string;
+  class: AssetClass;
+  name: string | null;
+  detail: AssetQuoteDetail | null;
+}
+
 export type FixedIncomeType = "CDB" | "LCI" | "LCA" | "TESOURO" | "OUTRO";
 export type FixedIncomeLiquidity = "DIARIA" | "NO_VENCIMENTO" | "OUTRO";
 export type FixedIncomeIndexer = "PREFIXADO" | "POS_FIXADO_CDI" | "IPCA_MAIS" | "OUTRO";

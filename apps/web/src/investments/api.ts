@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
-import { CashAccount, DashboardSummary, InvestmentAsset, InvestmentFixedIncome } from "./types";
+import { AssetQuoteDetailResponse, CashAccount, DashboardSummary, InvestmentAsset, InvestmentFixedIncome } from "./types";
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["investments"] });
@@ -41,11 +41,47 @@ export function useAssets(assetClass?: string) {
   });
 }
 
+/** Forces a fresh price fetch for every asset in this tab, bypassing the backend's cache TTL. */
+export function useRefreshAssets(assetClass?: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      api.get<InvestmentAsset[]>("/investments/assets", { params: { ...(assetClass ? { class: assetClass } : {}), refresh: "true" } }),
+    onSuccess: (data) => {
+      qc.setQueryData(["investments", "assets", assetClass ?? "all"], data);
+      toast.success("Preços atualizados!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useAsset(id: string | null) {
   return useQuery({
     queryKey: ["investments", "assets", "detail", id],
     queryFn: () => api.get<InvestmentAsset>(`/investments/assets/${id}`),
     enabled: !!id,
+  });
+}
+
+export function useAssetQuoteDetail(id: string | null) {
+  return useQuery({
+    queryKey: ["investments", "assets", "quote-detail", id],
+    queryFn: () => api.get<AssetQuoteDetailResponse>(`/investments/assets/${id}/quote-detail`),
+    enabled: !!id,
+  });
+}
+
+/** Forces a fresh fetch past the cache (bypasses the backend's 5-30min TTL) and writes the
+ *  result straight into the regular query's cache so the page updates immediately. */
+export function useRefreshAssetQuote(id: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.get<AssetQuoteDetailResponse>(`/investments/assets/${id}/quote-detail`, { params: { refresh: "true" } }),
+    onSuccess: (data) => {
+      qc.setQueryData(["investments", "assets", "quote-detail", id], data);
+      toast.success("Preço atualizado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 

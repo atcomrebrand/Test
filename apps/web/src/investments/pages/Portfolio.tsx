@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, LineChart, Trash2, ArrowLeftRight, Coins } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Plus, LineChart, Trash2, ArrowLeftRight, Coins, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -7,7 +8,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Tabs } from "@/components/ui/Tabs";
 import { formatCurrency } from "@/lib/format";
-import { useAssets, useDeleteAsset } from "../api";
+import { useAssets, useDeleteAsset, useRefreshAssets } from "../api";
 import { AssetClass } from "../types";
 import { AssetFormModal } from "../components/AssetFormModal";
 import { TransactionModal } from "../components/TransactionModal";
@@ -28,6 +29,7 @@ const TAB_EMPTY_LABEL: Record<AssetClass, string> = {
 export default function Portfolio() {
   const [tab, setTab] = useState<AssetClass>("STOCK");
   const { data, isLoading } = useAssets(tab);
+  const refreshPrices = useRefreshAssets(tab);
   const remove = useDeleteAsset();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -39,12 +41,18 @@ export default function Portfolio() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">Carteira</h1>
-          <p className="text-sm text-muted">Ações, FIIs e criptomoedas com preço médio calculado automaticamente.</p>
+          <p className="text-sm text-muted">Ações, FIIs e criptomoedas com preço médio e cotação ao vivo.</p>
         </div>
-        <Button onClick={() => setFormOpen(true)}>
-          <Plus className="h-4 w-4" />
-          Novo ativo
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => refreshPrices.mutate()} loading={refreshPrices.isPending}>
+            <RefreshCw className="h-4 w-4" />
+            Atualizar preços
+          </Button>
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="h-4 w-4" />
+            Novo ativo
+          </Button>
+        </div>
       </div>
 
       <Tabs value={tab} onChange={(v) => setTab(v as AssetClass)} options={TAB_OPTIONS} />
@@ -76,20 +84,28 @@ export default function Portfolio() {
           <Card key={asset.id}>
             <CardContent className="flex flex-col gap-4">
               <div className="flex items-start justify-between">
-                <div>
-                  <p className="font-semibold">{asset.ticker}</p>
+                <Link to={`/investimentos/carteira/${asset.id}`} className="group">
+                  <p className="font-semibold group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{asset.ticker}</p>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {asset.broker && <Badge tone="neutral">{asset.broker}</Badge>}
                     {asset.wallet && <Badge tone="neutral">{asset.wallet}</Badge>}
                   </div>
+                </Link>
+                <div className="flex items-center gap-2">
+                  {asset.currentPrice !== null && (
+                    <span className="text-right text-xs">
+                      <span className="block text-muted">ao vivo</span>
+                      <span className="font-semibold">{formatCurrency(asset.currentPrice)}</span>
+                    </span>
+                  )}
+                  <button
+                    onClick={() => remove.mutate(asset.id)}
+                    className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                    aria-label="Remover"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  onClick={() => remove.mutate(asset.id)}
-                  className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
-                  aria-label="Remover"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">

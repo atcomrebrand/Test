@@ -10,13 +10,18 @@ export class AssetsController {
   constructor(private readonly service: AssetsService) {}
 
   @Get()
-  findAll(@CurrentUser() user: AuthUser, @Query("class") assetClass?: string) {
-    return this.service.findAll(user.userId, assetClass);
+  findAll(@CurrentUser() user: AuthUser, @Query("class") assetClass?: string, @Query("refresh") refresh?: string) {
+    return this.service.findAll(user.userId, assetClass, refresh === "true");
   }
 
   @Get(":id")
   findOne(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.service.findOne(user.userId, id);
+  }
+
+  @Get(":id/quote-detail")
+  getQuoteDetail(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query("refresh") refresh?: string) {
+    return this.service.getQuoteDetail(user.userId, id, refresh === "true");
   }
 
   @Post()

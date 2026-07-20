@@ -19,6 +19,7 @@ import NotFound from "./pages/NotFound";
 import { InvestmentsLayout } from "./investments/InvestmentsLayout";
 import InvestmentsDashboard from "./investments/pages/InvestmentsDashboard";
 import Portfolio from "./investments/pages/Portfolio";
+import AssetDetail from "./investments/pages/AssetDetail";
 import FixedIncomePage from "./investments/pages/FixedIncomePage";
 import History from "./investments/pages/History";
 
@@ -47,6 +48,7 @@ export default function App() {
         <Route element={<InvestmentsLayout />}>
           <Route path="/investimentos" element={<InvestmentsDashboard />} />
           <Route path="/investimentos/carteira" element={<Portfolio />} />
+          <Route path="/investimentos/carteira/:id" element={<AssetDetail />} />
           <Route path="/investimentos/renda-fixa" element={<FixedIncomePage />} />
           <Route path="/investimentos/historico" element={<History />} />
         </Route>
