@@ -1,6 +1,7 @@
 import { B3ImportService } from "./b3-import.service";
 import { AssetRepository } from "../domain/asset.repository";
 import { DividendsCacheService } from "../infrastructure/dividends-cache.service";
+import { DividendAutoSyncService } from "./dividend-auto-sync.service";
 
 function makeAssetRepo(overrides: Partial<AssetRepository> = {}): AssetRepository {
   return {
@@ -28,6 +29,10 @@ function makeDividendsCache(events: Record<string, unknown[]> = {}): DividendsCa
   } as unknown as DividendsCacheService;
 }
 
+function makeDividendSync(): DividendAutoSyncService {
+  return { syncAsset: jest.fn().mockResolvedValue(0) } as unknown as DividendAutoSyncService;
+}
+
 describe("B3ImportService.preview", () => {
   it("dedupes transactions/incomes already present in the database (same ticker/type/qty/price/date)", async () => {
     const existingTx = {
@@ -48,7 +53,7 @@ describe("B3ImportService.preview", () => {
       listAllTransactionsByUser: jest.fn().mockResolvedValue([existingTx]),
       listAllIncomesByUser: jest.fn().mockResolvedValue([existingIncome]),
     });
-    const service = new B3ImportService(repo, makeDividendsCache());
+    const service = new B3ImportService(repo, makeDividendsCache(), makeDividendSync());
 
     const negociacao = [{ dataNegocio: "03/07/2026", tipoMovimentacao: "Compra", mercado: "Mercado Fracionário", codigoNegociacao: "BBAS3F", quantidade: 2, preco: 20.17, valor: 40.34 }];
     const movimentacao = [{ data: "01/07/2026", movimentacao: "Dividendo", produto: "LOGG3 - LOG COMMERCIAL PROPERTIES", quantidade: 3, precoUnitario: 2.86, valorOperacao: 8.57 }];
@@ -71,7 +76,7 @@ describe("B3ImportService.preview", () => {
       asset: { ticker: "BBAS3F", class: "STOCK" },
     };
     const repo = makeAssetRepo({ listAllTransactionsByUser: jest.fn().mockResolvedValue([existingTx]) });
-    const service = new B3ImportService(repo, makeDividendsCache());
+    const service = new B3ImportService(repo, makeDividendsCache(), makeDividendSync());
 
     const negociacao = [{ dataNegocio: "03/07/2026", tipoMovimentacao: "Compra", mercado: "Mercado Fracionário", codigoNegociacao: "BBAS3F", quantidade: 2, preco: 20.17, valor: 40.34 }];
     const result = await service.preview("user-1", negociacao, []);
@@ -85,7 +90,7 @@ describe("B3ImportService.preview", () => {
     const dividendsCache = makeDividendsCache({
       PETR4: [{ ticker: "PETR4", type: "DIVIDENDO", rate: 1.5, exDate: "2026-06-15", paymentDate: "2026-07-01", relatedTo: "2T2026" }],
     });
-    const service = new B3ImportService(repo, dividendsCache);
+    const service = new B3ImportService(repo, dividendsCache, makeDividendSync());
 
     const negociacao = [{ dataNegocio: "01/06/2026", tipoMovimentacao: "Compra", mercado: "Mercado à Vista", codigoNegociacao: "PETR4", quantidade: 10, preco: 30, valor: 300 }];
     const result = await service.preview("user-1", negociacao, []);
@@ -99,7 +104,7 @@ describe("B3ImportService.preview", () => {
     const dividendsCache = makeDividendsCache({
       PETR4: [{ ticker: "PETR4", type: "DIVIDENDO", rate: 1.5, exDate: "2026-01-01", paymentDate: "2026-01-15", relatedTo: "1T2026" }],
     });
-    const service = new B3ImportService(repo, dividendsCache);
+    const service = new B3ImportService(repo, dividendsCache, makeDividendSync());
 
     // bought AFTER the ex-date -> held zero shares on the ex-date -> not entitled to this payment
     const negociacao = [{ dataNegocio: "01/06/2026", tipoMovimentacao: "Compra", mercado: "Mercado à Vista", codigoNegociacao: "PETR4", quantidade: 10, preco: 30, valor: 300 }];
@@ -113,7 +118,7 @@ describe("B3ImportService.preview", () => {
     const dividendsCache = makeDividendsCache({
       PETR4: [{ ticker: "PETR4", type: "DIVIDENDO", rate: 1.5, exDate: "2026-06-15", paymentDate: "2026-07-01", relatedTo: "2T2026" }],
     });
-    const service = new B3ImportService(repo, dividendsCache);
+    const service = new B3ImportService(repo, dividendsCache, makeDividendSync());
 
     const negociacao = [{ dataNegocio: "01/06/2026", tipoMovimentacao: "Compra", mercado: "Mercado à Vista", codigoNegociacao: "PETR4", quantidade: 10, preco: 30, valor: 300 }];
     // statement already reports this exact dividend (10 * 1.5 = 15) a couple days off from BRAPI's date
@@ -129,7 +134,7 @@ describe("B3ImportService.preview", () => {
 describe("B3ImportService.commit", () => {
   it("creates a new asset when the ticker isn't owned yet, then adds the transaction/income to it", async () => {
     const repo = makeAssetRepo();
-    const service = new B3ImportService(repo, makeDividendsCache());
+    const service = new B3ImportService(repo, makeDividendsCache(), makeDividendSync());
 
     await service.commit(
       "user-1",
@@ -144,7 +149,7 @@ describe("B3ImportService.commit", () => {
 
   it("reuses an existing asset instead of creating a duplicate", async () => {
     const repo = makeAssetRepo({ findByUserAndTicker: jest.fn().mockResolvedValue({ id: "existing-asset-id" }) });
-    const service = new B3ImportService(repo, makeDividendsCache());
+    const service = new B3ImportService(repo, makeDividendsCache(), makeDividendSync());
 
     await service.commit(
       "user-1",
@@ -158,7 +163,7 @@ describe("B3ImportService.commit", () => {
 
   it("reuses the same resolved asset across multiple rows for the same ticker instead of re-querying", async () => {
     const repo = makeAssetRepo();
-    const service = new B3ImportService(repo, makeDividendsCache());
+    const service = new B3ImportService(repo, makeDividendsCache(), makeDividendSync());
 
     await service.commit(
       "user-1",

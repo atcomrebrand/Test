@@ -9,13 +9,12 @@ import {
   SkippedRow,
   parseB3Import,
 } from "../domain/b3-import";
+import { isCloseMatch, isWithinTolerance } from "../domain/dividend-matching";
 import { parseSimpleCsvImport, SimpleImportRow } from "../domain/simple-csv-import";
 import { calculatePosition } from "../domain/position-calculator";
+import { DividendAutoSyncService } from "./dividend-auto-sync.service";
 import { DividendsCacheService } from "../infrastructure/dividends-cache.service";
 import { ImportIncomeInputDto, ImportTransactionInputDto } from "./dto/b3-import.dto";
-
-const AMOUNT_TOLERANCE = 0.2; // 20% relative tolerance when matching a suggested dividend to one already on file
-const DATE_TOLERANCE_DAYS = 5;
 
 export interface DividendSuggestion {
   ticker: string;
@@ -44,14 +43,18 @@ type ExistingIncome = Awaited<ReturnType<AssetRepository["listAllIncomesByUser"]
  * Orchestrates the B3 statement import: the domain parser (parseB3Import) does the pure
  * classification, this layer adds the two things that need the database — deduping against
  * whatever the user already has on file (so re-uploading an overlapping statement is harmless),
- * and cross-checking BRAPI's dividend history for payment events the statement doesn't cover
- * (surfaced as suggestions the user must explicitly confirm, never auto-added).
+ * and cross-checking BRAPI's dividend history for payment events the statement doesn't cover.
+ * Those are surfaced in the preview purely for transparency (suggestedIncomes) — commit() always
+ * auto-records every one of them via DividendAutoSyncService, no user selection needed; the
+ * caller only chooses which transactions/explicit incomes (e.g. real amounts from a "Movimentação"
+ * file) to include.
  */
 @Injectable()
 export class B3ImportService {
   constructor(
     private readonly assets: AssetRepository,
     private readonly dividendsCache: DividendsCacheService,
+    private readonly dividendSync: DividendAutoSyncService,
   ) {}
 
   async preview(userId: string, negociacaoRows: Record<string, unknown>[], movimentacaoRows: Record<string, unknown>[]): Promise<B3ImportPreviewResult> {
@@ -146,7 +149,15 @@ export class B3ImportService {
       });
     }
 
-    return { createdAssets, importedTransactions: transactions.length, importedIncomes: incomes.length };
+    // Runs after every transaction/income above is committed, so the dedup check inside syncAsset
+    // (which reads the asset's incomes fresh from the DB) sees anything just recorded — a real
+    // amount from a "Movimentação" file above never gets double-counted by the auto-computed one.
+    let autoCalculatedIncomes = 0;
+    for (const asset of assetCache.values()) {
+      autoCalculatedIncomes += await this.dividendSync.syncAsset(userId, asset.id);
+    }
+
+    return { createdAssets, importedTransactions: transactions.length, importedIncomes: incomes.length, autoCalculatedIncomes };
   }
 
   /** BRAPI's dividend history can surface payments the statement itself didn't cover (e.g. an
@@ -228,14 +239,4 @@ function transactionKey(t: { ticker: string; type: string; quantity: number; uni
 
 function incomeKey(i: { ticker: string; type: string; amount: number; paymentDate: string }): string {
   return `${i.ticker}|${i.type}|${i.amount}|${i.paymentDate}`;
-}
-
-function isCloseMatch(dateA: string, dateB: string): boolean {
-  const daysDiff = Math.abs((new Date(dateA).getTime() - new Date(dateB).getTime()) / 86400000);
-  return daysDiff <= DATE_TOLERANCE_DAYS;
-}
-
-function isWithinTolerance(a: number, b: number): boolean {
-  const rel = Math.abs(a - b) / Math.max(a, b, 0.01);
-  return rel <= AMOUNT_TOLERANCE;
 }

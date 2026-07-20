@@ -31,6 +31,7 @@ import { NewsController } from "./interface/news.controller";
 import { DividendsCacheService } from "./infrastructure/dividends-cache.service";
 import { DividendsService } from "./application/dividends.service";
 import { DividendsController } from "./interface/dividends.controller";
+import { DividendAutoSyncService } from "./application/dividend-auto-sync.service";
 import { B3ImportService } from "./application/b3-import.service";
 import { B3ImportController } from "./interface/b3-import.controller";
 import { LaunchesController } from "./interface/launches.controller";
@@ -63,6 +64,7 @@ import { InvestmentsResetController } from "./interface/investments-reset.contro
     NewsService,
     DividendsCacheService,
     DividendsService,
+    DividendAutoSyncService,
     B3ImportService,
     InvestmentsResetService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },

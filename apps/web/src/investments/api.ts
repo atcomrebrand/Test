@@ -372,7 +372,8 @@ export function useCommitB3Import() {
       api.post<B3ImportCommitResult>("/investments/import/b3/commit", payload),
     onSuccess: (result) => {
       invalidateAll(qc);
-      toast.success(`Importado! ${result.importedTransactions} negociações e ${result.importedIncomes} proventos.`);
+      const autoNote = result.autoCalculatedIncomes > 0 ? ` + ${result.autoCalculatedIncomes} calculados automaticamente` : "";
+      toast.success(`Importado! ${result.importedTransactions} negociações e ${result.importedIncomes} proventos${autoNote}.`);
     },
     onError: (e: Error) => toast.error(e.message),
   });

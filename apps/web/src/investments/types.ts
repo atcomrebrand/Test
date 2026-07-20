@@ -199,6 +199,9 @@ export interface B3ImportCommitResult {
   createdAssets: number;
   importedTransactions: number;
   importedIncomes: number;
+  /** Dividendos/JCP calculados automaticamente a partir do histórico da BRAPI após a importação —
+   *  não fazem parte da seleção do usuário, são sempre recalculados. */
+  autoCalculatedIncomes: number;
 }
 
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import { ChartRangeOptions } from "../domain/market-data.provider";
 import { calculatePosition } from "../domain/position-calculator";
 import { calculateStakingYield } from "../domain/staking-calculator";
 import { MarketPriceService } from "../infrastructure/market-price.service";
+import { DividendAutoSyncService } from "./dividend-auto-sync.service";
 import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto, UpdateIncomeDto, UpdateTransactionDto } from "./dto/asset.dto";
 
 /** Caps how many quote lookups run at once. Firing one BRAPI/CoinGecko request per asset with no
@@ -37,6 +38,7 @@ export class AssetsService {
   constructor(
     private readonly assets: AssetRepository,
     private readonly marketPrice: MarketPriceService,
+    private readonly dividendSync: DividendAutoSyncService,
   ) {}
 
   async findAll(userId: string, assetClass?: string, forceRefresh = false) {
@@ -49,6 +51,10 @@ export class AssetsService {
 
   async findOne(userId: string, id: string) {
     const asset = await this.getOwned(userId, id);
+    // Catches up dividends for assets added before automatic sync existed, or whenever BRAPI's
+    // history grew since the last visit — no explicit "sync" action needed, opening the asset is
+    // enough. Runs before re-reading transactions/incomes so the response reflects it immediately.
+    await this.dividendSync.syncAsset(userId, id);
     const full = await this.assets.findByIdWithTransactions(id);
     if (!full) throw new NotFoundException("Ativo não encontrado.");
     const enriched = await this.enrich(asset, full.transactions);
@@ -105,7 +111,7 @@ export class AssetsService {
         throw new BadRequestException("Quantidade de venda maior que a posição atual.");
       }
     }
-    return this.assets.addTransaction({
+    const transaction = await this.assets.addTransaction({
       userId,
       assetId: asset.id,
       type: dto.type,
@@ -115,6 +121,10 @@ export class AssetsService {
       transactionDate: new Date(dto.transactionDate),
       notes: dto.notes,
     });
+    // A new BUY/SELL can change which historical dividend events the position now entitles (or no
+    // longer entitles) — recalculated automatically, no separate "check for proventos" step.
+    await this.dividendSync.syncAsset(userId, asset.id);
+    return transaction;
   }
 
   async addIncome(userId: string, assetId: string, dto: AddAssetIncomeDto) {

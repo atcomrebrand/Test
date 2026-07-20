@@ -16,18 +16,6 @@ type ImportMethod = "b3" | "csv";
 
 const INCOME_TYPE_LABEL: Record<string, string> = { DIVIDENDO: "Dividendo", JCP: "JCP", RENDIMENTO: "Rendimento", OUTRO: "Outro" };
 
-function suggestionToIncomeInput(s: DividendSuggestion): ImportedIncome {
-  return {
-    ticker: s.ticker,
-    assetClass: s.assetClass,
-    assetName: null,
-    type: s.type,
-    amount: s.amount,
-    paymentDate: s.paymentDate,
-    sourceLabel: s.relatedTo ? `Sugestão via histórico B3: ${s.relatedTo}` : "Sugestão via histórico B3",
-  };
-}
-
 function FilePicker({
   label,
   file,
@@ -80,7 +68,6 @@ export default function ImportB3() {
   const [preview, setPreview] = useState<B3ImportPreviewResult | null>(null);
   const [excludedTx, setExcludedTx] = useState<Set<number>>(new Set());
   const [excludedIncome, setExcludedIncome] = useState<Set<number>>(new Set());
-  const [includedSuggestions, setIncludedSuggestions] = useState<Set<number>>(new Set());
   const [skippedOpen, setSkippedOpen] = useState(false);
 
   const previewMutation = usePreviewB3Import();
@@ -112,7 +99,6 @@ export default function ImportB3() {
         setPreview(result);
         setExcludedTx(new Set());
         setExcludedIncome(new Set());
-        setIncludedSuggestions(new Set());
       } catch {
         // já mostrado via toast no hook
       } finally {
@@ -143,7 +129,6 @@ export default function ImportB3() {
       setPreview(result);
       setExcludedTx(new Set());
       setExcludedIncome(new Set());
-      setIncludedSuggestions(new Set());
     } catch {
       // já mostrado via toast no hook
     } finally {
@@ -154,10 +139,7 @@ export default function ImportB3() {
   async function handleCommit() {
     if (!preview) return;
     const transactions = preview.transactions.filter((_, i) => !excludedTx.has(i));
-    const incomes = [
-      ...preview.incomes.filter((_, i) => !excludedIncome.has(i)),
-      ...preview.suggestedIncomes.filter((_, i) => includedSuggestions.has(i)).map(suggestionToIncomeInput),
-    ];
+    const incomes = preview.incomes.filter((_, i) => !excludedIncome.has(i));
     if (transactions.length === 0 && incomes.length === 0) {
       toast.error("Nenhum item selecionado para importar.");
       return;
@@ -168,7 +150,6 @@ export default function ImportB3() {
 
   const includedTxCount = preview ? preview.transactions.length - excludedTx.size : 0;
   const includedIncomeCount = preview ? preview.incomes.length - excludedIncome.size : 0;
-  const includedSuggestionCount = includedSuggestions.size;
 
   return (
     <div className="flex flex-col gap-4">
@@ -227,10 +208,8 @@ export default function ImportB3() {
                 </p>
               </div>
               <div>
-                <p className="text-xs text-muted">Sugestões (BRAPI)</p>
-                <p className="text-lg font-semibold">
-                  {includedSuggestionCount}/{preview.suggestedIncomes.length}
-                </p>
+                <p className="text-xs text-muted">Calculados automaticamente</p>
+                <p className="text-lg font-semibold">{preview.suggestedIncomes.length}</p>
               </div>
               <div>
                 <p className="text-xs text-muted">Ignoradas</p>
@@ -355,19 +334,18 @@ export default function ImportB3() {
           {preview.suggestedIncomes.length > 0 && (
             <Card>
               <CardHeader>
-                <CardTitle>Proventos sugeridos (histórico da BRAPI)</CardTitle>
+                <CardTitle>Proventos calculados automaticamente (histórico da BRAPI)</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 <p className="text-xs text-muted">
-                  Pagamentos que o histórico de dividendos da BRAPI mostra pra esses ativos e que não apareceram no seu
-                  extrato — calculados com base na posição que você tinha na data-com. Marque os que quiser adicionar;
-                  nenhum é incluído por padrão.
+                  Pagamentos que o histórico de dividendos da BRAPI mostra pra esses ativos, valorizados pela posição
+                  que você tinha na data-com — não aparecem no seu extrato porque não fazem parte dele. Não precisa
+                  selecionar nada: todos são registrados automaticamente ao confirmar a importação.
                 </p>
                 <div className="max-h-64 overflow-y-auto overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 surface-2 text-left text-xs uppercase text-muted">
                       <tr>
-                        <th className="w-8 px-3 py-2"></th>
                         <th className="px-3 py-2 font-medium">Ativo</th>
                         <th className="px-3 py-2 font-medium">Tipo</th>
                         <th className="px-3 py-2 text-right font-medium">Valor estimado</th>
@@ -377,18 +355,6 @@ export default function ImportB3() {
                     <tbody className="divide-y divide-[rgb(var(--border))]">
                       {preview.suggestedIncomes.map((s: DividendSuggestion, i: number) => (
                         <tr key={i}>
-                          <td className="px-3 py-2">
-                            <input
-                              type="checkbox"
-                              checked={includedSuggestions.has(i)}
-                              onChange={() => {
-                                const next = new Set(includedSuggestions);
-                                if (next.has(i)) next.delete(i);
-                                else next.add(i);
-                                setIncludedSuggestions(next);
-                              }}
-                            />
-                          </td>
                           <td className="px-3 py-2 font-medium">{s.ticker}</td>
                           <td className="px-3 py-2">
                             <Badge tone="warning">{INCOME_TYPE_LABEL[s.type]}</Badge>
@@ -425,9 +391,16 @@ export default function ImportB3() {
             </Card>
           )}
 
-          <Button onClick={handleCommit} loading={commitMutation.isPending} className="self-start">
-            Confirmar importação ({includedTxCount + includedIncomeCount + includedSuggestionCount} itens)
-          </Button>
+          <div className="flex flex-col gap-1.5">
+            <Button onClick={handleCommit} loading={commitMutation.isPending} className="self-start">
+              Confirmar importação ({includedTxCount + includedIncomeCount} itens)
+            </Button>
+            {preview.suggestedIncomes.length > 0 && (
+              <p className="text-xs text-muted">
+                + {preview.suggestedIncomes.length} provento(s) calculado(s) automaticamente após a importação.
+              </p>
+            )}
+          </div>
         </>
       )}
     </div>
