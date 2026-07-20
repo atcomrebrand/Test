@@ -16,6 +16,11 @@ import Statistics from "./pages/Statistics";
 import Trash from "./pages/Trash";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
+import { InvestmentsLayout } from "./investments/InvestmentsLayout";
+import InvestmentsDashboard from "./investments/pages/InvestmentsDashboard";
+import Portfolio from "./investments/pages/Portfolio";
+import FixedIncomePage from "./investments/pages/FixedIncomePage";
+import History from "./investments/pages/History";
 
 export default function App() {
   return (
@@ -37,6 +42,13 @@ export default function App() {
           <Route path="/statistics" element={<Statistics />} />
           <Route path="/trash" element={<Trash />} />
           <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+
+        <Route element={<InvestmentsLayout />}>
+          <Route path="/investimentos" element={<InvestmentsDashboard />} />
+          <Route path="/investimentos/carteira" element={<Portfolio />} />
+          <Route path="/investimentos/renda-fixa" element={<FixedIncomePage />} />
+          <Route path="/investimentos/historico" element={<History />} />
         </Route>
       </Route>
 

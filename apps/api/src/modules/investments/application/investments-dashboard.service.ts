@@ -120,6 +120,24 @@ export class InvestmentsDashboardService {
       .map((f) => ({ id: f.id, institution: f.institution, type: f.type, maturityDate: f.maturityDate, netValue: f.calculation.netValue }));
   }
 
+  /** Full paginated history — the timeline page. `ultimosLancamentos` above is just the top 10
+   *  preview shown on the dashboard, reusing the same InvestmentAuditLog rows. */
+  async history(userId: string, page: number, pageSize: number) {
+    const [items, total] = await Promise.all([
+      this.prisma.investmentAuditLog.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.investmentAuditLog.count({ where: { userId } }),
+    ]);
+    return {
+      items: items.map((l) => ({ id: l.id, entity: l.entity, action: l.action, changes: l.changes, createdAt: l.createdAt })),
+      pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+    };
+  }
+
   private async ultimosLancamentos(userId: string) {
     const logs = await this.prisma.investmentAuditLog.findMany({
       where: { userId },

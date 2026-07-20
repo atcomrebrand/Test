@@ -11,6 +11,7 @@ import {
   Trash2,
   Landmark,
   Repeat,
+  LineChart,
   type LucideIcon,
 } from "lucide-react";
 
@@ -28,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/installments", label: "Parcelas", icon: ListChecks },
   { to: "/subscriptions", label: "Assinaturas", icon: Repeat },
   { to: "/financing", label: "Financiamentos", icon: Landmark },
+  { to: "/investimentos", label: "Investimentos", icon: LineChart },
   { to: "/calendar", label: "Calendário", icon: CalendarDays },
   { to: "/timeline", label: "Linha do Tempo", icon: History },
   { to: "/categories", label: "Categorias", icon: Tags },
