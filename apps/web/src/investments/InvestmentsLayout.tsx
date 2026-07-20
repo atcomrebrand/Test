@@ -26,7 +26,7 @@ export function InvestmentsLayout() {
               className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted transition-colors hover:surface-2 hover:text-[rgb(var(--text))]"
             >
               <ArrowLeft className="h-4 w-4" />
-              Parcelas
+              Início
             </NavLink>
             <div className="h-5 w-px bg-[rgb(var(--border))]" />
             <div className="flex items-center gap-2">

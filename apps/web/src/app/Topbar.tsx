@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Bell, HelpCircle, Moon, Search, Sun, LogOut } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Bell, HelpCircle, Home, Moon, Search, Sun, LogOut } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useThemeStore } from "@/store/theme";
 import { useUiStore } from "@/store/ui";
@@ -23,6 +24,15 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[rgb(var(--border))] surface/80 px-4 backdrop-blur md:px-6">
+      <Link
+        to="/"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:surface-2 md:hidden"
+        aria-label="Voltar ao início"
+        title="Ferramentas do Mauro"
+      >
+        <Home className="h-5 w-5" />
+      </Link>
+
       <button
         onClick={() => setCommandPaletteOpen(true)}
         className="flex h-10 min-w-0 flex-1 max-w-md items-center gap-2 rounded-xl surface-2 px-3 text-sm text-muted transition-colors hover:brightness-95 dark:hover:brightness-110"

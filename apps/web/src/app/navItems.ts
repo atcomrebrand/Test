@@ -23,7 +23,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/parcelas", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/cards", label: "Cartões", icon: CreditCard },
   { to: "/purchases", label: "Compras", icon: ShoppingBag },
   { to: "/installments", label: "Parcelas", icon: ListChecks },
@@ -39,4 +39,4 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /** Primary destinations pinned to the mobile bottom bar; everything else lives behind "Mais". */
-export const MOBILE_PRIMARY_PATHS = ["/", "/cards", "/purchases", "/calendar"];
+export const MOBILE_PRIMARY_PATHS = ["/parcelas", "/cards", "/purchases", "/calendar"];

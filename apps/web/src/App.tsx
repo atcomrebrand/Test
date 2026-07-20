@@ -3,6 +3,7 @@ import { Layout } from "./app/Layout";
 import { ProtectedRoute } from "./app/ProtectedRoute";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import Cards from "./pages/Cards";
 import Purchases from "./pages/Purchases";
@@ -36,8 +37,10 @@ export default function App() {
       <Route path="/register" element={<Register />} />
 
       <Route element={<ProtectedRoute />}>
+        <Route path="/" element={<Home />} />
+
         <Route element={<Layout />}>
-          <Route path="/" element={<Dashboard />} />
+          <Route path="/parcelas" element={<Dashboard />} />
           <Route path="/cards" element={<Cards />} />
           <Route path="/purchases" element={<Purchases />} />
           <Route path="/installments" element={<Installments />} />
