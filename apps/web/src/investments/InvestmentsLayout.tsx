@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { ArrowLeft, LayoutDashboard, LineChart, PiggyBank, History } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { InvestmentsMobileNav } from "./InvestmentsMobileNav";
 
 const INVESTMENT_NAV = [
   { to: "/investimentos", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -31,7 +32,7 @@ export function InvestmentsLayout() {
             </div>
           </div>
 
-          <nav className="flex items-center gap-1 overflow-x-auto">
+          <nav className="hidden items-center gap-1 md:flex">
             {INVESTMENT_NAV.map(({ to, label, icon: Icon, end }) => (
               <NavLink
                 key={to}
@@ -52,9 +53,11 @@ export function InvestmentsLayout() {
         </div>
       </header>
 
-      <main className="flex-1 px-4 pb-10 pt-5 md:px-6">
+      <main className="flex-1 px-4 pb-24 pt-5 md:px-6 md:pb-10">
         <Outlet />
       </main>
+
+      <InvestmentsMobileNav />
     </div>
   );
 }

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, RefreshCw, TrendingUp, TrendingDown, ArrowLeftRight, Coins, Percent, Pencil } from "lucide-react";
+import { ArrowLeft, RefreshCw, TrendingUp, TrendingDown, ArrowLeftRight, Coins, Percent, Pencil, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/cn";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { useAsset, useAssetQuoteDetail, useRefreshAssetQuote } from "../api";
+import { useAsset, useAssetQuoteDetail, useRefreshAssetQuote, useToggleFavorite } from "../api";
 import { AssetPriceChart } from "../components/AssetPriceChart";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
@@ -27,6 +28,7 @@ export default function AssetDetail() {
   const { data: asset, isLoading: assetLoading } = useAsset(id ?? null);
   const { data: quote, isLoading: quoteLoading } = useAssetQuoteDetail(id ?? null);
   const refresh = useRefreshAssetQuote(id ?? null);
+  const toggleFavorite = useToggleFavorite();
 
   const [transactionOpen, setTransactionOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
@@ -58,6 +60,16 @@ export default function AssetDetail() {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{asset.ticker}</h1>
             <Badge tone="neutral">{asset.class}</Badge>
+            <button
+              onClick={() => toggleFavorite.mutate({ id: asset.id, favorite: !asset.favorite })}
+              className={cn(
+                "rounded-lg p-1.5 transition-colors hover:bg-amber-500/10",
+                asset.favorite ? "text-amber-500" : "text-muted hover:text-amber-500",
+              )}
+              aria-label={asset.favorite ? "Remover dos favoritos" : "Marcar como favorito"}
+            >
+              <Star className="h-4 w-4" fill={asset.favorite ? "currentColor" : "none"} />
+            </button>
           </div>
           {asset.name && <p className="text-sm text-muted">{asset.name}</p>}
           <div className="mt-1 flex flex-wrap gap-1.5">

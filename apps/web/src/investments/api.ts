@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
-import { AssetQuoteDetailResponse, CashAccount, DashboardSummary, InvestmentAsset, InvestmentFixedIncome } from "./types";
+import { AssetQuoteDetailResponse, CashAccount, CatalogEntry, DashboardSummary, InvestmentAsset, InvestmentFixedIncome } from "./types";
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["investments"] });
@@ -33,6 +33,16 @@ export function useInvestmentHistory(page: number) {
 // ---------------------------------------------------------------------------
 // Assets (Ações / FIIs / Criptomoedas)
 // ---------------------------------------------------------------------------
+
+/** Powers the "browse instead of type blind" picker in AssetFormModal. */
+export function useAssetCatalog(assetClass: string, query: string) {
+  return useQuery({
+    queryKey: ["investments", "catalog", assetClass, query],
+    queryFn: () => api.get<CatalogEntry[]>("/investments/catalog", { params: { class: assetClass, query } }),
+    enabled: query.trim().length >= 2,
+    staleTime: 60_000,
+  });
+}
 
 export function useAssets(assetClass?: string) {
   return useQuery({
@@ -105,6 +115,16 @@ export function useUpdateAsset() {
       invalidateAll(qc);
       toast.success("Ativo atualizado!");
     },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Same PATCH as useUpdateAsset but silent — starring/unstarring shouldn't pop a toast every click. */
+export function useToggleFavorite() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, favorite }: { id: string; favorite: boolean }) => api.patch<InvestmentAsset>(`/investments/assets/${id}`, { favorite }),
+    onSuccess: () => invalidateAll(qc),
     onError: (e: Error) => toast.error(e.message),
   });
 }

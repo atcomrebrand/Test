@@ -2,6 +2,13 @@ export type AssetClass = "STOCK" | "FII" | "CRYPTO";
 export type TransactionType = "BUY" | "SELL";
 export type AssetIncomeType = "DIVIDENDO" | "JCP" | "RENDIMENTO" | "STAKING" | "OUTRO";
 
+export interface CatalogEntry {
+  ticker: string;
+  name: string;
+  type?: string;
+  logoUrl?: string;
+}
+
 export interface StakingEstimate {
   apyPercent: number;
   sinceDate: string;
@@ -47,6 +54,7 @@ export interface InvestmentAsset {
   notes: string | null;
   createdAt: string;
   stakingApyPercent: string | null;
+  favorite: boolean;
   position: Position;
   currentPrice: number | null;
   currentValue: number | null;

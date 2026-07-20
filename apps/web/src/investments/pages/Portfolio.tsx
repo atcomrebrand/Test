@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, LineChart, Trash2, ArrowLeftRight, Coins, RefreshCw, Percent } from "lucide-react";
+import { Plus, LineChart, Trash2, ArrowLeftRight, Coins, RefreshCw, Percent, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Tabs } from "@/components/ui/Tabs";
+import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
-import { useAssets, useDeleteAsset, useRefreshAssets } from "../api";
+import { useAssets, useDeleteAsset, useRefreshAssets, useToggleFavorite } from "../api";
 import { AssetClass, InvestmentAsset } from "../types";
 import { AssetFormModal } from "../components/AssetFormModal";
 import { TransactionModal } from "../components/TransactionModal";
@@ -32,6 +33,7 @@ export default function Portfolio() {
   const { data, isLoading } = useAssets(tab);
   const refreshPrices = useRefreshAssets(tab);
   const remove = useDeleteAsset();
+  const toggleFavorite = useToggleFavorite();
 
   const [formOpen, setFormOpen] = useState(false);
   const [transactionTarget, setTransactionTarget] = useState<string | null>(null);
@@ -100,6 +102,16 @@ export default function Portfolio() {
                       <span className="font-semibold">{formatCurrency(asset.currentPrice)}</span>
                     </span>
                   )}
+                  <button
+                    onClick={() => toggleFavorite.mutate({ id: asset.id, favorite: !asset.favorite })}
+                    className={cn(
+                      "rounded-lg p-1.5 transition-colors hover:bg-amber-500/10",
+                      asset.favorite ? "text-amber-500" : "text-muted hover:text-amber-500",
+                    )}
+                    aria-label={asset.favorite ? "Remover dos favoritos" : "Marcar como favorito"}
+                  >
+                    <Star className="h-4 w-4" fill={asset.favorite ? "currentColor" : "none"} />
+                  </button>
                   <button
                     onClick={() => remove.mutate(asset.id)}
                     className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"

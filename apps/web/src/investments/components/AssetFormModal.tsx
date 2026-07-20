@@ -1,9 +1,10 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
+import { Search, Check } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { useCreateAsset } from "../api";
+import { useAssetCatalog, useCreateAsset } from "../api";
 import { AssetClass } from "../types";
 
 interface Props {
@@ -20,18 +21,41 @@ const STABLECOIN_TICKERS = ["USDT", "USDC", "BUSD", "DAI", "FRAX", "TUSD"];
 
 export function AssetFormModal({ open, onClose, assetClass }: Props) {
   const create = useCreateAsset();
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [ticker, setTicker] = useState("");
+  const [name, setName] = useState("");
   const [broker, setBroker] = useState("");
   const [wallet, setWallet] = useState("");
   const [network, setNetwork] = useState("");
   const [stakingApy, setStakingApy] = useState("");
 
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  const [selected, setSelected] = useState(false);
+  const { data: results, isFetching } = useAssetCatalog(assetClass, debouncedSearch);
+  const showResults = search.trim().length >= 2 && !selected;
+
   function reset() {
+    setSearch("");
+    setDebouncedSearch("");
     setTicker("");
+    setName("");
     setBroker("");
     setWallet("");
     setNetwork("");
     setStakingApy("");
+    setSelected(false);
+  }
+
+  function selectEntry(entry: { ticker: string; name: string }) {
+    setTicker(entry.ticker);
+    setName(entry.name);
+    setSearch(entry.name);
+    setSelected(true);
   }
 
   function onSubmit(e: FormEvent) {
@@ -39,7 +63,8 @@ export function AssetFormModal({ open, onClose, assetClass }: Props) {
     create.mutate(
       {
         class: assetClass,
-        ticker,
+        ticker: ticker || search.toUpperCase(),
+        name: name || undefined,
         broker: broker || undefined,
         wallet: wallet || undefined,
         network: network || undefined,
@@ -57,19 +82,60 @@ export function AssetFormModal({ open, onClose, assetClass }: Props) {
   return (
     <Modal open={open} onClose={onClose} title={`Nova ${CLASS_LABEL[assetClass]}`}>
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
-        <Input
-          label={assetClass === "CRYPTO" ? "Moeda (ex: BTC)" : "Ticker (ex: PETR4)"}
-          value={ticker}
-          onChange={(e) => setTicker(e.target.value.toUpperCase())}
-          required
-          autoFocus
-        />
+        <div className="relative">
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+            <Input
+              label={assetClass === "CRYPTO" ? "Buscar moeda (ex: Bitcoin, BTC)" : "Buscar ativo (ex: Petrobras, PETR4)"}
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setTicker("");
+                setName("");
+                setSelected(false);
+              }}
+              className="pl-9"
+              required={!ticker}
+              autoFocus
+              autoComplete="off"
+            />
+          </div>
+
+          {showResults && (
+            <div className="absolute z-10 mt-1 max-h-56 w-full overflow-y-auto rounded-xl border border-[rgb(var(--border))] surface shadow-elevated">
+              {isFetching && <p className="px-3 py-2 text-sm text-muted">Buscando...</p>}
+              {!isFetching && results?.length === 0 && (
+                <p className="px-3 py-2 text-sm text-muted">
+                  Nenhum resultado — você ainda pode cadastrar "{search.toUpperCase()}" manualmente.
+                </p>
+              )}
+              {results?.map((entry) => (
+                <button
+                  key={entry.ticker}
+                  type="button"
+                  onClick={() => selectEntry(entry)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:surface-2"
+                >
+                  <span className="font-semibold">{entry.ticker.toUpperCase()}</span>
+                  <span className="truncate text-muted">{entry.name}</span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {ticker && (
+            <p className="mt-1.5 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-400">
+              <Check className="h-3.5 w-3.5" />
+              Selecionado: {ticker.toUpperCase()}
+            </p>
+          )}
+        </div>
 
         {assetClass === "CRYPTO" && (
           <div className="-mt-2 flex flex-wrap gap-1.5">
             <span className="text-xs text-muted">Stablecoins comuns:</span>
             {STABLECOIN_TICKERS.map((symbol) => (
-              <button key={symbol} type="button" onClick={() => setTicker(symbol)}>
+              <button key={symbol} type="button" onClick={() => selectEntry({ ticker: symbol, name: symbol })}>
                 <Badge tone={ticker === symbol ? "accent" : "neutral"} className="cursor-pointer">
                   {symbol}
                 </Badge>
