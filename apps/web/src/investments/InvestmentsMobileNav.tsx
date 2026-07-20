@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { MoreHorizontal, LayoutDashboard, Compass, LineChart, PiggyBank, History, Newspaper, CalendarDays, Upload } from "lucide-react";
+import { MoreHorizontal, LayoutDashboard, Compass, LineChart, PiggyBank, History, Newspaper, CalendarDays, Upload, ClipboardList } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Modal } from "@/components/ui/Modal";
 
@@ -16,6 +16,7 @@ const MORE_ITEMS = [
   { to: "/investimentos/noticias", label: "Notícias", icon: Newspaper },
   { to: "/investimentos/historico", label: "Histórico", icon: History },
   { to: "/investimentos/importar", label: "Importar B3", icon: Upload },
+  { to: "/investimentos/lancamentos", label: "Lançamentos", icon: ClipboardList },
 ];
 
 /** Same primary-items + "Mais" pattern as the main app's MobileNav, so the investments module

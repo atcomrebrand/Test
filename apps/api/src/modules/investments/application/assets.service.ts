@@ -5,7 +5,7 @@ import { ChartRangeOptions } from "../domain/market-data.provider";
 import { calculatePosition } from "../domain/position-calculator";
 import { calculateStakingYield } from "../domain/staking-calculator";
 import { MarketPriceService } from "../infrastructure/market-price.service";
-import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto } from "./dto/asset.dto";
+import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto, UpdateIncomeDto, UpdateTransactionDto } from "./dto/asset.dto";
 
 /** Caps how many quote lookups run at once. Firing one BRAPI/CoinGecko request per asset with no
  *  limit (as a plain Promise.all would) works fine for a handful of assets, but a portfolio just
@@ -127,6 +127,65 @@ export class AssetsService {
       paymentDate: new Date(dto.paymentDate),
       notes: dto.notes,
     });
+  }
+
+  /** All of a user's transactions/incomes across every asset, ticker included — powers the
+   *  "Lançamentos" management page (a global place to correct or remove entries, notably useful
+   *  right after a bulk import). */
+  listAllTransactions(userId: string) {
+    return this.assets.listAllTransactionsByUser(userId);
+  }
+
+  listAllIncomes(userId: string) {
+    return this.assets.listAllIncomesByUser(userId);
+  }
+
+  async updateTransaction(userId: string, transactionId: string, dto: UpdateTransactionDto) {
+    await this.getOwnedTransaction(userId, transactionId);
+    const data: Record<string, unknown> = {};
+    if (dto.type !== undefined) data.type = dto.type;
+    if (dto.quantity !== undefined) data.quantity = dto.quantity;
+    if (dto.unitPrice !== undefined) data.unitPrice = dto.unitPrice;
+    if (dto.fees !== undefined) data.fees = dto.fees;
+    if (dto.transactionDate !== undefined) data.transactionDate = new Date(dto.transactionDate);
+    if (dto.notes !== undefined) data.notes = dto.notes;
+    return this.assets.updateTransaction(transactionId, data);
+  }
+
+  async removeTransaction(userId: string, transactionId: string) {
+    await this.getOwnedTransaction(userId, transactionId);
+    await this.assets.deleteTransaction(transactionId);
+    return { id: transactionId };
+  }
+
+  async updateIncome(userId: string, incomeId: string, dto: UpdateIncomeDto) {
+    await this.getOwnedIncome(userId, incomeId);
+    const data: Record<string, unknown> = {};
+    if (dto.type !== undefined) data.type = dto.type;
+    if (dto.amount !== undefined) data.amount = dto.amount;
+    if (dto.paymentDate !== undefined) data.paymentDate = new Date(dto.paymentDate);
+    if (dto.notes !== undefined) data.notes = dto.notes;
+    return this.assets.updateIncome(incomeId, data);
+  }
+
+  async removeIncome(userId: string, incomeId: string) {
+    await this.getOwnedIncome(userId, incomeId);
+    await this.assets.deleteIncome(incomeId);
+    return { id: incomeId };
+  }
+
+  private async getOwnedTransaction(userId: string, transactionId: string) {
+    const transaction = await this.assets.findTransactionById(transactionId);
+    if (!transaction) throw new NotFoundException("Lançamento não encontrado.");
+    if (transaction.userId !== userId) throw new ForbiddenException();
+    return transaction;
+  }
+
+  private async getOwnedIncome(userId: string, incomeId: string) {
+    const income = await this.assets.findIncomeById(incomeId);
+    if (!income) throw new NotFoundException("Provento não encontrado.");
+    if (income.userId !== userId) throw new ForbiddenException();
+    return income;
   }
 
   private async enrich(asset: InvestmentAsset, transactions: InvestmentTransaction[], forceRefresh = false) {

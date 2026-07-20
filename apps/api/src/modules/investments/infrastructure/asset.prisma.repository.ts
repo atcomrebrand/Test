@@ -107,6 +107,29 @@ export class AssetPrismaRepository extends AssetRepository {
     return this.prisma.investmentTransaction.findMany({ where: { assetId }, orderBy: { transactionDate: "asc" } });
   }
 
+  findTransactionById(id: string) {
+    return this.prisma.investmentTransaction.findUnique({ where: { id } });
+  }
+
+  async updateTransaction(id: string, data: Record<string, unknown>) {
+    return this.prisma.$transaction(async (tx) => {
+      const transaction = await tx.investmentTransaction.update({ where: { id }, data: data as any });
+      await tx.investmentAuditLog.create({
+        data: { userId: transaction.userId, entity: "InvestmentTransaction", entityId: id, action: "UPDATE", changes: data as any },
+      });
+      return transaction;
+    });
+  }
+
+  async deleteTransaction(id: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const transaction = await tx.investmentTransaction.delete({ where: { id } });
+      await tx.investmentAuditLog.create({
+        data: { userId: transaction.userId, entity: "InvestmentTransaction", entityId: id, action: "DELETE" },
+      });
+    });
+  }
+
   async addIncome(data: { userId: string; assetId: string; type: string; amount: number; paymentDate: Date; notes?: string }) {
     return this.prisma.$transaction(async (tx) => {
       const income = await tx.investmentIncome.create({
@@ -128,6 +151,29 @@ export class AssetPrismaRepository extends AssetRepository {
 
   listIncomes(assetId: string) {
     return this.prisma.investmentIncome.findMany({ where: { assetId }, orderBy: { paymentDate: "desc" } });
+  }
+
+  findIncomeById(id: string) {
+    return this.prisma.investmentIncome.findUnique({ where: { id } });
+  }
+
+  async updateIncome(id: string, data: Record<string, unknown>) {
+    return this.prisma.$transaction(async (tx) => {
+      const income = await tx.investmentIncome.update({ where: { id }, data: data as any });
+      await tx.investmentAuditLog.create({
+        data: { userId: income.userId, entity: "InvestmentIncome", entityId: id, action: "UPDATE", changes: data as any },
+      });
+      return income;
+    });
+  }
+
+  async deleteIncome(id: string) {
+    await this.prisma.$transaction(async (tx) => {
+      const income = await tx.investmentIncome.delete({ where: { id } });
+      await tx.investmentAuditLog.create({
+        data: { userId: income.userId, entity: "InvestmentIncome", entityId: id, action: "DELETE" },
+      });
+    });
   }
 
   async sumIncomesByUser(userId: string, since?: Date) {

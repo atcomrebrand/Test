@@ -82,6 +82,38 @@ export class CreateTransactionDto {
   notes?: string;
 }
 
+export class UpdateTransactionDto {
+  @IsOptional()
+  @IsIn(TRANSACTION_TYPES)
+  type?: (typeof TRANSACTION_TYPES)[number];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  quantity?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  unitPrice?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  fees?: number;
+
+  @IsOptional()
+  @IsDateString()
+  transactionDate?: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
 export class AddAssetIncomeDto {
   @IsIn(INCOME_TYPES)
   type!: (typeof INCOME_TYPES)[number];
@@ -93,6 +125,26 @@ export class AddAssetIncomeDto {
 
   @IsDateString()
   paymentDate!: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class UpdateIncomeDto {
+  @IsOptional()
+  @IsIn(INCOME_TYPES)
+  type?: (typeof INCOME_TYPES)[number];
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  amount?: number;
+
+  @IsOptional()
+  @IsDateString()
+  paymentDate?: string;
 
   @IsOptional()
   @IsString()
