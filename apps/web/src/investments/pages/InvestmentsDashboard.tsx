@@ -17,6 +17,7 @@ import { CategoryChart } from "@/components/charts/CategoryChart";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { useInvestmentsDashboard } from "../api";
 import { PatrimonyEvolutionChart } from "../components/PatrimonyEvolutionChart";
+import { ResetPortfolioButton } from "../components/ResetPortfolioButton";
 
 const CATEGORY_META: Record<string, { label: string; color: string }> = {
   STOCK: { label: "Ações", color: "#6D5BFF" },
@@ -68,11 +69,16 @@ export default function InvestmentsDashboard() {
 
   if (isEmpty) {
     return (
-      <EmptyState
-        icon={<PiggyBank className="h-7 w-7" />}
-        title="Sua carteira de investimentos está vazia"
-        description="Cadastre uma aplicação de renda fixa, uma ação, FII ou criptomoeda para começar a acompanhar seu patrimônio."
-      />
+      <div className="flex flex-col gap-4">
+        <div className="flex justify-end">
+          <ResetPortfolioButton />
+        </div>
+        <EmptyState
+          icon={<PiggyBank className="h-7 w-7" />}
+          title="Sua carteira de investimentos está vazia"
+          description="Cadastre uma aplicação de renda fixa, uma ação, FII ou criptomoeda para começar a acompanhar seu patrimônio."
+        />
+      </div>
     );
   }
 
@@ -84,6 +90,10 @@ export default function InvestmentsDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
+      <div className="flex justify-end">
+        <ResetPortfolioButton />
+      </div>
+
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <StatTile label="Patrimônio Total" value={formatCurrency(cards.patrimonioTotal)} icon={<Wallet className="h-4 w-4" />} delay={0} />
         <StatTile label="Valor Investido" value={formatCurrency(cards.valorInvestido)} icon={<Landmark className="h-4 w-4" />} delay={0.03} />
