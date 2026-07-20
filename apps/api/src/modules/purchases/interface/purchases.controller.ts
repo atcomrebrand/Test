@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } f
 import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../../../common/decorators/current-user.decorator";
 import { PurchasesService } from "../application/purchases.service";
-import { CreatePurchaseDto, PurchaseQueryDto, UpdatePurchaseDto } from "../application/dto/purchase.dto";
+import { CreatePurchaseDto, PurchaseQueryDto, ScheduleCancellationDto, UpdatePurchaseDto } from "../application/dto/purchase.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("purchases")
@@ -37,6 +37,11 @@ export class PurchasesController {
   @Post(":id/cancel-recurrence")
   cancelRecurrence(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.service.cancelRecurrence(user.userId, id);
+  }
+
+  @Patch(":id/schedule-cancellation")
+  scheduleCancellation(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: ScheduleCancellationDto) {
+    return this.service.scheduleCancellation(user.userId, id, dto);
   }
 
   @Patch(":id")

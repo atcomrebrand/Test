@@ -7,7 +7,7 @@ import {
   generateInstallmentsInProgress,
   generateRecurringOccurrences,
 } from "../domain/installment-generator";
-import { CreatePurchaseDto, PurchaseQueryDto, UpdatePurchaseDto } from "./dto/purchase.dto";
+import { CreatePurchaseDto, PurchaseQueryDto, ScheduleCancellationDto, UpdatePurchaseDto } from "./dto/purchase.dto";
 import { NotificationsService } from "../../notifications/notifications.service";
 
 /** How many months of a subscription we keep pre-generated ahead of "today". */
@@ -70,15 +70,27 @@ export class PurchasesService {
     let installmentsCount: number;
     let totalAmount: number;
 
+    const billingCycle = dto.billingCycle ?? "MONTHLY";
+
     if (kind === "RECURRING") {
       if (!dto.totalAmount) throw new BadRequestException("Informe o valor mensal da assinatura.");
       totalAmount = dto.totalAmount;
+      const stepMonths = billingCycle === "ANNUAL" ? 12 : 1;
 
-      const batchCount = recurrenceEndDate ? RECURRING_MAX_BATCH : RECURRING_HORIZON_MONTHS;
+      let batchCount: number;
+      if (recurrenceEndDate) {
+        const endKey = recurrenceEndDate.getFullYear() * 12 + (recurrenceEndDate.getMonth() + 1);
+        const startKey = anchorDate.getFullYear() * 12 + (anchorDate.getMonth() + 1);
+        batchCount = Math.min(RECURRING_MAX_BATCH, Math.max(1, Math.ceil((endKey - startKey + 1) / stepMonths)));
+      } else {
+        batchCount = Math.max(1, Math.ceil(RECURRING_HORIZON_MONTHS / stepMonths));
+      }
+
       installments = generateRecurringOccurrences({
         nextPaymentDate: anchorDate,
         monthlyAmount: totalAmount,
         count: batchCount,
+        billingCycle,
       });
 
       if (recurrenceEndDate) {
@@ -141,6 +153,8 @@ export class PurchasesService {
         installmentsCount,
         isRecurring: kind === "RECURRING",
         recurrenceEndDate,
+        billingCycle: kind === "RECURRING" ? billingCycle : undefined,
+        autoRenew: kind === "RECURRING" ? (dto.autoRenew ?? true) : undefined,
         tags: dto.tags ?? [],
         isFavorite: dto.isFavorite ?? false,
         attachmentUrl: dto.attachmentUrl,
@@ -172,11 +186,15 @@ export class PurchasesService {
       const latestKey = p.latestReferenceYear * 12 + p.latestReferenceMonth;
       if (latestKey >= targetKey) continue;
 
+      const stepMonths = p.billingCycle === "ANNUAL" ? 12 : 1;
+      const occurrencesNeeded = Math.ceil((targetKey - latestKey) / stepMonths);
+
       let occurrences = generateRecurringOccurrences({
         nextPaymentDate: p.purchaseDate,
         monthlyAmount: p.monthlyAmount,
         startNumber: p.installmentsCount + 1,
-        count: targetKey - latestKey,
+        count: occurrencesNeeded,
+        billingCycle: p.billingCycle,
       });
 
       if (p.recurrenceEndDate) {
@@ -211,6 +229,31 @@ export class PurchasesService {
     return this.purchases.findByIdWithInstallments(id);
   }
 
+  /**
+   * "Planejar cancelamento": unlike `cancelRecurrence` (cancels from this month on, immediately),
+   * this keeps the subscription charging normally up to a future date the user picks — e.g.
+   * "I want to cancel after this month's charge" — then cancels everything after it.
+   */
+  async scheduleCancellation(userId: string, id: string, dto: ScheduleCancellationDto) {
+    const purchase = await this.getOwned(userId, id);
+    if (purchase.kind !== "RECURRING") {
+      throw new BadRequestException("Esta compra não é uma assinatura recorrente.");
+    }
+    if (purchase.recurrenceEndDate && purchase.recurrenceEndDate <= new Date()) {
+      throw new BadRequestException("Esta assinatura já foi cancelada.");
+    }
+
+    const endDate = new Date(dto.recurrenceEndDate);
+    if (endDate <= new Date()) {
+      throw new BadRequestException("A data precisa ser no futuro — para cancelar agora, use cancelar assinatura.");
+    }
+
+    const endKey = endDate.getFullYear() * 12 + (endDate.getMonth() + 1);
+    await this.purchases.cancelFutureRecurringOccurrences(id, endKey, endDate);
+
+    return this.purchases.findByIdWithInstallments(id);
+  }
+
   async update(userId: string, id: string, dto: UpdatePurchaseDto) {
     await this.getOwned(userId, id);
     await this.purchases.update(id, dto as Record<string, unknown>);
@@ -238,6 +281,8 @@ export class PurchasesService {
       purchaseDate: new Date().toISOString(),
       kind: original.kind,
       installmentsCount: original.kind === "RECURRING" ? undefined : original.installmentsCount,
+      billingCycle: original.billingCycle ?? undefined,
+      autoRenew: original.autoRenew ?? undefined,
       tags: original.tags,
     });
   }

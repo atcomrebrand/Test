@@ -13,6 +13,7 @@ export function Tabs({ value, onChange, options, className }: TabsProps) {
       {options.map((opt) => (
         <button
           key={opt.value}
+          type="button"
           onClick={() => onChange(opt.value)}
           className={cn(
             "relative rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",

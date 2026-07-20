@@ -175,6 +175,7 @@ export class PurchasePrismaRepository extends PurchaseRepository {
         purchaseDate: p.purchaseDate,
         monthlyAmount: Number(p.totalAmount),
         recurrenceEndDate: p.recurrenceEndDate,
+        billingCycle: p.billingCycle ?? "MONTHLY",
         installmentsCount: p.installmentsCount,
         latestReferenceYear: latest?.referenceYear ?? p.purchaseDate.getFullYear(),
         latestReferenceMonth: latest?.referenceMonth ?? p.purchaseDate.getMonth() + 1,

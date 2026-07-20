@@ -96,6 +96,19 @@ export function useCancelRecurrence() {
   });
 }
 
+export function useScheduleCancellation() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, recurrenceEndDate }: { id: string; recurrenceEndDate: string }) =>
+      api.patch(`/purchases/${id}/schedule-cancellation`, { recurrenceEndDate }),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Cancelamento planejado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useTrashPurchase() {
   const qc = useQueryClient();
   return useMutation({

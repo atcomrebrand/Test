@@ -149,4 +149,17 @@ export class FinancingPrismaRepository extends FinancingRepository {
         : null,
     };
   }
+
+  async addPayoffQuote(userId: string, financingId: string, amount: number, quotedAt: Date) {
+    await this.prisma.financingPayoffQuote.create({ data: { userId, financingId, amount, quotedAt } });
+  }
+
+  async listPayoffQuotesSince(financingId: string, since: Date) {
+    const quotes = await this.prisma.financingPayoffQuote.findMany({
+      where: { financingId, quotedAt: { gte: since } },
+      orderBy: { quotedAt: "asc" },
+      select: { amount: true, quotedAt: true },
+    });
+    return quotes.map((q) => ({ amount: Number(q.amount), quotedAt: q.quotedAt }));
+  }
 }

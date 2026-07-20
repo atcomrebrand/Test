@@ -46,14 +46,24 @@ export function useUpdateFinancing() {
   });
 }
 
+export interface PayoffComparison {
+  previousAmount: number | null;
+  percentChange: number | null;
+  isBestInWindow: boolean;
+  windowMonths: number;
+  bestInWindowAmount: number | null;
+}
+
 export function useUpdatePayoff() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, payoffAmount, payoffQuotedAt }: { id: string; payoffAmount: number; payoffQuotedAt?: string }) =>
-      api.patch(`/financings/${id}/payoff`, { payoffAmount, payoffQuotedAt }),
+      api.patch<{ financing: Financing; comparison: PayoffComparison }>(`/financings/${id}/payoff`, {
+        payoffAmount,
+        payoffQuotedAt,
+      }),
     onSuccess: () => {
       invalidateAll(qc);
-      toast.success("Valor de quitação atualizado!");
     },
     onError: (e: Error) => toast.error(e.message),
   });

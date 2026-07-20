@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Repeat } from "lucide-react";
 import { matchServiceIcon } from "@/lib/serviceIcons";
 import { Modal } from "@/components/ui/Modal";
@@ -258,9 +259,20 @@ export function PurchaseFormModal({ open, onClose, purchase }: Props) {
             options={[
               { value: "CASH", label: "À vista" },
               { value: "INSTALLMENT", label: "Parcelada" },
-              { value: "RECURRING", label: "Assinatura" },
+              // Assinaturas agora nascem em /subscriptions — só aparece aqui pra manter a aba
+              // certa selecionada quando se edita uma já existente.
+              ...(isEdit && kind === "RECURRING" ? [{ value: "RECURRING", label: "Assinatura" }] : []),
             ]}
           />
+          {!isEdit && (
+            <p className="mt-1.5 text-xs text-muted">
+              Assinatura ou cobrança recorrente? Cadastre em{" "}
+              <Link to="/subscriptions" className="text-accent-500 hover:underline" onClick={onClose}>
+                Assinaturas
+              </Link>
+              .
+            </p>
+          )}
         </div>
 
         {kind === "INSTALLMENT" && !isEdit && (

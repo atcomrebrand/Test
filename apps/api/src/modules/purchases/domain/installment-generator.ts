@@ -99,41 +99,47 @@ export function generateInstallmentsInProgress(input: GenerateInstallmentsInProg
   });
 }
 
+export type RecurringBillingCycle = "MONTHLY" | "ANNUAL";
+
 export interface GenerateRecurringOccurrencesInput {
   /** Due date of the next (or, for a brand-new subscription, the first) charge. */
   nextPaymentDate: Date;
+  /** Amount charged per cycle — monthly or annual, per `billingCycle`. */
   monthlyAmount: number;
   /** 1-based number of the first occurrence generated in this batch (>1 when topping up an existing subscription). */
   startNumber?: number;
-  /** How many monthly occurrences to generate in this batch. */
+  /** How many occurrences to generate in this batch. */
   count: number;
+  /** MONTHLY (default) advances one month per occurrence; ANNUAL advances twelve (e.g. a domain renewal). */
+  billingCycle?: RecurringBillingCycle;
 }
 
 /**
- * Recurring-subscription engine (Netflix, Spotify, etc.).
+ * Recurring-subscription engine (Netflix, Spotify, a yearly domain renewal, etc.).
  *
- * Unlike a parceled purchase, each occurrence charges the *full* monthly
+ * Unlike a parceled purchase, each occurrence charges the *full* cycle
  * amount — nothing is split. Subscriptions aren't tied to the card's
  * closing-day invoice cycle: the user already knows exactly which day their
- * subscription bills every month, so `nextPaymentDate` anchors the schedule
- * directly instead of deriving it from a purchase date. Subscriptions are
+ * subscription bills, so `nextPaymentDate` anchors the schedule directly
+ * instead of deriving it from a purchase date. Subscriptions are
  * open-ended, so callers generate a bounded batch (e.g. the next 6 months)
  * and top it up over time via `startNumber` instead of generating forever
  * up front.
  */
 export function generateRecurringOccurrences(input: GenerateRecurringOccurrencesInput): GeneratedInstallment[] {
-  const { nextPaymentDate, monthlyAmount, startNumber = 1, count } = input;
+  const { nextPaymentDate, monthlyAmount, startNumber = 1, count, billingCycle = "MONTHLY" } = input;
 
   if (monthlyAmount <= 0) throw new Error("Valor mensal deve ser maior que zero.");
   if (startNumber < 1) throw new Error("Número da primeira ocorrência deve ser ao menos 1.");
   if (count < 1) return [];
 
+  const stepMonths = billingCycle === "ANNUAL" ? 12 : 1;
   const day = nextPaymentDate.getDate();
   const amount = round2(monthlyAmount);
 
   return Array.from({ length: count }, (_, i) => {
     const number = startNumber + i;
-    const { year, month } = addMonths(nextPaymentDate.getFullYear(), nextPaymentDate.getMonth() + 1, number - 1);
+    const { year, month } = addMonths(nextPaymentDate.getFullYear(), nextPaymentDate.getMonth() + 1, (number - 1) * stepMonths);
     return {
       number,
       amount,

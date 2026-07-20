@@ -9,6 +9,9 @@ import {
   UpdatePayoffDto,
 } from "./dto/financing.dto";
 
+/** How far back we look to judge whether a new payoff quote is the best one seen lately. */
+const PAYOFF_COMPARISON_WINDOW_MONTHS = 3;
+
 @Injectable()
 export class FinancingsService {
   constructor(private readonly financings: FinancingRepository) {}
@@ -42,6 +45,8 @@ export class FinancingsService {
       paidInstallmentsCount,
     });
 
+    const payoffQuotedAt = dto.payoffAmount !== undefined ? new Date(dto.payoffQuotedAt ?? Date.now()) : undefined;
+
     const financing = await this.financings.createWithInstallments(
       {
         userId,
@@ -53,11 +58,15 @@ export class FinancingsService {
         installmentsCount: dto.installmentsCount,
         firstDueDate: installments[0].dueDate,
         payoffAmount: dto.payoffAmount,
-        payoffQuotedAt: dto.payoffAmount !== undefined ? new Date(dto.payoffQuotedAt ?? Date.now()) : undefined,
+        payoffQuotedAt,
         notes: dto.notes,
       },
       installments,
     );
+
+    if (dto.payoffAmount !== undefined && payoffQuotedAt) {
+      await this.financings.addPayoffQuote(userId, financing.id, dto.payoffAmount, payoffQuotedAt);
+    }
 
     return this.financings.findByIdWithInstallments(financing.id);
   }
@@ -68,13 +77,39 @@ export class FinancingsService {
     return this.financings.findByIdWithInstallments(id);
   }
 
+  /**
+   * Records a new cash-payoff quote and reports how it stacks up: percent change from the
+   * previous quote, and whether it's the best (lowest) one seen in the last few months — so the
+   * user doesn't have to remember every proposal the lender has sent.
+   */
   async updatePayoff(userId: string, id: string, dto: UpdatePayoffDto) {
-    await this.getOwned(userId, id);
-    await this.financings.update(id, {
-      payoffAmount: dto.payoffAmount,
-      payoffQuotedAt: dto.payoffQuotedAt ? new Date(dto.payoffQuotedAt) : new Date(),
-    });
-    return this.financings.findByIdWithInstallments(id);
+    const financing = await this.getOwned(userId, id);
+    const quotedAt = dto.payoffQuotedAt ? new Date(dto.payoffQuotedAt) : new Date();
+
+    const windowStart = new Date(quotedAt);
+    windowStart.setMonth(windowStart.getMonth() - PAYOFF_COMPARISON_WINDOW_MONTHS);
+    const priorQuotesInWindow = await this.financings.listPayoffQuotesSince(id, windowStart);
+
+    const previousAmount = financing.payoffAmount !== null ? Number(financing.payoffAmount) : null;
+    const percentChange = previousAmount && previousAmount > 0 ? ((dto.payoffAmount - previousAmount) / previousAmount) * 100 : null;
+
+    const priorMin = priorQuotesInWindow.length > 0 ? Math.min(...priorQuotesInWindow.map((q) => q.amount)) : null;
+    const isBestInWindow = priorMin === null || dto.payoffAmount <= priorMin;
+    const bestInWindowAmount = priorMin === null ? dto.payoffAmount : Math.min(priorMin, dto.payoffAmount);
+
+    await this.financings.addPayoffQuote(userId, id, dto.payoffAmount, quotedAt);
+    await this.financings.update(id, { payoffAmount: dto.payoffAmount, payoffQuotedAt: quotedAt });
+
+    return {
+      financing: await this.financings.findByIdWithInstallments(id),
+      comparison: {
+        previousAmount,
+        percentChange,
+        isBestInWindow,
+        windowMonths: PAYOFF_COMPARISON_WINDOW_MONTHS,
+        bestInWindowAmount,
+      },
+    };
   }
 
   async remove(userId: string, id: string) {

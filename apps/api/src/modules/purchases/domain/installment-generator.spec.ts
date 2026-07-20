@@ -259,4 +259,31 @@ describe("generateRecurringOccurrences", () => {
 
     expect(result.map((o) => o.dueDate.getDate())).toEqual([31, 28, 31]); // Jan 31, Feb 28 (2026 not leap), Mar 31
   });
+
+  it("advances a year at a time for ANNUAL billing (e.g. a domain renewal)", () => {
+    const result = generateRecurringOccurrences({
+      nextPaymentDate: new Date(2026, 2, 10), // March 10th
+      monthlyAmount: 60,
+      count: 3,
+      billingCycle: "ANNUAL",
+    });
+
+    expect(result.map((o) => [o.referenceYear, o.referenceMonth, o.dueDate.getDate()])).toEqual([
+      [2026, 3, 10],
+      [2027, 3, 10],
+      [2028, 3, 10],
+    ]);
+  });
+
+  it("tops up an ANNUAL subscription seamlessly using startNumber", () => {
+    const topUp = generateRecurringOccurrences({
+      nextPaymentDate: new Date(2026, 2, 10),
+      monthlyAmount: 60,
+      startNumber: 3,
+      count: 1,
+      billingCycle: "ANNUAL",
+    });
+
+    expect(topUp[0].referenceYear).toBe(2028);
+  });
 });

@@ -10,6 +10,7 @@ import {
   Trash2,
   Settings,
   Landmark,
+  Repeat,
   type LucideIcon,
 } from "lucide-react";
 
@@ -51,12 +52,11 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "Compras",
     icon: ShoppingBag,
     summary:
-      "Toda compra — parcelada, à vista ou assinatura recorrente (tipo Netflix) — é lançada aqui. Ao preencher valor e número de parcelas, você já vê uma prévia de cada parcela e em qual mês ela cai.",
+      "Compras à vista ou parceladas nos seus cartões são lançadas aqui. Ao preencher valor e número de parcelas, você já vê uma prévia de cada parcela e em qual mês ela cai. Assinaturas e cobranças recorrentes têm seu próprio lugar — veja Assinaturas.",
     tips: [
       "Em parcelada, você informa o valor de cada parcela direto (não o total) — é o mesmo número que aparece na sua fatura, sem entrada e sem cálculo de juros.",
       "Parcelamento já em andamento? Marque \"já está em andamento\", diga quantas parcelas já foram pagas e a data da próxima em aberto — o sistema marca as anteriores como pagas automaticamente.",
-      "Em compra à vista ou parcelada nova, a data é quando você comprou, e o sistema calcula a fatura certa pelo dia de fechamento do cartão.",
-      "Em assinatura, a data é o \"Próximo pagamento\" — o dia em que ela cobra no cartão todo mês, direto, sem passar pelo cálculo de fechamento de fatura.",
+      "A data é quando você comprou, e o sistema calcula a fatura certa pelo dia de fechamento do cartão.",
       "Marque \"Favorita\" pra destacar compras importantes e filtrar por elas depois.",
       "Use \"Duplicar\" pra repetir rapidamente uma compra parecida sem preencher tudo de novo.",
       "Excluir uma compra manda ela pra Lixeira — nada some de vez até você confirmar lá.",
@@ -67,11 +67,24 @@ export const HELP_TOPICS: HelpTopic[] = [
     title: "Parcelas",
     icon: ListChecks,
     summary:
-      "Lista de cada parcela individual gerada pelas suas compras, com status: Pendente, Pago, Atrasado ou Cancelado.",
+      "Lista de cada parcela individual gerada pelas suas compras, com status: Pendente, Pago ou Cancelado.",
     tips: [
-      "Marque como paga assim que o pagamento cair na fatura — isso atualiza todos os indicadores do Dashboard na hora.",
-      "Parcelas com vencimento no passado e ainda pendentes viram \"Atrasado\" automaticamente.",
-      "Dá pra reverter um pagamento marcado por engano com o botão de desfazer.",
+      "Não precisa marcar nada como paga — o cartão debita a fatura sozinho, então assim que o vencimento chega o sistema já marca a parcela como paga automaticamente.",
+      "Se algo foi marcado como paga por engano (ou você quer registrar que não caiu), use \"Desfazer\".",
+      "Dá pra cancelar uma parcela pendente que não vai mais acontecer.",
+    ],
+  },
+  {
+    id: "subscriptions",
+    title: "Assinaturas",
+    icon: Repeat,
+    summary:
+      "Streaming, domínios e qualquer cobrança que se repete sozinha ficam aqui, separadas das compras normais — com ciclo mensal ou anual, renovação automática e planejamento de cancelamento.",
+    tips: [
+      "Escolha o ciclo: Mensal (Netflix, Spotify) ou Anual (domínio, plano anual) — a cobrança gerada respeita esse intervalo.",
+      "\"Renovação automática\" é só informativo, pra você lembrar se precisa agir manualmente quando o prazo chegar.",
+      "\"Planejar cancelamento\" deixa a assinatura cobrando normalmente até a data que você escolher, e cancela sozinha depois — útil quando você quer aproveitar até o fim do período já pago.",
+      "\"Cancelar agora\" remove as cobranças futuras imediatamente.",
     ],
   },
   {

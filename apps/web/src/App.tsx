@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import Cards from "./pages/Cards";
 import Purchases from "./pages/Purchases";
 import Installments from "./pages/Installments";
+import Subscriptions from "./pages/Subscriptions";
 import Financing from "./pages/Financing";
 import CalendarPage from "./pages/CalendarPage";
 import Timeline from "./pages/Timeline";
@@ -28,6 +29,7 @@ export default function App() {
           <Route path="/cards" element={<Cards />} />
           <Route path="/purchases" element={<Purchases />} />
           <Route path="/installments" element={<Installments />} />
+          <Route path="/subscriptions" element={<Subscriptions />} />
           <Route path="/financing" element={<Financing />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/timeline" element={<Timeline />} />

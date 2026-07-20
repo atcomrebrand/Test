@@ -1,5 +1,5 @@
 import { Purchase } from "@prisma/client";
-import { GeneratedInstallment } from "./installment-generator";
+import { GeneratedInstallment, RecurringBillingCycle } from "./installment-generator";
 
 export interface PurchaseFilters {
   userId: string;
@@ -31,6 +31,8 @@ export interface CreatePurchaseWithInstallments {
     installmentsCount: number;
     isRecurring?: boolean;
     recurrenceEndDate?: Date;
+    billingCycle?: RecurringBillingCycle;
+    autoRenew?: boolean;
     tags?: string[];
     isFavorite?: boolean;
     attachmentUrl?: string;
@@ -46,6 +48,7 @@ export interface RecurringPurchaseForExtension {
   purchaseDate: Date;
   monthlyAmount: number;
   recurrenceEndDate: Date | null;
+  billingCycle: RecurringBillingCycle;
   installmentsCount: number;
   latestReferenceYear: number;
   latestReferenceMonth: number;

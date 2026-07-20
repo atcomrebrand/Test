@@ -41,6 +41,8 @@ export interface Purchase {
   downPayment: string | number | null;
   isRecurring: boolean;
   recurrenceEndDate: string | null;
+  billingCycle: "MONTHLY" | "ANNUAL" | null;
+  autoRenew: boolean | null;
   tags: string[];
   isFavorite: boolean;
   attachmentUrl: string | null;

@@ -15,6 +15,7 @@ import {
 } from "class-validator";
 
 const KINDS = ["INSTALLMENT", "CASH", "RECURRING"] as const;
+const BILLING_CYCLES = ["MONTHLY", "ANNUAL"] as const;
 
 export class CreatePurchaseDto {
   @IsString()
@@ -82,6 +83,16 @@ export class CreatePurchaseDto {
   @IsDateString()
   recurrenceEndDate?: string;
 
+  /** RECURRING only: MONTHLY (default) or ANNUAL billing — e.g. a domain renewed yearly. */
+  @IsOptional()
+  @IsIn(BILLING_CYCLES)
+  billingCycle?: (typeof BILLING_CYCLES)[number];
+
+  /** RECURRING only: whether it renews automatically. Purely informational — doesn't affect generation. */
+  @IsOptional()
+  @IsBoolean()
+  autoRenew?: boolean;
+
   @IsOptional()
   @IsArray()
   @IsString({ each: true })
@@ -109,6 +120,14 @@ export class UpdatePurchaseDto {
   @IsOptional() @IsArray() @IsString({ each: true }) tags?: string[];
   @IsOptional() @IsString() attachmentUrl?: string;
   @IsOptional() @IsString() attachmentName?: string;
+  /** RECURRING only: flip whether it renews automatically, without touching the billing schedule. */
+  @IsOptional() @IsBoolean() autoRenew?: boolean;
+}
+
+export class ScheduleCancellationDto {
+  /** Must be a future date — the subscription keeps charging normally up to and including this month. */
+  @IsDateString()
+  recurrenceEndDate!: string;
 }
 
 export class PurchaseQueryDto {

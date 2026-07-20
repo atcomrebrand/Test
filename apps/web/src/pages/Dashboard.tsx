@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Wallet, CalendarClock, ListChecks, TrendingUp, ReceiptText, AlertTriangle, Landmark, ArrowRight, SlidersHorizontal } from "lucide-react";
+import { Wallet, CalendarClock, ListChecks, TrendingUp, ReceiptText, AlertTriangle, Landmark, ArrowRight, SlidersHorizontal, Repeat } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -11,6 +11,7 @@ import { CategoryChart } from "@/components/charts/CategoryChart";
 import { OnboardingChecklist } from "@/components/OnboardingChecklist";
 import { useDashboardSummary, useSpendingByCategory, useSpendingEvolution } from "@/features/useDashboard";
 import { useFinancingSummary } from "@/features/useFinancings";
+import { usePurchases } from "@/features/usePurchases";
 import { formatCurrency, formatDate, daysUntil } from "@/lib/format";
 
 export default function Dashboard() {
@@ -18,6 +19,20 @@ export default function Dashboard() {
   const { data: evolution } = useSpendingEvolution();
   const { data: byCategory } = useSpendingByCategory();
   const { data: financingSummary } = useFinancingSummary();
+  const { data: subscriptionsData } = usePurchases({ kind: "RECURRING", pageSize: 100 });
+
+  const activeSubscriptions = (subscriptionsData?.items ?? []).filter(
+    (p) => !(p.recurrenceEndDate && new Date(p.recurrenceEndDate) <= new Date()),
+  );
+  const subscriptionsMonthlyTotal = activeSubscriptions
+    .filter((p) => (p.billingCycle ?? "MONTHLY") === "MONTHLY")
+    .reduce((acc, p) => acc + Number(p.totalAmount), 0);
+  const nextRenewal = activeSubscriptions
+    .flatMap((p) => {
+      const installment = p.installments?.find((i) => i.status === "PENDING");
+      return installment ? [{ purchase: p, installment }] : [];
+    })
+    .sort((a, b) => new Date(a.installment.dueDate).getTime() - new Date(b.installment.dueDate).getTime())[0];
 
   if (isLoading || !summary) {
     return (
@@ -115,6 +130,37 @@ export default function Dashboard() {
             )}
             <Link to="/financing" className="ml-auto flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
               Ver financiamentos <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {activeSubscriptions.length > 0 && (
+        <Card className="mt-4">
+          <CardContent className="flex flex-wrap items-center gap-6 py-4">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-500/10 text-accent-500">
+                <Repeat className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold">Assinaturas</p>
+                <p className="text-xs text-muted">{activeSubscriptions.length} ativa(s)</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Total mensal</p>
+              <p className="font-semibold">{formatCurrency(subscriptionsMonthlyTotal)}</p>
+            </div>
+            {nextRenewal && (
+              <div>
+                <p className="text-xs text-muted">Próxima renovação</p>
+                <p className="font-semibold">
+                  {nextRenewal.purchase.name} em {formatDate(nextRenewal.installment.dueDate)}
+                </p>
+              </div>
+            )}
+            <Link to="/subscriptions" className="ml-auto flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
+              Ver assinaturas <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </CardContent>
         </Card>

@@ -137,7 +137,7 @@ export default function Purchases() {
                       </div>
                       <p className="shrink-0 font-semibold sm:hidden">
                         {formatCurrency(p.totalAmount)}
-                        {p.kind === "RECURRING" && <span className="text-xs text-muted">/mês</span>}
+                        {p.kind === "RECURRING" && <span className="text-xs text-muted">{p.billingCycle === "ANNUAL" ? "/ano" : "/mês"}</span>}
                       </p>
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted">
@@ -161,7 +161,7 @@ export default function Purchases() {
 
                   <p className="hidden w-28 text-right font-semibold sm:block">
                     {formatCurrency(p.totalAmount)}
-                    {p.kind === "RECURRING" && <span className="block text-xs font-normal text-muted">/mês</span>}
+                    {p.kind === "RECURRING" && <span className="block text-xs font-normal text-muted">{p.billingCycle === "ANNUAL" ? "/ano" : "/mês"}</span>}
                   </p>
 
                   <div className="flex items-center gap-1">

@@ -34,4 +34,7 @@ export abstract class FinancingRepository {
     totalPaid: number;
     nextInstallment: { financingId: string; financingName: string; dueDate: Date; amount: number } | null;
   }>;
+  abstract addPayoffQuote(userId: string, financingId: string, amount: number, quotedAt: Date): Promise<void>;
+  /** Quotes for this financing recorded on/after `since`, oldest first. */
+  abstract listPayoffQuotesSince(financingId: string, since: Date): Promise<{ amount: number; quotedAt: Date }[]>;
 }
