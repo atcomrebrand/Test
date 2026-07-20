@@ -1,7 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { InvestmentAssetClass } from "@prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
-import { CryptoQuoteProvider, HistoricalPricePoint, AssetFundamentals, StockQuoteProvider } from "../domain/market-data.provider";
+import { ChartRangeOptions, CryptoQuoteProvider, HistoricalPricePoint, AssetFundamentals, StockQuoteProvider } from "../domain/market-data.provider";
 
 /** Short TTL so prices feel live without hammering the free-tier BRAPI/CoinGecko rate limits. */
 const PRICE_TTL_MS = 5 * 60 * 1000;
@@ -131,6 +131,21 @@ export class MarketPriceService {
         fetchedAt: cached.fetchedAt,
         approximate: cached.approximate,
       };
+    }
+  }
+
+  /** Price history for a user-chosen time range. Deliberately bypasses the price/detail caches —
+   *  switching ranges is a distinct, infrequent user action, so it always fetches fresh from the
+   *  provider for that specific range rather than piggybacking on the 30-minute detail cache
+   *  (which only ever holds a fixed 3-month window). Falls back to an empty list on failure so a
+   *  chart error never breaks the rest of the page. */
+  async getHistory(assetClass: InvestmentAssetClass, symbol: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]> {
+    try {
+      if (assetClass === "CRYPTO") return await this.cryptoProvider.fetchHistory(symbol, options);
+      return await this.stockProvider.fetchHistory(symbol, options);
+    } catch (err) {
+      this.logger.warn(`History fetch failed for ${assetClass} ${symbol} (${options.range}): ${(err as Error).message}`);
+      return [];
     }
   }
 

@@ -3,6 +3,7 @@ import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../../../common/decorators/current-user.decorator";
 import { CatalogCacheService } from "../infrastructure/catalog-cache.service";
 import { MarketExplorerService } from "../application/market-explorer.service";
+import { parseChartRangeOptions } from "../domain/market-data.provider";
 
 /** Powers the "browse instead of type blind" asset picker and the "Explorar" market discovery
  *  page — search real B3 tickers/FIIs or top crypto coins, and look up price/chart/fundamentals
@@ -28,5 +29,16 @@ export class CatalogController {
     @Query("refresh") refresh?: string,
   ) {
     return this.explorer.getQuoteDetail(user.userId, assetClass ?? "STOCK", ticker, refresh === "true");
+  }
+
+  @Get("history")
+  history(
+    @Query("class") assetClass: "STOCK" | "FII" | "CRYPTO",
+    @Query("ticker") ticker: string,
+    @Query("range") range?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.explorer.getHistory(assetClass ?? "STOCK", ticker, parseChartRangeOptions(range, from, to));
   }
 }

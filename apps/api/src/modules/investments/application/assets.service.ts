@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { InvestmentAsset, InvestmentTransaction } from "@prisma/client";
 import { AssetRepository } from "../domain/asset.repository";
+import { ChartRangeOptions } from "../domain/market-data.provider";
 import { calculatePosition } from "../domain/position-calculator";
 import { calculateStakingYield } from "../domain/staking-calculator";
 import { MarketPriceService } from "../infrastructure/market-price.service";
@@ -36,6 +37,13 @@ export class AssetsService {
     const asset = await this.getOwned(userId, id);
     const detail = await this.marketPrice.getDetail(asset.class, asset.ticker, { forceRefresh });
     return { ticker: asset.ticker, class: asset.class, name: asset.name, detail };
+  }
+
+  /** Price history for the chart's time-range selector — a separate fetch from getQuoteDetail so
+   *  switching ranges doesn't disturb the cached price/fundamentals shown alongside it. */
+  async getHistory(userId: string, id: string, options: ChartRangeOptions) {
+    const asset = await this.getOwned(userId, id);
+    return this.marketPrice.getHistory(asset.class, asset.ticker, options);
   }
 
   create(userId: string, dto: CreateAssetDto) {

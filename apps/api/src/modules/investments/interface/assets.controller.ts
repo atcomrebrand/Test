@@ -3,6 +3,7 @@ import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../../../common/decorators/current-user.decorator";
 import { AssetsService } from "../application/assets.service";
 import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto } from "../application/dto/asset.dto";
+import { parseChartRangeOptions } from "../domain/market-data.provider";
 
 @UseGuards(JwtAuthGuard)
 @Controller("investments/assets")
@@ -22,6 +23,17 @@ export class AssetsController {
   @Get(":id/quote-detail")
   getQuoteDetail(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query("refresh") refresh?: string) {
     return this.service.getQuoteDetail(user.userId, id, refresh === "true");
+  }
+
+  @Get(":id/history")
+  getHistory(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Query("range") range?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.service.getHistory(user.userId, id, parseChartRangeOptions(range, from, to));
   }
 
   @Post()

@@ -6,8 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { QuoteDetailCard } from "../components/QuoteDetailCard";
 import { AssetFormModal } from "../components/AssetFormModal";
-import { useMarketQuoteDetail, useRefreshMarketQuoteDetail } from "../api";
-import { AssetClass } from "../types";
+import { useMarketHistory, useMarketQuoteDetail, useRefreshMarketQuoteDetail } from "../api";
+import { AssetClass, ChartRange } from "../types";
 
 export default function MarketAssetDetail() {
   const { class: assetClass, ticker } = useParams<{ class: string; ticker: string }>();
@@ -19,6 +19,9 @@ export default function MarketAssetDetail() {
 
   const { data: market, isLoading } = useMarketQuoteDetail(normalizedClass, normalizedTicker);
   const refresh = useRefreshMarketQuoteDetail(normalizedClass, normalizedTicker);
+
+  const [chartRange, setChartRange] = useState<{ range: ChartRange; from?: string; to?: string }>({ range: "3M" });
+  const { data: history, isLoading: historyLoading } = useMarketHistory(normalizedClass, normalizedTicker, chartRange);
 
   if (isLoading) {
     return (
@@ -62,7 +65,18 @@ export default function MarketAssetDetail() {
         )}
       </div>
 
-      <QuoteDetailCard detail={market.detail} isLoading={false} onRefresh={() => refresh.mutate()} refreshing={refresh.isPending} />
+      <QuoteDetailCard
+        detail={market.detail}
+        isLoading={false}
+        onRefresh={() => refresh.mutate()}
+        refreshing={refresh.isPending}
+        history={history}
+        historyLoading={historyLoading}
+        range={chartRange.range}
+        customFrom={chartRange.from}
+        customTo={chartRange.to}
+        onRangeChange={(range, from, to) => setChartRange({ range, from, to })}
+      />
 
       <AssetFormModal
         open={addOpen}

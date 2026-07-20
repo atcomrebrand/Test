@@ -1,7 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
-import { AssetQuoteDetailResponse, CashAccount, CatalogEntry, DashboardSummary, InvestmentAsset, InvestmentFixedIncome, MarketQuoteDetailResponse } from "./types";
+import {
+  AssetQuoteDetailResponse,
+  CashAccount,
+  CatalogEntry,
+  ChartRangeParams,
+  DashboardSummary,
+  HistoricalPricePoint,
+  InvestmentAsset,
+  InvestmentFixedIncome,
+  MarketQuoteDetailResponse,
+} from "./types";
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["investments"] });
@@ -53,6 +63,16 @@ export function useMarketQuoteDetail(assetClass: string, ticker: string | null) 
   });
 }
 
+/** Price history for the chart's time-range selector — a separate query from useMarketQuoteDetail
+ *  so switching ranges only refetches the chart, not the price/fundamentals shown alongside it. */
+export function useMarketHistory(assetClass: string, ticker: string | null, params: ChartRangeParams) {
+  return useQuery({
+    queryKey: ["investments", "market", "history", assetClass, ticker, params],
+    queryFn: () => api.get<HistoricalPricePoint[]>("/investments/catalog/history", { params: { class: assetClass, ticker, ...params } }),
+    enabled: !!ticker && (params.range !== "CUSTOM" || (!!params.from && !!params.to)),
+  });
+}
+
 export function useRefreshMarketQuoteDetail(assetClass: string, ticker: string | null) {
   const qc = useQueryClient();
   return useMutation({
@@ -100,6 +120,16 @@ export function useAssetQuoteDetail(id: string | null) {
     queryKey: ["investments", "assets", "quote-detail", id],
     queryFn: () => api.get<AssetQuoteDetailResponse>(`/investments/assets/${id}/quote-detail`),
     enabled: !!id,
+  });
+}
+
+/** Price history for the chart's time-range selector — a separate query from useAssetQuoteDetail
+ *  so switching ranges only refetches the chart, not the price/fundamentals shown alongside it. */
+export function useAssetHistory(id: string | null, params: ChartRangeParams) {
+  return useQuery({
+    queryKey: ["investments", "assets", "history", id, params],
+    queryFn: () => api.get<HistoricalPricePoint[]>(`/investments/assets/${id}/history`, { params }),
+    enabled: !!id && (params.range !== "CUSTOM" || (!!params.from && !!params.to)),
   });
 }
 

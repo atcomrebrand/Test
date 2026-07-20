@@ -36,12 +36,45 @@ export interface CatalogEntry {
   logoUrl?: string;
 }
 
+export type ChartRange = "3M" | "6M" | "12M" | "MAX" | "CUSTOM";
+
+export interface ChartRangeOptions {
+  range: ChartRange;
+  /** ISO date (YYYY-MM-DD). Required when range === "CUSTOM"; ignored otherwise. */
+  from?: string;
+  to?: string;
+}
+
+/** Whole days between two ISO dates — providers use this to size how much history to request for
+ *  a CUSTOM range before slicing the result down to the exact [from, to] window. */
+export function daysBetweenIsoDates(from: string, to: string): number {
+  const ms = new Date(to).getTime() - new Date(from).getTime();
+  return Math.max(1, Math.round(ms / 86400000));
+}
+
+const VALID_CHART_RANGES: ChartRange[] = ["3M", "6M", "12M", "MAX", "CUSTOM"];
+
+/** Parses the range/from/to query params shared by the history endpoints. Falls back to 12M for
+ *  an unrecognized range, and to MAX if CUSTOM is requested without both dates. */
+export function parseChartRangeOptions(range: string | undefined, from: string | undefined, to: string | undefined): ChartRangeOptions {
+  const normalizedRange = (range?.toUpperCase() as ChartRange | undefined) ?? "12M";
+  if (!VALID_CHART_RANGES.includes(normalizedRange)) return { range: "12M" };
+  if (normalizedRange === "CUSTOM") {
+    if (!from || !to) return { range: "MAX" };
+    return { range: "CUSTOM", from, to };
+  }
+  return { range: normalizedRange };
+}
+
 export abstract class StockQuoteProvider {
   abstract fetchQuote(ticker: string): Promise<QuoteResult>;
   abstract fetchDetail(ticker: string): Promise<QuoteDetail>;
   /** Full B3 ticker list (stocks + FIIs) — used to power the "browse instead of type blind"
    *  asset picker. Large but changes rarely, so callers should cache it themselves. */
   abstract listCatalog(): Promise<CatalogEntry[]>;
+  /** Price history for a given time range — a distinct, low-frequency lookup from fetchDetail's
+   *  fixed 3-month window, so it isn't folded into the detail cache. */
+  abstract fetchHistory(ticker: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]>;
 }
 
 export abstract class CryptoQuoteProvider {
@@ -49,6 +82,7 @@ export abstract class CryptoQuoteProvider {
   abstract fetchDetail(coinId: string): Promise<QuoteDetail>;
   /** Top coins by market cap — same idea as StockQuoteProvider.listCatalog(). */
   abstract listCatalog(): Promise<CatalogEntry[]>;
+  abstract fetchHistory(coinId: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]>;
 }
 
 export abstract class EconomicIndicatorProvider {

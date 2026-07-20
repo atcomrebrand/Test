@@ -75,6 +75,15 @@ export interface HistoricalPricePoint {
   close: number;
 }
 
+export type ChartRange = "3M" | "6M" | "12M" | "MAX" | "CUSTOM";
+
+export interface ChartRangeParams {
+  range: ChartRange;
+  /** ISO date (YYYY-MM-DD). Required when range === "CUSTOM". */
+  from?: string;
+  to?: string;
+}
+
 export type AssetFundamentals = Record<string, number | string | null>;
 
 export interface AssetQuoteDetail {

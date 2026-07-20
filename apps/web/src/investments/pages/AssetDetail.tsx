@@ -7,11 +7,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/cn";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { useAsset, useAssetQuoteDetail, useRefreshAssetQuote, useToggleFavorite } from "../api";
+import { useAsset, useAssetHistory, useAssetQuoteDetail, useRefreshAssetQuote, useToggleFavorite } from "../api";
 import { QuoteDetailCard } from "../components/QuoteDetailCard";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
 import { StakingConfigModal } from "../components/StakingConfigModal";
+import { ChartRange } from "../types";
 
 export default function AssetDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +20,9 @@ export default function AssetDetail() {
   const { data: quote, isLoading: quoteLoading } = useAssetQuoteDetail(id ?? null);
   const refresh = useRefreshAssetQuote(id ?? null);
   const toggleFavorite = useToggleFavorite();
+
+  const [chartRange, setChartRange] = useState<{ range: ChartRange; from?: string; to?: string }>({ range: "3M" });
+  const { data: history, isLoading: historyLoading } = useAssetHistory(id ?? null, chartRange);
 
   const [transactionOpen, setTransactionOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
@@ -84,7 +88,18 @@ export default function AssetDetail() {
         </div>
       </div>
 
-      <QuoteDetailCard detail={quote?.detail} isLoading={quoteLoading} onRefresh={() => refresh.mutate()} refreshing={refresh.isPending} />
+      <QuoteDetailCard
+        detail={quote?.detail}
+        isLoading={quoteLoading}
+        onRefresh={() => refresh.mutate()}
+        refreshing={refresh.isPending}
+        history={history}
+        historyLoading={historyLoading}
+        range={chartRange.range}
+        customFrom={chartRange.from}
+        customTo={chartRange.to}
+        onRangeChange={(range, from, to) => setChartRange({ range, from, to })}
+      />
 
       {asset.class === "CRYPTO" && (
         <Card>

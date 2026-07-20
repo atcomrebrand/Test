@@ -1,5 +1,14 @@
 import { Injectable } from "@nestjs/common";
-import { AssetFundamentals, CatalogEntry, HistoricalPricePoint, QuoteDetail, QuoteResult, CryptoQuoteProvider } from "../../domain/market-data.provider";
+import {
+  AssetFundamentals,
+  CatalogEntry,
+  ChartRangeOptions,
+  daysBetweenIsoDates,
+  HistoricalPricePoint,
+  QuoteDetail,
+  QuoteResult,
+  CryptoQuoteProvider,
+} from "../../domain/market-data.provider";
 
 /** Convenience map so users can type a familiar ticker (BTC) instead of memorizing CoinGecko's
  *  coin id (bitcoin). Anything not listed here is assumed to already be a valid CoinGecko id. */
@@ -93,6 +102,31 @@ export class CoinGeckoProvider extends CryptoQuoteProvider {
     };
   }
 
+  /** Price history for a user-chosen time range. Not part of the 30-minute detail cache — range
+   *  switching is a deliberate, infrequent action, so each call fetches fresh from CoinGecko.
+   *  Custom ranges request a `days` window sized to cover [from, to] plus a small buffer, then get
+   *  sliced to the exact dates since CoinGecko has no arbitrary-range parameter. */
+  async fetchHistory(ticker: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]> {
+    const coinId = normalizeCoinId(ticker);
+    const days = coingeckoDaysParam(options);
+    const url = `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(coinId)}/market_chart?vs_currency=brl&days=${days}&interval=daily`;
+
+    const res = await fetch(url, { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`CoinGecko market_chart request failed for ${coinId}: ${res.status}`);
+
+    const body = (await res.json()) as { prices?: [number, number][] };
+    let history: HistoricalPricePoint[] = (body.prices ?? []).map(([ts, close]) => ({
+      date: new Date(ts).toISOString().slice(0, 10),
+      close,
+    }));
+
+    if (options.range === "CUSTOM" && options.from && options.to) {
+      history = history.filter((p) => p.date >= options.from! && p.date <= options.to!);
+    }
+
+    return history;
+  }
+
   /** Top 250 coins by market cap. The catalog's `ticker` is the CoinGecko id itself (not the
    *  symbol) so a selection round-trips perfectly through fetchQuote/fetchDetail regardless of
    *  whether the symbol is in the SYMBOL_TO_COINGECKO_ID convenience map above. */
@@ -103,5 +137,29 @@ export class CoinGeckoProvider extends CryptoQuoteProvider {
 
     const body = (await res.json()) as { id: string; symbol: string; name: string; image?: string }[];
     return body.map((c) => ({ ticker: c.id, name: `${c.name} (${c.symbol.toUpperCase()})`, logoUrl: c.image }));
+  }
+}
+
+/** Maps a ChartRange to CoinGecko's `days` param. CUSTOM sizes the window to cover the requested
+ *  span plus a small buffer (CoinGecko has no arbitrary-range parameter) — the caller slices the
+ *  result down to the exact dates afterward. */
+function coingeckoDaysParam(options: ChartRangeOptions): string {
+  switch (options.range) {
+    case "3M":
+      return "90";
+    case "6M":
+      return "180";
+    case "12M":
+      return "365";
+    case "MAX":
+      return "max";
+    case "CUSTOM": {
+      if (!options.from) return "365";
+      const to = options.to ?? new Date().toISOString().slice(0, 10);
+      const days = daysBetweenIsoDates(options.from, to);
+      return String(Math.min(days + 5, 3650));
+    }
+    default:
+      return "365";
   }
 }

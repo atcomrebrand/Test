@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { AssetRepository } from "../domain/asset.repository";
+import { ChartRangeOptions } from "../domain/market-data.provider";
 import { MarketPriceService } from "../infrastructure/market-price.service";
 
 /**
@@ -29,5 +30,12 @@ export class MarketExplorerService {
       detail,
       ownedAssetId: owned?.id ?? null,
     };
+  }
+
+  /** Price history for the chart's time-range selector, for any catalog ticker regardless of
+   *  ownership — same "research without cadastrar" principle as getQuoteDetail. */
+  async getHistory(assetClass: "STOCK" | "FII" | "CRYPTO", ticker: string, options: ChartRangeOptions) {
+    const normalizedTicker = assetClass === "CRYPTO" ? ticker : ticker.toUpperCase();
+    return this.marketPrice.getHistory(assetClass, normalizedTicker, options);
   }
 }

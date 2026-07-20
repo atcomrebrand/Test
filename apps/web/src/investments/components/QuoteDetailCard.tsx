@@ -1,17 +1,99 @@
+import { useState } from "react";
 import { RefreshCw, TrendingUp, TrendingDown, TriangleAlert } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
 import { AssetPriceChart } from "./AssetPriceChart";
-import { AssetQuoteDetail } from "../types";
+import { AssetQuoteDetail, ChartRange, HistoricalPricePoint } from "../types";
 
 interface Props {
   detail: AssetQuoteDetail | null | undefined;
   isLoading: boolean;
   onRefresh: () => void;
   refreshing: boolean;
+  /** Chart history for the currently selected range — decoupled from detail.history so switching
+   *  ranges doesn't need to re-fetch price/fundamentals. */
+  history: HistoricalPricePoint[] | undefined;
+  historyLoading: boolean;
+  range: ChartRange;
+  onRangeChange: (range: ChartRange, from?: string, to?: string) => void;
+  customFrom?: string;
+  customTo?: string;
+}
+
+const RANGE_OPTIONS: { value: ChartRange; label: string }[] = [
+  { value: "3M", label: "3M" },
+  { value: "6M", label: "6M" },
+  { value: "12M", label: "12M" },
+  { value: "MAX", label: "Máximo" },
+];
+
+function RangeSelector({ range, onRangeChange, customFrom, customTo }: Pick<Props, "range" | "onRangeChange" | "customFrom" | "customTo">) {
+  const [customOpen, setCustomOpen] = useState(range === "CUSTOM");
+  const [from, setFrom] = useState(customFrom ?? "");
+  const [to, setTo] = useState(customTo ?? "");
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {RANGE_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            onClick={() => {
+              setCustomOpen(false);
+              onRangeChange(opt.value);
+            }}
+            className={cn(
+              "rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors",
+              range === opt.value && !customOpen ? "bg-emerald-500 text-white" : "surface-2 text-muted hover:text-[rgb(var(--text))]",
+            )}
+          >
+            {opt.label}
+          </button>
+        ))}
+        <button
+          onClick={() => setCustomOpen((v) => !v)}
+          className={cn(
+            "rounded-lg px-2.5 py-1 text-xs font-semibold transition-colors",
+            range === "CUSTOM" ? "bg-emerald-500 text-white" : "surface-2 text-muted hover:text-[rgb(var(--text))]",
+          )}
+        >
+          Personalizado
+        </button>
+      </div>
+
+      {customOpen && (
+        <div className="flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            De
+            <input
+              type="date"
+              value={from}
+              max={to || undefined}
+              onChange={(e) => setFrom(e.target.value)}
+              className="rounded-lg surface-2 px-2 py-1 text-sm text-[rgb(var(--text))]"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            Até
+            <input
+              type="date"
+              value={to}
+              min={from || undefined}
+              onChange={(e) => setTo(e.target.value)}
+              className="rounded-lg surface-2 px-2 py-1 text-sm text-[rgb(var(--text))]"
+            />
+          </label>
+          <Button size="sm" disabled={!from || !to} onClick={() => onRangeChange("CUSTOM", from, to)}>
+            Aplicar
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function timeAgo(iso: string) {
@@ -26,7 +108,18 @@ function timeAgo(iso: string) {
 
 /** Live price + chart + fundamentals — shared between "Sua carteira" (AssetDetail) and
  *  "Explorar" (MarketAssetDetail), since browsing an asset's data doesn't require owning it. */
-export function QuoteDetailCard({ detail, isLoading, onRefresh, refreshing }: Props) {
+export function QuoteDetailCard({
+  detail,
+  isLoading,
+  onRefresh,
+  refreshing,
+  history,
+  historyLoading,
+  range,
+  onRangeChange,
+  customFrom,
+  customTo,
+}: Props) {
   const positive = (detail?.changePercent ?? 0) >= 0;
 
   return (
@@ -75,7 +168,20 @@ export function QuoteDetailCard({ detail, isLoading, onRefresh, refreshing }: Pr
             </div>
           )}
 
-          {detail && detail.history.length > 0 && <AssetPriceChart history={detail.history} positive={positive} />}
+          {detail && (
+            <div className="flex flex-col gap-3">
+              <RangeSelector range={range} onRangeChange={onRangeChange} customFrom={customFrom} customTo={customTo} />
+              {historyLoading ? (
+                <Skeleton className="h-[280px] rounded-xl" />
+              ) : history && history.length > 0 ? (
+                <AssetPriceChart history={history} positive={positive} />
+              ) : (
+                <div className="flex h-[120px] items-center justify-center rounded-xl surface-2 text-sm text-muted">
+                  Sem histórico disponível para o período selecionado.
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
 

@@ -1,5 +1,14 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { AssetFundamentals, CatalogEntry, HistoricalPricePoint, QuoteDetail, QuoteResult, StockQuoteProvider } from "../../domain/market-data.provider";
+import {
+  AssetFundamentals,
+  CatalogEntry,
+  ChartRangeOptions,
+  daysBetweenIsoDates,
+  HistoricalPricePoint,
+  QuoteDetail,
+  QuoteResult,
+  StockQuoteProvider,
+} from "../../domain/market-data.provider";
 
 interface BrapiListEntry {
   stock?: string;
@@ -24,6 +33,32 @@ const FRACTIONAL_TICKER_PATTERN = /^([A-Z]{4}\d{1,2})F$/;
 
 function baseTickerFor(ticker: string): string | null {
   return ticker.toUpperCase().match(FRACTIONAL_TICKER_PATTERN)?.[1] ?? null;
+}
+
+/** Maps a ChartRange to BRAPI's `range`/`interval` query params. CUSTOM requests the nearest
+ *  enclosing bucket for the requested span (BRAPI has no arbitrary-range param) — the caller
+ *  slices the result down to the exact dates afterward. MAX uses a coarser monthly interval to
+ *  avoid asking for years of daily candles that just get downsampled by the chart anyway. */
+function brapiRangeParams(options: ChartRangeOptions): { range: string; interval: string } {
+  if (options.range === "CUSTOM") {
+    const days = options.from && options.to ? daysBetweenIsoDates(options.from, options.to) : 365;
+    if (days <= 90) return { range: "6mo", interval: "1d" };
+    if (days <= 180) return { range: "1y", interval: "1d" };
+    if (days <= 365) return { range: "2y", interval: "1d" };
+    if (days <= 730) return { range: "5y", interval: "1d" };
+    return { range: "max", interval: "1mo" };
+  }
+  switch (options.range) {
+    case "3M":
+      return { range: "3mo", interval: "1d" };
+    case "6M":
+      return { range: "6mo", interval: "1d" };
+    case "12M":
+      return { range: "1y", interval: "1d" };
+    case "MAX":
+    default:
+      return { range: "max", interval: "1mo" };
+  }
 }
 
 interface BrapiQuoteResult {
@@ -89,6 +124,28 @@ export class BrapiProvider extends StockQuoteProvider {
       fundamentals,
       approximate,
     };
+  }
+
+  /** Price history for a user-chosen time range. Not part of the 30-minute detail cache — range
+   *  switching is a deliberate, infrequent action, so each call fetches fresh from BRAPI. Custom
+   *  ranges request the nearest enclosing bucket BRAPI supports, then get sliced to the exact
+   *  [from, to] window since BRAPI has no arbitrary-range parameter. */
+  async fetchHistory(ticker: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]> {
+    const { range, interval } = brapiRangeParams(options);
+    const { quote } = await this.fetchWithFractionalFallback(ticker, { range, interval });
+
+    let history: HistoricalPricePoint[] = (quote.historicalDataPrice ?? [])
+      .filter((p) => typeof p.close === "number" || typeof p.adjustedClose === "number")
+      .map((p) => ({
+        date: new Date(p.date * 1000).toISOString().slice(0, 10),
+        close: (p.adjustedClose ?? p.close) as number,
+      }));
+
+    if (options.range === "CUSTOM" && options.from && options.to) {
+      history = history.filter((p) => p.date >= options.from! && p.date <= options.to!);
+    }
+
+    return history;
   }
 
   async listCatalog(): Promise<CatalogEntry[]> {
