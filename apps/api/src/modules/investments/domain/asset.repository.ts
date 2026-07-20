@@ -26,6 +26,7 @@ export interface CreateTransactionData {
 export abstract class AssetRepository {
   abstract findAllByUser(userId: string, assetClass?: string): Promise<InvestmentAsset[]>;
   abstract findById(id: string): Promise<InvestmentAsset | null>;
+  abstract findByUserAndTicker(userId: string, assetClass: string, ticker: string): Promise<InvestmentAsset | null>;
   abstract findByIdWithTransactions(id: string): Promise<(InvestmentAsset & { transactions: InvestmentTransaction[]; incomes: InvestmentIncome[] }) | null>;
   abstract create(data: CreateAssetData): Promise<InvestmentAsset>;
   abstract update(id: string, data: Record<string, unknown>): Promise<InvestmentAsset>;

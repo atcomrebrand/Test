@@ -21,6 +21,7 @@ import { InvestmentsDashboardService } from "./application/investments-dashboard
 import { InvestmentsDashboardController } from "./interface/investments-dashboard.controller";
 import { CatalogCacheService } from "./infrastructure/catalog-cache.service";
 import { CatalogController } from "./interface/catalog.controller";
+import { MarketExplorerService } from "./application/market-explorer.service";
 
 @Module({
   controllers: [FixedIncomesController, AssetsController, CashAccountsController, InvestmentsDashboardController, CatalogController],
@@ -38,6 +39,7 @@ import { CatalogController } from "./interface/catalog.controller";
     { provide: CashAccountRepository, useClass: CashAccountPrismaRepository },
     CashAccountsService,
     InvestmentsDashboardService,
+    MarketExplorerService,
   ],
   exports: [MarketPriceService, EconomicIndicatorCacheService, FixedIncomeRepository, AssetRepository, CashAccountRepository],
 })

@@ -1,0 +1,33 @@
+import { Injectable } from "@nestjs/common";
+import { AssetRepository } from "../domain/asset.repository";
+import { MarketPriceService } from "../infrastructure/market-price.service";
+
+/**
+ * Browsing/researching an asset (price, chart, fundamentals) is decoupled from owning it — you
+ * shouldn't have to "cadastrar" something just to look it up. This is also the natural surface a
+ * future investment-rules/recommendations feature would sit on top of, since it already covers
+ * every ticker in the catalog, not just the ones a user has added to their portfolio.
+ */
+@Injectable()
+export class MarketExplorerService {
+  constructor(
+    private readonly marketPrice: MarketPriceService,
+    private readonly assets: AssetRepository,
+  ) {}
+
+  async getQuoteDetail(userId: string, assetClass: "STOCK" | "FII" | "CRYPTO", ticker: string) {
+    const normalizedTicker = assetClass === "CRYPTO" ? ticker : ticker.toUpperCase();
+
+    const [detail, owned] = await Promise.all([
+      this.marketPrice.getDetail(assetClass, normalizedTicker),
+      this.assets.findByUserAndTicker(userId, assetClass, normalizedTicker),
+    ]);
+
+    return {
+      ticker: normalizedTicker,
+      class: assetClass,
+      detail,
+      ownedAssetId: owned?.id ?? null,
+    };
+  }
+}

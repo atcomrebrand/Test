@@ -19,6 +19,12 @@ export class AssetPrismaRepository extends AssetRepository {
     return this.prisma.investmentAsset.findUnique({ where: { id } });
   }
 
+  findByUserAndTicker(userId: string, assetClass: string, ticker: string) {
+    return this.prisma.investmentAsset.findFirst({
+      where: { userId, class: assetClass as any, ticker, deletedAt: null },
+    });
+  }
+
   findByIdWithTransactions(id: string) {
     return this.prisma.investmentAsset.findUnique({
       where: { id },
