@@ -9,9 +9,13 @@ import { FixedIncomeRepository } from "./domain/fixed-income.repository";
 import { FixedIncomePrismaRepository } from "./infrastructure/fixed-income.prisma.repository";
 import { FixedIncomesService } from "./application/fixed-incomes.service";
 import { FixedIncomesController } from "./interface/fixed-incomes.controller";
+import { AssetRepository } from "./domain/asset.repository";
+import { AssetPrismaRepository } from "./infrastructure/asset.prisma.repository";
+import { AssetsService } from "./application/assets.service";
+import { AssetsController } from "./interface/assets.controller";
 
 @Module({
-  controllers: [FixedIncomesController],
+  controllers: [FixedIncomesController, AssetsController],
   providers: [
     { provide: StockQuoteProvider, useClass: BrapiProvider },
     { provide: CryptoQuoteProvider, useClass: CoinGeckoProvider },
@@ -20,7 +24,9 @@ import { FixedIncomesController } from "./interface/fixed-incomes.controller";
     EconomicIndicatorCacheService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },
     FixedIncomesService,
+    { provide: AssetRepository, useClass: AssetPrismaRepository },
+    AssetsService,
   ],
-  exports: [MarketPriceService, EconomicIndicatorCacheService, FixedIncomeRepository],
+  exports: [MarketPriceService, EconomicIndicatorCacheService, FixedIncomeRepository, AssetRepository],
 })
 export class InvestmentsModule {}
