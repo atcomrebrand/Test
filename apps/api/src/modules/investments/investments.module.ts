@@ -33,6 +33,9 @@ import { DividendsService } from "./application/dividends.service";
 import { DividendsController } from "./interface/dividends.controller";
 import { B3ImportService } from "./application/b3-import.service";
 import { B3ImportController } from "./interface/b3-import.controller";
+import { LaunchesController } from "./interface/launches.controller";
+import { InvestmentsResetService } from "./application/investments-reset.service";
+import { InvestmentsResetController } from "./interface/investments-reset.controller";
 
 @Module({
   controllers: [
@@ -44,6 +47,8 @@ import { B3ImportController } from "./interface/b3-import.controller";
     NewsController,
     DividendsController,
     B3ImportController,
+    LaunchesController,
+    InvestmentsResetController,
   ],
   providers: [
     { provide: StockQuoteProvider, useClass: BrapiProvider },
@@ -59,6 +64,7 @@ import { B3ImportController } from "./interface/b3-import.controller";
     DividendsCacheService,
     DividendsService,
     B3ImportService,
+    InvestmentsResetService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },
     FixedIncomesService,
     { provide: AssetRepository, useClass: AssetPrismaRepository },

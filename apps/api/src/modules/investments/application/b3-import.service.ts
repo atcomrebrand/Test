@@ -9,6 +9,7 @@ import {
   SkippedRow,
   parseB3Import,
 } from "../domain/b3-import";
+import { parseSimpleCsvImport, SimpleImportRow } from "../domain/simple-csv-import";
 import { calculatePosition } from "../domain/position-calculator";
 import { DividendsCacheService } from "../infrastructure/dividends-cache.service";
 import { ImportIncomeInputDto, ImportTransactionInputDto } from "./dto/b3-import.dto";
@@ -55,7 +56,24 @@ export class B3ImportService {
 
   async preview(userId: string, negociacaoRows: Record<string, unknown>[], movimentacaoRows: Record<string, unknown>[]): Promise<B3ImportPreviewResult> {
     const plan = parseB3Import(negociacaoRows as unknown as B3NegociacaoRow[], movimentacaoRows as unknown as B3MovimentacaoRow[]);
+    return this.buildPreview(userId, plan.transactions, plan.incomes, plan.skipped);
+  }
 
+  /** Simpler CSV format (one row per transaction, no dividend/provento rows at all) — the
+   *  dividend-suggestion pass below runs the same regardless of import source, since it's driven
+   *  by BRAPI's dividend history against the position these transactions establish, not by
+   *  anything in the source file itself. */
+  async previewCsv(userId: string, rows: Record<string, unknown>[]): Promise<B3ImportPreviewResult> {
+    const plan = parseSimpleCsvImport(rows as unknown as SimpleImportRow[]);
+    return this.buildPreview(userId, plan.transactions, [], plan.skipped);
+  }
+
+  private async buildPreview(
+    userId: string,
+    planTransactions: ImportedTransaction[],
+    planIncomes: ImportedIncome[],
+    planSkipped: SkippedRow[],
+  ): Promise<B3ImportPreviewResult> {
     const [existingTransactions, existingIncomes] = await Promise.all([
       this.assets.listAllTransactionsByUser(userId),
       this.assets.listAllIncomesByUser(userId),
@@ -70,18 +88,18 @@ export class B3ImportService {
       existingIncomes.map((i) => incomeKey({ ticker: i.asset!.ticker, type: i.type, amount: Number(i.amount), paymentDate: isoDate(i.paymentDate) })),
     );
 
-    const transactions = plan.transactions.filter((t) => !existingTxKeys.has(transactionKey(t)));
-    const incomes = plan.incomes.filter((i) => !existingIncomeKeys.has(incomeKey(i)));
+    const transactions = planTransactions.filter((t) => !existingTxKeys.has(transactionKey(t)));
+    const incomes = planIncomes.filter((i) => !existingIncomeKeys.has(incomeKey(i)));
 
     const suggestedIncomes = await this.buildDividendSuggestions(transactions, incomes, existingTransactions, existingIncomes);
 
     return {
       transactions,
       incomes,
-      skipped: plan.skipped,
+      skipped: planSkipped,
       suggestedIncomes,
-      duplicateTransactionsSkipped: plan.transactions.length - transactions.length,
-      duplicateIncomesSkipped: plan.incomes.length - incomes.length,
+      duplicateTransactionsSkipped: planTransactions.length - transactions.length,
+      duplicateIncomesSkipped: planIncomes.length - incomes.length,
     };
   }
 

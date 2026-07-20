@@ -20,6 +20,12 @@ export class B3ImportPreviewDto {
   movimentacao?: Record<string, unknown>[];
 }
 
+export class CsvImportPreviewDto {
+  @IsArray()
+  @ArrayMaxSize(5000)
+  rows!: Record<string, unknown>[];
+}
+
 export class ImportTransactionInputDto {
   @IsString()
   ticker!: string;

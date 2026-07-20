@@ -16,6 +16,7 @@ import {
   ImportedTransaction,
   InvestmentAsset,
   InvestmentFixedIncome,
+  LaunchesResponse,
   MarketQuoteDetailResponse,
   NewsArticle,
 } from "./types";
@@ -355,6 +356,15 @@ export function usePreviewB3Import() {
   });
 }
 
+/** Alternate, simpler import source: a single CSV with one row per transaction — no dividend
+ *  rows at all, since those are derived from BRAPI's history regardless of import source. */
+export function usePreviewCsvImport() {
+  return useMutation({
+    mutationFn: (rows: Record<string, unknown>[]) => api.post<B3ImportPreviewResult>("/investments/import/b3/csv/preview", { rows }),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useCommitB3Import() {
   const qc = useQueryClient();
   return useMutation({
@@ -363,6 +373,81 @@ export function useCommitB3Import() {
     onSuccess: (result) => {
       invalidateAll(qc);
       toast.success(`Importado! ${result.importedTransactions} negociações e ${result.importedIncomes} proventos.`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Lançamentos (gerenciar/editar/apagar)
+// ---------------------------------------------------------------------------
+
+export function useLaunches() {
+  return useQuery({
+    queryKey: ["investments", "lancamentos"],
+    queryFn: () => api.get<LaunchesResponse>("/investments/lancamentos"),
+  });
+}
+
+export function useUpdateLaunchTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.patch(`/investments/lancamentos/transactions/${id}`, data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Lançamento atualizado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteLaunchTransaction() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/investments/lancamentos/transactions/${id}`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Lançamento removido.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateLaunchIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.patch(`/investments/lancamentos/incomes/${id}`, data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Provento atualizado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteLaunchIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/investments/lancamentos/incomes/${id}`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Provento removido.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Zerar carteira (facilita testes)
+// ---------------------------------------------------------------------------
+
+export function useResetInvestments() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post("/investments/reset", {}),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Carteira zerada.");
     },
     onError: (e: Error) => toast.error(e.message),
   });

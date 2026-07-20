@@ -201,6 +201,35 @@ export interface B3ImportCommitResult {
   importedIncomes: number;
 }
 
+// ---------------------------------------------------------------------------
+// Lançamentos (gerenciar/editar/apagar)
+// ---------------------------------------------------------------------------
+
+export interface LaunchTransaction {
+  id: string;
+  type: TransactionType;
+  quantity: string;
+  unitPrice: string;
+  fees: string;
+  transactionDate: string;
+  notes: string | null;
+  asset: { ticker: string; class: AssetClass };
+}
+
+export interface LaunchIncome {
+  id: string;
+  type: string;
+  amount: string;
+  paymentDate: string;
+  notes: string | null;
+  asset: { ticker: string; class: AssetClass } | null;
+}
+
+export interface LaunchesResponse {
+  transactions: LaunchTransaction[];
+  incomes: LaunchIncome[];
+}
+
 export type FixedIncomeType = "CDB" | "LCI" | "LCA" | "TESOURO" | "OUTRO";
 export type FixedIncomeLiquidity = "DIARIA" | "NO_VENCIMENTO" | "OUTRO";
 export type FixedIncomeIndexer = "PREFIXADO" | "POS_FIXADO_CDI" | "IPCA_MAIS" | "OUTRO";

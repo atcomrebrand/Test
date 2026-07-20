@@ -59,7 +59,7 @@ export interface ImportedIncome {
 }
 
 export interface SkippedRow {
-  source: "negociacao" | "movimentacao";
+  source: "negociacao" | "movimentacao" | "csv";
   description: string;
   reason: string;
 }

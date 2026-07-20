@@ -5,10 +5,14 @@ import { Upload, FileSpreadsheet, ChevronDown, ChevronUp, CheckSquare, Square } 
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Tabs } from "@/components/ui/Tabs";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { B3FileFormatError, parseMovimentacaoFile, parseNegociacaoFile } from "../lib/b3-import-parser";
-import { useCommitB3Import, usePreviewB3Import } from "../api";
+import { SimpleCsvFormatError, parseSimpleCsvFile } from "../lib/simple-csv-parser";
+import { useCommitB3Import, usePreviewB3Import, usePreviewCsvImport } from "../api";
 import { B3ImportPreviewResult, DividendSuggestion, ImportedIncome, ImportedTransaction } from "../types";
+
+type ImportMethod = "b3" | "csv";
 
 const INCOME_TYPE_LABEL: Record<string, string> = { DIVIDENDO: "Dividendo", JCP: "JCP", RENDIMENTO: "Rendimento", OUTRO: "Outro" };
 
@@ -24,7 +28,17 @@ function suggestionToIncomeInput(s: DividendSuggestion): ImportedIncome {
   };
 }
 
-function FilePicker({ label, file, onChange }: { label: string; file: File | null; onChange: (f: File | null) => void }) {
+function FilePicker({
+  label,
+  file,
+  onChange,
+  accept = ".xlsx",
+}: {
+  label: string;
+  file: File | null;
+  onChange: (f: File | null) => void;
+  accept?: string;
+}) {
   const inputRef = useRef<HTMLInputElement>(null);
   return (
     <div className="flex flex-1 flex-col gap-2 rounded-xl surface-2 p-4">
@@ -32,7 +46,7 @@ function FilePicker({ label, file, onChange }: { label: string; file: File | nul
       <input
         ref={inputRef}
         type="file"
-        accept=".xlsx"
+        accept={accept}
         className="hidden"
         onChange={(e) => onChange(e.target.files?.[0] ?? null)}
       />
@@ -41,7 +55,7 @@ function FilePicker({ label, file, onChange }: { label: string; file: File | nul
         className="flex items-center gap-2 rounded-lg border border-dashed border-[rgb(var(--border))] px-3 py-3 text-left text-sm text-muted transition-colors hover:surface"
       >
         <Upload className="h-4 w-4 shrink-0" />
-        {file ? <span className="truncate text-[rgb(var(--text))]">{file.name}</span> : "Escolher arquivo .xlsx"}
+        {file ? <span className="truncate text-[rgb(var(--text))]">{file.name}</span> : `Escolher arquivo ${accept}`}
       </button>
     </div>
   );
@@ -58,8 +72,10 @@ function SelectAllHeader({ allSelected, onToggle, label }: { allSelected: boolea
 
 export default function ImportB3() {
   const navigate = useNavigate();
+  const [method, setMethod] = useState<ImportMethod>("csv");
   const [negociacaoFile, setNegociacaoFile] = useState<File | null>(null);
   const [movimentacaoFile, setMovimentacaoFile] = useState<File | null>(null);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState<B3ImportPreviewResult | null>(null);
   const [excludedTx, setExcludedTx] = useState<Set<number>>(new Set());
@@ -68,9 +84,43 @@ export default function ImportB3() {
   const [skippedOpen, setSkippedOpen] = useState(false);
 
   const previewMutation = usePreviewB3Import();
+  const previewCsvMutation = usePreviewCsvImport();
   const commitMutation = useCommitB3Import();
 
+  function changeMethod(next: ImportMethod) {
+    setMethod(next);
+    setPreview(null);
+  }
+
   async function handleAnalyze() {
+    if (method === "csv") {
+      if (!csvFile) {
+        toast.error("Selecione o arquivo .csv.");
+        return;
+      }
+      setParsing(true);
+      let rows: Record<string, unknown>[] = [];
+      try {
+        rows = await parseSimpleCsvFile(csvFile);
+      } catch (err) {
+        setParsing(false);
+        toast.error(err instanceof SimpleCsvFormatError ? err.message : "Não foi possível ler o arquivo — confira se é o .csv esperado.");
+        return;
+      }
+      try {
+        const result = await previewCsvMutation.mutateAsync(rows);
+        setPreview(result);
+        setExcludedTx(new Set());
+        setExcludedIncome(new Set());
+        setIncludedSuggestions(new Set());
+      } catch {
+        // já mostrado via toast no hook
+      } finally {
+        setParsing(false);
+      }
+      return;
+    }
+
     if (!negociacaoFile && !movimentacaoFile) {
       toast.error("Selecione pelo menos um arquivo (Negociação ou Movimentação).");
       return;
@@ -123,20 +173,37 @@ export default function ImportB3() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-bold">Importar da B3</h1>
+        <h1 className="text-xl font-bold">Importar</h1>
         <p className="text-sm text-muted">
-          Suba os extratos "Negociação" e/ou "Movimentação" da Área do Investidor da B3 (formato .xlsx) — o sistema
-          classifica compras, vendas e proventos automaticamente. Nada é gravado antes de você confirmar.
+          {method === "csv"
+            ? "Suba um .csv com uma linha por negociação (Ativo, Tipo de investimento, Tipo de ordem, Quantidade, Preço unitário, Data do lançamento). Não precisa de proventos/dividendos no arquivo — eles são sugeridos automaticamente a partir do histórico da BRAPI, com base na posição que essas negociações estabelecem."
+            : 'Suba os extratos "Negociação" e/ou "Movimentação" da Área do Investidor da B3 (formato .xlsx) — o sistema classifica compras, vendas e proventos automaticamente.'}{" "}
+          Nada é gravado antes de você confirmar.
         </p>
       </div>
 
+      <Tabs
+        value={method}
+        onChange={(v) => changeMethod(v as ImportMethod)}
+        options={[
+          { value: "csv", label: "CSV simples" },
+          { value: "b3", label: "Extratos da B3 (xlsx)" },
+        ]}
+      />
+
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <div className="flex flex-col gap-3 sm:flex-row">
-            <FilePicker label="Negociação (compras/vendas)" file={negociacaoFile} onChange={setNegociacaoFile} />
-            <FilePicker label="Movimentação (extrato)" file={movimentacaoFile} onChange={setMovimentacaoFile} />
-          </div>
-          <Button onClick={handleAnalyze} loading={parsing || previewMutation.isPending} className="self-start">
+          {method === "csv" ? (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <FilePicker label="Negociações (.csv)" file={csvFile} onChange={setCsvFile} accept=".csv" />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <FilePicker label="Negociação (compras/vendas)" file={negociacaoFile} onChange={setNegociacaoFile} />
+              <FilePicker label="Movimentação (extrato)" file={movimentacaoFile} onChange={setMovimentacaoFile} />
+            </div>
+          )}
+          <Button onClick={handleAnalyze} loading={parsing || previewMutation.isPending || previewCsvMutation.isPending} className="self-start">
             <FileSpreadsheet className="h-4 w-4" />
             Analisar
           </Button>

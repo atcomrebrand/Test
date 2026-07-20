@@ -2,7 +2,7 @@ import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../../../common/decorators/current-user.decorator";
 import { B3ImportService } from "../application/b3-import.service";
-import { B3ImportCommitDto, B3ImportPreviewDto } from "../application/dto/b3-import.dto";
+import { B3ImportCommitDto, B3ImportPreviewDto, CsvImportPreviewDto } from "../application/dto/b3-import.dto";
 
 /** Import wizard for B3's "Negociação" (trade blotter) and "Movimentação" (extrato) exports —
  *  preview is read-only (classifies rows, dedupes against what's already on file, and suggests
@@ -21,5 +21,13 @@ export class B3ImportController {
   @Post("commit")
   commit(@CurrentUser() user: AuthUser, @Body() dto: B3ImportCommitDto) {
     return this.importService.commit(user.userId, dto.transactions, dto.incomes);
+  }
+
+  /** Alternate, simpler import source: a single CSV with one row per transaction, no separate
+   *  dividend/movimentação file — reuses the same commit endpoint above since its output is the
+   *  same ImportedTransaction[] shape regardless of source. */
+  @Post("csv/preview")
+  previewCsv(@CurrentUser() user: AuthUser, @Body() dto: CsvImportPreviewDto) {
+    return this.importService.previewCsv(user.userId, dto.rows);
   }
 }
