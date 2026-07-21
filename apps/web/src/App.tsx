@@ -28,6 +28,9 @@ import News from "./investments/pages/News";
 import Dividends from "./investments/pages/Dividends";
 import ImportB3 from "./investments/pages/ImportB3";
 import Lancamentos from "./investments/pages/Lancamentos";
+import { TrackingLayout } from "./tracking/TrackingLayout";
+import FocusMode from "./tracking/pages/FocusMode";
+import Jobs from "./tracking/pages/Jobs";
 
 export default function App() {
   return (
@@ -65,6 +68,11 @@ export default function App() {
           <Route path="/investimentos/proventos" element={<Dividends />} />
           <Route path="/investimentos/importar" element={<ImportB3 />} />
           <Route path="/investimentos/lancamentos" element={<Lancamentos />} />
+        </Route>
+
+        <Route element={<TrackingLayout />}>
+          <Route path="/horas" element={<FocusMode />} />
+          <Route path="/horas/trabalhos" element={<Jobs />} />
         </Route>
       </Route>
 

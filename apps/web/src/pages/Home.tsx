@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LogOut, Moon, Sun, Wrench, CreditCard, LineChart, type LucideIcon } from "lucide-react";
+import { LogOut, Moon, Sun, Wrench, CreditCard, LineChart, Clock, type LucideIcon } from "lucide-react";
 import { useThemeStore } from "@/store/theme";
 import { useAuthStore } from "@/store/auth";
 
@@ -26,6 +26,13 @@ const APPS: AppCard[] = [
     description: "Ações, FIIs, criptomoedas, renda fixa e proventos.",
     icon: LineChart,
     color: "bg-emerald-500",
+  },
+  {
+    to: "/horas",
+    title: "Horas",
+    description: "Controle de horas, faturamento e valor real da sua hora.",
+    icon: Clock,
+    color: "bg-violet-500",
   },
 ];
 

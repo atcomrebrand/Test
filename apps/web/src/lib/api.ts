@@ -22,7 +22,14 @@ rawApi.interceptors.request.use((config) => {
 });
 
 rawApi.interceptors.response.use(
-  (response) => response.data?.data ?? response.data,
+  (response) => {
+    // Can't use `response.data?.data ?? response.data` here: `??` treats a legitimately-null
+    // payload (e.g. "no active tracking session") as nullish and falls through to the whole
+    // {success, data} envelope instead of unwrapping to `null` — check for the key's presence
+    // instead of the value's truthiness.
+    const body = response.data;
+    return body && typeof body === "object" && "data" in body ? body.data : body;
+  },
   (error) => {
     if (error.response?.status === 401) {
       setToken(null);

@@ -8,6 +8,7 @@ import { useSettings } from "@/features/useSettings";
 import { useLoginWithFaceId, useWebAuthnCredentials } from "@/features/useWebAuthn";
 import { useAuthStore } from "@/store/auth";
 import { useAppLockStore } from "@/store/appLock";
+import { FloatingTimerBar } from "@/tracking/components/FloatingTimerBar";
 
 /**
  * An app-lock layer on top of the JWT session: even with a valid token, re-demands Face ID/Touch
@@ -90,5 +91,10 @@ export function AppLockGate() {
     );
   }
 
-  return <Outlet />;
+  return (
+    <>
+      <Outlet />
+      <FloatingTimerBar />
+    </>
+  );
 }
