@@ -4,7 +4,11 @@ import { computeSessionTime } from "../domain/session-time-calculator";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
 import { computeHourlyRateBreakdown } from "../domain/hourly-rate-calculator";
 import { generateInsights } from "../domain/insights-generator";
+import { convertToBRL } from "../domain/currency-converter";
+import { computeFixedJobRevenue, FixedJobRevenueResult } from "../domain/fixed-job-revenue";
 import { LONG_SESSION_HOURS } from "./tracking-sessions.service";
+import { TrackingFxService } from "./tracking-fx.service";
+import { TrackingJobPaymentRepository } from "../domain/tracking-job-payment.repository";
 
 const HOURS_BY_DAY_WINDOW = 14;
 const REVENUE_BY_CLIENT_LIMIT = 5;
@@ -39,6 +43,7 @@ function dayKey(date: Date): string {
 }
 
 interface EnrichedSession {
+  jobId: string;
   checkIn: Date;
   netSeconds: number;
   value: number;
@@ -54,7 +59,11 @@ interface EnrichedSession {
  */
 @Injectable()
 export class TrackingDashboardService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fx: TrackingFxService,
+    private readonly jobPayments: TrackingJobPaymentRepository,
+  ) {}
 
   async summary(userId: string) {
     const now = new Date();
@@ -76,15 +85,17 @@ export class TrackingDashboardService {
       this.prisma.trackingIncome.findMany({ where: { userId, deletedAt: null } }),
     ]);
 
+    const usdToBrlRate = jobs.some((j) => j.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
+
     const sessions: EnrichedSession[] = rawSessions.map((s) => {
       const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
-      const hourlyRate = estimateJobHourlyRate({
-        monthlyValue: Number(s.job.monthlyValue),
-        expectedHoursPerDay: s.job.expectedHoursPerDay,
-        weekdays: s.job.weekdays,
-      });
+      const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
+      const hourlyRate =
+        monthlyValueBRL !== null
+          ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
+          : 0;
       const value = round2((time.netSeconds / 3600) * hourlyRate);
-      return { checkIn: s.checkIn, netSeconds: time.netSeconds, value, clientLabel: s.job.client ?? s.job.company };
+      return { jobId: s.jobId, checkIn: s.checkIn, netSeconds: time.netSeconds, value, clientLabel: s.job.client ?? s.job.company };
     });
 
     const inRange = (date: Date, from: Date, to: Date) => date >= from && date < to;
@@ -97,8 +108,40 @@ export class TrackingDashboardService {
     const hoursThisMonth = sumBy(sessionsThisMonth, (s) => s.netSeconds) / 3600;
     const hoursPrevMonth = sumBy(sessionsPrevMonth, (s) => s.netSeconds) / 3600;
 
-    const fixedJobsRevenue = sumBy(sessionsThisMonth, (s) => s.value);
-    const fixedJobsRevenuePrevMonth = sumBy(sessionsPrevMonth, (s) => s.value);
+    const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const jobIds = jobs.map((j) => j.id);
+    const [confirmedThisMonth, confirmedPrevMonth] = await Promise.all([
+      this.jobPayments.findForJobsAndMonth(jobIds, now.getFullYear(), now.getMonth() + 1),
+      this.jobPayments.findForJobsAndMonth(jobIds, prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1),
+    ]);
+
+    const groupByJob = (list: EnrichedSession[]) => {
+      const map = new Map<string, EnrichedSession[]>();
+      for (const s of list) map.set(s.jobId, [...(map.get(s.jobId) ?? []), s]);
+      return map;
+    };
+    const sessionsThisMonthByJob = groupByJob(sessionsThisMonth);
+    const sessionsPrevMonthByJob = groupByJob(sessionsPrevMonth);
+
+    const jobRevenuesThisMonth: FixedJobRevenueResult[] = jobs.map((job) =>
+      computeFixedJobRevenue({
+        jobId: job.id,
+        clientLabel: job.client ?? job.company,
+        sessionValues: (sessionsThisMonthByJob.get(job.id) ?? []).map((s) => s.value),
+        confirmedAmountBRL: confirmedThisMonth.get(job.id) ?? null,
+      }),
+    );
+    const jobRevenuesPrevMonth: FixedJobRevenueResult[] = jobs.map((job) =>
+      computeFixedJobRevenue({
+        jobId: job.id,
+        clientLabel: job.client ?? job.company,
+        sessionValues: (sessionsPrevMonthByJob.get(job.id) ?? []).map((s) => s.value),
+        confirmedAmountBRL: confirmedPrevMonth.get(job.id) ?? null,
+      }),
+    );
+
+    const fixedJobsRevenue = sumBy(jobRevenuesThisMonth, (r) => r.amount);
+    const fixedJobsRevenuePrevMonth = sumBy(jobRevenuesPrevMonth, (r) => r.amount);
 
     const projectsThisMonth = projects.filter((p) => inRange(p.date, monthStart, monthEnd));
     const projectsPrevMonth = projects.filter((p) => inRange(p.date, prevMonthStart, prevMonthEnd));
@@ -138,7 +181,7 @@ export class TrackingDashboardService {
 
     const nextPayment = this.computeNextPayment(jobs, now);
     const hoursByDay = this.buildHoursByDay(sessions, now);
-    const revenueByClient = this.buildRevenueByClient(sessionsThisMonth, projectsThisMonth);
+    const revenueByClient = this.buildRevenueByClient(jobRevenuesThisMonth, projectsThisMonth);
 
     const revenueByCategory = (
       [
@@ -228,12 +271,13 @@ export class TrackingDashboardService {
   }
 
   private buildRevenueByClient(
-    sessionsThisMonth: EnrichedSession[],
+    jobRevenuesThisMonth: FixedJobRevenueResult[],
     projectsThisMonth: { client: string | null; name: string; amountReceived: unknown }[],
   ) {
     const totals = new Map<string, number>();
-    for (const s of sessionsThisMonth) {
-      totals.set(s.clientLabel, (totals.get(s.clientLabel) ?? 0) + s.value);
+    for (const r of jobRevenuesThisMonth) {
+      if (r.amount <= 0) continue;
+      totals.set(r.clientLabel, (totals.get(r.clientLabel) ?? 0) + r.amount);
     }
     for (const p of projectsThisMonth) {
       const label = p.client ?? p.name;

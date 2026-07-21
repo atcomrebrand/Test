@@ -2,6 +2,8 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { computeSessionTime } from "../domain/session-time-calculator";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
+import { convertToBRL } from "../domain/currency-converter";
+import { TrackingFxService } from "./tracking-fx.service";
 
 export interface CalendarDaySession {
   jobName: string;
@@ -36,7 +38,10 @@ function round2(n: number): number {
  */
 @Injectable()
 export class TrackingCalendarService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fx: TrackingFxService,
+  ) {}
 
   async month(userId: string, year: number, month: number): Promise<CalendarDay[]> {
     const monthStart = new Date(year, month - 1, 1);
@@ -48,15 +53,17 @@ export class TrackingCalendarService {
       orderBy: { checkIn: "asc" },
     });
 
+    const usdToBrlRate = sessions.some((s) => s.job.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
+
     const byDay = new Map<string, CalendarDay>();
 
     for (const s of sessions) {
       const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
-      const hourlyRate = estimateJobHourlyRate({
-        monthlyValue: Number(s.job.monthlyValue),
-        expectedHoursPerDay: s.job.expectedHoursPerDay,
-        weekdays: s.job.weekdays,
-      });
+      const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
+      const hourlyRate =
+        monthlyValueBRL !== null
+          ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
+          : 0;
       const value = round2((time.netSeconds / 3600) * hourlyRate);
       const key = dayKey(s.checkIn);
 

@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsArray, IsBoolean, IsDateString, IsInt, IsNumber, IsOptional, IsPositive, IsString, Max, Min, MinLength } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsPositive, IsString, Max, Min, MinLength } from "class-validator";
 
 export class CreateTrackingJobDto {
   @IsString()
@@ -18,6 +18,10 @@ export class CreateTrackingJobDto {
   @IsNumber()
   @IsPositive()
   monthlyValue!: number;
+
+  @IsOptional()
+  @IsIn(["BRL", "USD"])
+  currency?: "BRL" | "USD";
 
   @IsOptional()
   @Type(() => Number)
@@ -65,6 +69,7 @@ export class UpdateTrackingJobDto {
   @IsOptional() @IsString() @MinLength(1) company?: string;
   @IsOptional() @IsString() client?: string;
   @IsOptional() @Type(() => Number) @IsNumber() @IsPositive() monthlyValue?: number;
+  @IsOptional() @IsIn(["BRL", "USD"]) currency?: "BRL" | "USD";
   @IsOptional() @Type(() => Number) @IsNumber() @IsPositive() expectedHoursPerDay?: number;
   @IsOptional() @IsDateString() startDate?: string;
   @IsOptional() @IsDateString() endDate?: string;

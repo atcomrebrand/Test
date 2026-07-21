@@ -154,11 +154,12 @@ model User {
   pushSubscriptions   PushSubscription[]
   webauthnCredentials WebAuthnCredential[]
 
-  trackingJobs      TrackingJob[]
-  trackingSessions  TrackingSession[]
-  trackingProjects  TrackingProject[]
-  trackingIncomes   TrackingIncome[]
-  trackingAuditLogs TrackingAuditLog[]
+  trackingJobs        TrackingJob[]
+  trackingSessions    TrackingSession[]
+  trackingProjects    TrackingProject[]
+  trackingIncomes     TrackingIncome[]
+  trackingAuditLogs   TrackingAuditLog[]
+  trackingJobPayments TrackingJobPayment[]
 
   @@map("users")
 }
@@ -668,38 +669,89 @@ enum TrackingIncomeCategory {
   OUTRO
 }
 
+enum TrackingCurrency {
+  BRL
+  USD
+}
+
 /// A "trabalho fixo" (recurring job/contract). `expectedHoursPerDay` + `weekdays` let us estimate
 /// an hourly rate from `monthlyValue` before any session history exists — once sessions pile up,
 /// the real hourly rate comes from actual worked time instead of this estimate.
 model TrackingJob {
-  id                  String    @id @default(cuid())
+  id                  String           @id @default(cuid())
   userId              String
-  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   name                String
   company             String
   client              String?
-  monthlyValue        Decimal   @db.Decimal(12, 2)
-  expectedHoursPerDay Float     @default(8)
+  monthlyValue        Decimal          @db.Decimal(12, 2)
+  /// Moeda de monthlyValue. Quando USD, o valor é convertido pra BRL em tempo real (cotação do dia)
+  /// em toda estimativa/exibição — a fonte da verdade pro valor realmente recebido em cada mês
+  /// continua sendo a confirmação manual em TrackingJobPayment.
+  currency            TrackingCurrency @default(BRL)
+  expectedHoursPerDay Float            @default(8)
   startDate           DateTime
   endDate             DateTime?
   paymentMethod       String?
   /// Dia do mês em que o pagamento cai (1-31) — usado pra calcular "próximo pagamento" no
   /// dashboard. Opcional porque nem todo trabalho tem um dia fixo conhecido.
   paymentDay          Int?
-  color               String    @default("#7C3AED")
+  color               String           @default("#7C3AED")
   /// 0=domingo..6=sábado
-  weekdays            Int[]     @default([1, 2, 3, 4, 5])
+  weekdays            Int[]            @default([1, 2, 3, 4, 5])
   notes               String?
-  active              Boolean   @default(true)
+  active              Boolean          @default(true)
   deletedAt           DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
 
   sessions TrackingSession[]
+  payments TrackingJobPayment[]
 
   @@index([userId, active])
   @@index([userId, deletedAt])
   @@map("tracking_jobs")
+}
+
+/// Confirmação manual, uma por (trabalho, mês), de quanto foi realmente recebido naquele mês —
+/// perguntada no dia de pagamento. Existe porque um salário fixo pode não bater exatamente com a
+/// estimativa por horas (`estimateJobHourlyRate`), e essa é a única fonte confiável do valor real.
+/// `exchangeRate`/`amountBRL` travam a cotação usada no momento da confirmação, pra esse número
+/// nunca mais oscilar com a cotação atual — diferente da estimativa "ao vivo" mostrada no card do
+/// trabalho, que sempre usa a cotação de hoje.
+model TrackingJobPayment {
+  id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId          String
+  job            TrackingJob      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  referenceYear  Int
+  referenceMonth Int
+  /// Valor na moeda do trabalho (a mesma de TrackingJob.currency no momento da confirmação).
+  amount         Decimal          @db.Decimal(12, 2)
+  currency       TrackingCurrency
+  /// Cotação USD→BRL usada, só quando currency = USD.
+  exchangeRate   Decimal?         @db.Decimal(12, 6)
+  /// Valor já convertido pra BRL — é o que toda agregação (dashboard/relatórios) de fato usa.
+  amountBRL      Decimal          @db.Decimal(12, 2)
+  confirmedAt    DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([jobId, referenceYear, referenceMonth])
+  @@index([userId])
+  @@map("tracking_job_payments")
+}
+
+/// Cache simples da cotação de câmbio (hoje só USD→BRL), com TTL controlado em TrackingFxService —
+/// evita bater na API externa a cada requisição e mantém um valor conhecido caso ela esteja fora.
+model TrackingFxRateCache {
+  id        String   @id @default(cuid())
+  pair      String   @unique
+  rate      Decimal  @db.Decimal(12, 6)
+  fetchedAt DateTime @default(now())
+
+  @@map("tracking_fx_rate_cache")
 }
 
 /// One check-in→check-out timer session against a TrackingJob. Only one RUNNING/PAUSED session

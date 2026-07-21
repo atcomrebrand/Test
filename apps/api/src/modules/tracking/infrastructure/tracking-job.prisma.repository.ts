@@ -27,6 +27,7 @@ export class TrackingJobPrismaRepository extends TrackingJobRepository {
         company: data.company,
         client: data.client,
         monthlyValue: data.monthlyValue,
+        currency: data.currency ?? "BRL",
         expectedHoursPerDay: data.expectedHoursPerDay ?? 8,
         startDate: data.startDate,
         endDate: data.endDate,

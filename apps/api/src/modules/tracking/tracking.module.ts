@@ -11,6 +11,7 @@ import { TrackingStatsController } from "./interface/tracking-stats.controller";
 import { TrackingHistoryController } from "./interface/tracking-history.controller";
 import { TrackingSearchController } from "./interface/tracking-search.controller";
 import { TrackingExportController } from "./interface/tracking-export.controller";
+import { TrackingJobPaymentsController } from "./interface/tracking-job-payments.controller";
 import { TrackingJobsService } from "./application/tracking-jobs.service";
 import { TrackingSessionsService } from "./application/tracking-sessions.service";
 import { TrackingProjectsService } from "./application/tracking-projects.service";
@@ -24,6 +25,8 @@ import { TrackingSearchService } from "./application/tracking-search.service";
 import { TrackingExportService } from "./application/tracking-export.service";
 import { TrackingAuditService } from "./application/tracking-audit.service";
 import { TrackingNotificationsService } from "./application/tracking-notifications.service";
+import { TrackingFxService } from "./application/tracking-fx.service";
+import { TrackingJobPaymentsService } from "./application/tracking-job-payments.service";
 import { TrackingJobRepository } from "./domain/tracking-job.repository";
 import { TrackingJobPrismaRepository } from "./infrastructure/tracking-job.prisma.repository";
 import { TrackingSessionRepository } from "./domain/tracking-session.repository";
@@ -32,6 +35,10 @@ import { TrackingProjectRepository } from "./domain/tracking-project.repository"
 import { TrackingProjectPrismaRepository } from "./infrastructure/tracking-project.prisma.repository";
 import { TrackingIncomeRepository } from "./domain/tracking-income.repository";
 import { TrackingIncomePrismaRepository } from "./infrastructure/tracking-income.prisma.repository";
+import { TrackingJobPaymentRepository } from "./domain/tracking-job-payment.repository";
+import { TrackingJobPaymentPrismaRepository } from "./infrastructure/tracking-job-payment.prisma.repository";
+import { TrackingFxRateProvider } from "./domain/tracking-fx.provider";
+import { AwesomeApiFxProvider } from "./infrastructure/providers/awesomeapi-fx.provider";
 
 @Module({
   imports: [NotificationsModule],
@@ -47,6 +54,7 @@ import { TrackingIncomePrismaRepository } from "./infrastructure/tracking-income
     TrackingHistoryController,
     TrackingSearchController,
     TrackingExportController,
+    TrackingJobPaymentsController,
   ],
   providers: [
     TrackingJobsService,
@@ -62,10 +70,14 @@ import { TrackingIncomePrismaRepository } from "./infrastructure/tracking-income
     TrackingExportService,
     TrackingAuditService,
     TrackingNotificationsService,
+    TrackingFxService,
+    TrackingJobPaymentsService,
     { provide: TrackingJobRepository, useClass: TrackingJobPrismaRepository },
     { provide: TrackingSessionRepository, useClass: TrackingSessionPrismaRepository },
     { provide: TrackingProjectRepository, useClass: TrackingProjectPrismaRepository },
     { provide: TrackingIncomeRepository, useClass: TrackingIncomePrismaRepository },
+    { provide: TrackingJobPaymentRepository, useClass: TrackingJobPaymentPrismaRepository },
+    { provide: TrackingFxRateProvider, useClass: AwesomeApiFxProvider },
   ],
   exports: [TrackingJobRepository, TrackingSessionRepository, TrackingProjectRepository, TrackingIncomeRepository],
 })

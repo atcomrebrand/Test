@@ -3,6 +3,7 @@ import { TrackingSessionsService } from "./tracking-sessions.service";
 import { TrackingSessionRepository, TrackingSessionWithPauses } from "../domain/tracking-session.repository";
 import { TrackingJobRepository } from "../domain/tracking-job.repository";
 import { TrackingAuditService } from "./tracking-audit.service";
+import { TrackingFxService } from "./tracking-fx.service";
 
 const JOB = {
   id: "job-1",
@@ -11,6 +12,7 @@ const JOB = {
   company: "Empresa X",
   client: null,
   monthlyValue: 4000 as any,
+  currency: "BRL" as const,
   expectedHoursPerDay: 8,
   startDate: new Date("2026-01-01"),
   endDate: null,
@@ -65,47 +67,48 @@ function makeRepos(session: TrackingSessionWithPauses | null = null) {
   } as any;
 
   const audit = { log: jest.fn().mockResolvedValue(undefined) } as unknown as TrackingAuditService;
+  const fx = { getUsdToBrlRate: jest.fn().mockResolvedValue(5) } as unknown as TrackingFxService;
 
-  return { sessions, jobs, audit };
+  return { sessions, jobs, audit, fx };
 }
 
 describe("TrackingSessionsService.start", () => {
   it("throws ConflictException if the user already has an active session", async () => {
-    const { sessions, jobs, audit } = makeRepos(makeSession());
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession());
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await expect(service.start("user-1", { jobId: "job-1" })).rejects.toThrow(ConflictException);
   });
 
   it("throws NotFoundException when the job doesn't exist", async () => {
-    const { sessions, jobs, audit } = makeRepos(null);
+    const { sessions, jobs, audit, fx } = makeRepos(null);
     jobs.findById.mockResolvedValue(null);
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await expect(service.start("user-1", { jobId: "missing" })).rejects.toThrow(NotFoundException);
   });
 
   it("throws ForbiddenException when the job belongs to another user", async () => {
-    const { sessions, jobs, audit } = makeRepos(null);
+    const { sessions, jobs, audit, fx } = makeRepos(null);
     jobs.findById.mockResolvedValue({ ...JOB, userId: "someone-else" } as any);
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await expect(service.start("user-1", { jobId: "job-1" })).rejects.toThrow(ForbiddenException);
   });
 
   it("throws ConflictException when the job is inactive", async () => {
-    const { sessions, jobs, audit } = makeRepos(null);
+    const { sessions, jobs, audit, fx } = makeRepos(null);
     jobs.findById.mockResolvedValue({ ...JOB, active: false } as any);
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await expect(service.start("user-1", { jobId: "job-1" })).rejects.toThrow(ConflictException);
   });
 
   it("creates a session and logs a CHECK_IN audit entry", async () => {
     const created = makeSession();
-    const { sessions, jobs, audit } = makeRepos(null);
+    const { sessions, jobs, audit, fx } = makeRepos(null);
     sessions.create.mockResolvedValue(created);
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     const result = await service.start("user-1", { jobId: "job-1" });
 
@@ -117,15 +120,15 @@ describe("TrackingSessionsService.start", () => {
 
 describe("TrackingSessionsService.pause/resume", () => {
   it("pause() throws if the session isn't RUNNING", async () => {
-    const { sessions, jobs, audit } = makeRepos(makeSession({ status: "PAUSED" }));
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession({ status: "PAUSED" }));
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await expect(service.pause("user-1", "session-1")).rejects.toThrow(ConflictException);
   });
 
   it("pause() adds a pause row and flips status to PAUSED", async () => {
-    const { sessions, jobs, audit } = makeRepos(makeSession({ status: "RUNNING" }));
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession({ status: "RUNNING" }));
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await service.pause("user-1", "session-1");
 
@@ -134,15 +137,15 @@ describe("TrackingSessionsService.pause/resume", () => {
   });
 
   it("resume() throws if the session isn't PAUSED", async () => {
-    const { sessions, jobs, audit } = makeRepos(makeSession({ status: "RUNNING" }));
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession({ status: "RUNNING" }));
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await expect(service.resume("user-1", "session-1")).rejects.toThrow(ConflictException);
   });
 
   it("resume() closes the latest pause and flips status to RUNNING", async () => {
-    const { sessions, jobs, audit } = makeRepos(makeSession({ status: "PAUSED" }));
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession({ status: "PAUSED" }));
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await service.resume("user-1", "session-1");
 
@@ -153,17 +156,17 @@ describe("TrackingSessionsService.pause/resume", () => {
 
 describe("TrackingSessionsService.finish", () => {
   it("throws if the session is already COMPLETED", async () => {
-    const { sessions, jobs, audit } = makeRepos(makeSession({ status: "COMPLETED", checkOut: new Date() }));
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession({ status: "COMPLETED", checkOut: new Date() }));
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await expect(service.finish("user-1", "session-1")).rejects.toThrow(ConflictException);
   });
 
   it("closes an open pause automatically when finishing a PAUSED session", async () => {
     const session = makeSession({ status: "PAUSED" });
-    const { sessions, jobs, audit } = makeRepos(session);
+    const { sessions, jobs, audit, fx } = makeRepos(session);
     sessions.finish.mockResolvedValue(makeSession({ status: "COMPLETED", checkOut: new Date() }));
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     await service.finish("user-1", "session-1");
 
@@ -177,9 +180,9 @@ describe("TrackingSessionsService.finish", () => {
     const checkOut = new Date("2026-07-21T17:00:00Z");
     const running = makeSession({ status: "RUNNING", checkIn });
     const completed = makeSession({ status: "COMPLETED", checkIn, checkOut });
-    const { sessions, jobs, audit } = makeRepos(running);
+    const { sessions, jobs, audit, fx } = makeRepos(running);
     sessions.finish.mockResolvedValue(completed);
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     const result = await service.finish("user-1", "session-1");
 
@@ -190,16 +193,16 @@ describe("TrackingSessionsService.finish", () => {
 
 describe("TrackingSessionsService.getActive", () => {
   it("returns null when there's no active session", async () => {
-    const { sessions, jobs, audit } = makeRepos(null);
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const { sessions, jobs, audit, fx } = makeRepos(null);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     expect(await service.getActive("user-1")).toBeNull();
   });
 
   it("flags isLongRunning once gross elapsed time passes the threshold", async () => {
     const checkIn = new Date(Date.now() - 17 * 3600 * 1000);
-    const { sessions, jobs, audit } = makeRepos(makeSession({ status: "RUNNING", checkIn }));
-    const service = new TrackingSessionsService(sessions, jobs, audit);
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession({ status: "RUNNING", checkIn }));
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
 
     const result = await service.getActive("user-1");
 

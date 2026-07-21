@@ -1,6 +1,7 @@
 export type TrackingSessionStatus = "RUNNING" | "PAUSED" | "COMPLETED";
 export type TrackingProjectStatus = "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO";
 export type TrackingIncomeCategory = "DIVIDENDO" | "VENDA" | "BONIFICACAO" | "CASHBACK" | "REEMBOLSO" | "PRESENTE" | "OUTRO";
+export type TrackingCurrency = "BRL" | "USD";
 
 export interface TrackingJob {
   id: string;
@@ -8,6 +9,7 @@ export interface TrackingJob {
   company: string;
   client: string | null;
   monthlyValue: string;
+  currency: TrackingCurrency;
   expectedHoursPerDay: number;
   startDate: string;
   endDate: string | null;
@@ -17,9 +19,36 @@ export interface TrackingJob {
   weekdays: number[];
   notes: string | null;
   active: boolean;
-  estimatedHourlyRate?: number;
+  estimatedHourlyRate?: number | null;
+  /** monthlyValue já convertido pra BRL (= monthlyValue quando currency é BRL). */
+  monthlyValueBRL?: number | null;
+  /** Cotação USD->BRL de hoje usada na conversão — null quando currency é BRL. */
+  fxRate?: number | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TrackingPendingJobPayment {
+  jobId: string;
+  jobName: string;
+  company: string;
+  currency: TrackingCurrency;
+  monthlyValue: number;
+  referenceYear: number;
+  referenceMonth: number;
+}
+
+export interface TrackingJobPayment {
+  id: string;
+  jobId: string;
+  jobName: string;
+  referenceYear: number;
+  referenceMonth: number;
+  amount: string;
+  currency: TrackingCurrency;
+  exchangeRate: string | null;
+  amountBRL: string;
+  confirmedAt: string;
 }
 
 export interface TrackingSessionPause {

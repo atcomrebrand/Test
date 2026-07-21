@@ -2,6 +2,8 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { computeSessionTime } from "../domain/session-time-calculator";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
+import { convertToBRL } from "../domain/currency-converter";
+import { TrackingFxService } from "./tracking-fx.service";
 
 function csvEscape(value: string): string {
   if (value.includes(";") || value.includes('"') || value.includes("\n")) {
@@ -20,7 +22,10 @@ function formatHMS(totalSeconds: number): string {
 /** Hand-rolled CSV, no library, mirroring apps/api/src/modules/export/export.service.ts's pattern. */
 @Injectable()
 export class TrackingExportService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fx: TrackingFxService,
+  ) {}
 
   async sessionsCsv(userId: string): Promise<string> {
     const sessions = await this.prisma.trackingSession.findMany({
@@ -28,6 +33,8 @@ export class TrackingExportService {
       include: { pauses: true, job: true },
       orderBy: { checkIn: "asc" },
     });
+
+    const usdToBrlRate = sessions.some((s) => s.job.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
 
     const header = [
       "Trabalho",
@@ -46,11 +53,11 @@ export class TrackingExportService {
 
     const rows = sessions.map((s) => {
       const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
-      const hourlyRate = estimateJobHourlyRate({
-        monthlyValue: Number(s.job.monthlyValue),
-        expectedHoursPerDay: s.job.expectedHoursPerDay,
-        weekdays: s.job.weekdays,
-      });
+      const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
+      const hourlyRate =
+        monthlyValueBRL !== null
+          ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
+          : 0;
       const value = (time.netSeconds / 3600) * hourlyRate;
 
       return [

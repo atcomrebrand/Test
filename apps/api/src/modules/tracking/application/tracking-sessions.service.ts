@@ -3,7 +3,9 @@ import { TrackingSessionRepository, TrackingSessionWithPauses } from "../domain/
 import { TrackingJobRepository } from "../domain/tracking-job.repository";
 import { computeSessionTime } from "../domain/session-time-calculator";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
+import { convertToBRL } from "../domain/currency-converter";
 import { TrackingAuditService } from "./tracking-audit.service";
+import { TrackingFxService } from "./tracking-fx.service";
 import { ManualEditSessionDto, StartSessionDto } from "./dto/tracking-session.dto";
 
 /** Sessions running longer than this are flagged as "esqueceu de finalizar" candidates — both to
@@ -16,6 +18,7 @@ export class TrackingSessionsService {
     private readonly sessions: TrackingSessionRepository,
     private readonly jobs: TrackingJobRepository,
     private readonly audit: TrackingAuditService,
+    private readonly fx: TrackingFxService,
   ) {}
 
   async getActive(userId: string) {
@@ -32,7 +35,7 @@ export class TrackingSessionsService {
     const job = await this.getOwnedJob(userId, dto.jobId);
     const session = await this.sessions.create({ userId, jobId: job.id, checkIn: new Date(), notes: dto.notes });
     await this.audit.log(userId, "TrackingSession", session.id, "CHECK_IN", null, { checkIn: session.checkIn });
-    return this.present(session);
+    return await this.present(session);
   }
 
   async pause(userId: string, sessionId: string) {
@@ -81,7 +84,7 @@ export class TrackingSessionsService {
   async findAll(userId: string, from?: string, to?: string) {
     const range = from && to ? { from: new Date(from), to: new Date(to) } : undefined;
     const sessions = await this.sessions.findAllByUser(userId, range);
-    return sessions.map((s) => this.present(s));
+    return Promise.all(sessions.map((s) => this.present(s)));
   }
 
   async remove(userId: string, sessionId: string) {
@@ -92,19 +95,23 @@ export class TrackingSessionsService {
   }
 
   /** Adds the derived numbers (elapsed time, equivalent value) to a raw session row using the same
-   *  computeSessionTime formula the frontend's live ticker uses, so client and server never disagree. */
-  private present(session: TrackingSessionWithPauses) {
+   *  computeSessionTime formula the frontend's live ticker uses, so client and server never disagree.
+   *  When the job is USD-denominated, converts to BRL using today's rate first — everything downstream
+   *  (dashboard, relatórios, o card do Modo Foco) always deals in BRL. */
+  private async present(session: TrackingSessionWithPauses) {
     const time = computeSessionTime({
       checkIn: session.checkIn,
       checkOut: session.checkOut,
       pauses: session.pauses.map((p) => ({ pausedAt: p.pausedAt, resumedAt: p.resumedAt })),
     });
 
-    const hourlyRate = estimateJobHourlyRate({
-      monthlyValue: Number(session.job.monthlyValue),
-      expectedHoursPerDay: session.job.expectedHoursPerDay,
-      weekdays: session.job.weekdays,
-    });
+    const currency = session.job.currency ?? "BRL";
+    const usdToBrlRate = currency === "USD" ? await this.fx.getUsdToBrlRate() : null;
+    const monthlyValueBRL = convertToBRL(Number(session.job.monthlyValue), currency, usdToBrlRate);
+    const hourlyRate =
+      monthlyValueBRL !== null
+        ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: session.job.expectedHoursPerDay, weekdays: session.job.weekdays })
+        : 0;
 
     const isLongRunning = session.status !== "COMPLETED" && time.grossSeconds >= LONG_SESSION_HOURS * 3600;
 

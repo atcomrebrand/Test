@@ -21,6 +21,7 @@ import {
 import { useLiveElapsed } from "../hooks/useLiveElapsed";
 import { formatHMS, isSameLocalDay, isSameLocalMonth } from "../lib/sessionTime";
 import { TrackingSession } from "../types";
+import { PendingPaymentBanner } from "../components/PendingPaymentBanner";
 
 function toLocalInputValue(date: Date): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -176,6 +177,8 @@ export default function FocusMode() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6">
+      <PendingPaymentBanner />
+
       {selectedJob && (
         <Card>
           <CardContent className="flex flex-col gap-3">
@@ -189,7 +192,10 @@ export default function FocusMode() {
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-xs text-muted">Valor mensal</p>
-                <p className="font-semibold">{formatCurrency(selectedJob.monthlyValue)}</p>
+                <p className="font-semibold">{formatCurrency(selectedJob.monthlyValue, selectedJob.currency)}</p>
+                {selectedJob.currency === "USD" && selectedJob.monthlyValueBRL != null && (
+                  <p className="text-xs text-muted">≈ {formatCurrency(selectedJob.monthlyValueBRL)} hoje</p>
+                )}
               </div>
               <div>
                 <p className="text-xs text-muted">Valor estimado/hora</p>

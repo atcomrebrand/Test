@@ -10,6 +10,7 @@ import { useTrackingDashboard, useActiveSession } from "../api";
 import { useLiveElapsed } from "../hooks/useLiveElapsed";
 import { formatHMS } from "../lib/sessionTime";
 import { HoursBarChart } from "../components/HoursBarChart";
+import { PendingPaymentBanner } from "../components/PendingPaymentBanner";
 
 const CATEGORY_COLORS: Record<string, string> = {
   FIXO: "#7C3AED",
@@ -63,6 +64,8 @@ export default function Dashboard() {
         <h1 className="text-xl font-bold">Dashboard</h1>
         <p className="text-sm text-muted">Visão geral de horas, faturamento e produtividade.</p>
       </div>
+
+      <PendingPaymentBanner />
 
       {activeSession && live && (
         <Card>

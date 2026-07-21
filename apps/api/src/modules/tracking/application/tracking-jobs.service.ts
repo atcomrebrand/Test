@@ -1,7 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { TrackingJobRepository } from "../domain/tracking-job.repository";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
+import { convertToBRL } from "../domain/currency-converter";
 import { TrackingAuditService } from "./tracking-audit.service";
+import { TrackingFxService } from "./tracking-fx.service";
 import { CreateTrackingJobDto, UpdateTrackingJobDto } from "./dto/tracking-job.dto";
 
 @Injectable()
@@ -9,16 +11,19 @@ export class TrackingJobsService {
   constructor(
     private readonly jobs: TrackingJobRepository,
     private readonly audit: TrackingAuditService,
+    private readonly fx: TrackingFxService,
   ) {}
 
   async findAll(userId: string) {
     const jobs = await this.jobs.findAllByUser(userId);
-    return jobs.map((job) => ({ ...job, estimatedHourlyRate: this.estimateHourlyRate(job) }));
+    const usdToBrlRate = jobs.some((j) => j.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
+    return jobs.map((job) => this.buildView(job, usdToBrlRate));
   }
 
   async findOne(userId: string, id: string) {
     const job = await this.getOwned(userId, id);
-    return { ...job, estimatedHourlyRate: this.estimateHourlyRate(job) };
+    const usdToBrlRate = job.currency === "USD" ? await this.fx.getUsdToBrlRate() : null;
+    return this.buildView(job, usdToBrlRate);
   }
 
   async create(userId: string, dto: CreateTrackingJobDto) {
@@ -28,6 +33,7 @@ export class TrackingJobsService {
       company: dto.company,
       client: dto.client,
       monthlyValue: dto.monthlyValue,
+      currency: dto.currency,
       expectedHoursPerDay: dto.expectedHoursPerDay,
       startDate: new Date(dto.startDate),
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
@@ -58,12 +64,21 @@ export class TrackingJobsService {
     return { id };
   }
 
-  private estimateHourlyRate(job: { monthlyValue: unknown; expectedHoursPerDay: number; weekdays: number[] }) {
-    return estimateJobHourlyRate({
-      monthlyValue: Number(job.monthlyValue),
-      expectedHoursPerDay: job.expectedHoursPerDay,
-      weekdays: job.weekdays,
-    });
+  /** Attaches the BRL-converted monthly value (when currency is USD, using today's rate) and the
+   *  estimated hourly rate derived from it — so "quanto vale minha hora"/"próximo salário
+   *  aproximado" is always shown in BRL regardless of which currency the job is denominated in. */
+  private buildView(job: { monthlyValue: unknown; currency: "BRL" | "USD"; expectedHoursPerDay: number; weekdays: number[] }, usdToBrlRate: number | null) {
+    const monthlyValueBRL = convertToBRL(Number(job.monthlyValue), job.currency, usdToBrlRate);
+    const estimatedHourlyRate =
+      monthlyValueBRL !== null
+        ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: job.expectedHoursPerDay, weekdays: job.weekdays })
+        : null;
+    return {
+      ...job,
+      monthlyValueBRL,
+      fxRate: job.currency === "USD" ? usdToBrlRate : null,
+      estimatedHourlyRate,
+    };
   }
 
   private async getOwned(userId: string, id: string) {

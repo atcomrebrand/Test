@@ -8,6 +8,8 @@ import {
   TrackingHistoryResponse,
   TrackingIncome,
   TrackingJob,
+  TrackingJobPayment,
+  TrackingPendingJobPayment,
   TrackingProject,
   TrackingReportSummary,
   TrackingSearchResult,
@@ -61,6 +63,35 @@ export function useDeleteTrackingJob() {
     onSuccess: () => {
       invalidateAll(qc);
       toast.success("Trabalho fixo removido.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Confirmação mensal de pagamento
+// ---------------------------------------------------------------------------
+
+/** Mesma cadência do useActiveSession — pega o banner assim que o dia de pagamento chega, mesmo
+ *  que o usuário já tenha a tela aberta desde antes da meia-noite. */
+const PENDING_PAYMENTS_REFETCH_MS = 30_000;
+
+export function usePendingJobPayments() {
+  return useQuery({
+    queryKey: ["tracking", "job-payments", "pending"],
+    queryFn: () => api.get<TrackingPendingJobPayment[]>("/tracking/job-payments/pending"),
+    refetchInterval: PENDING_PAYMENTS_REFETCH_MS,
+  });
+}
+
+export function useConfirmJobPayment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ jobId, amount }: { jobId: string; amount: number }) =>
+      api.post<TrackingJobPayment>(`/tracking/job-payments/${jobId}/confirm`, { amount }),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Pagamento confirmado!");
     },
     onError: (e: Error) => toast.error(e.message),
   });

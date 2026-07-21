@@ -3,6 +3,8 @@ import { PrismaService } from "../../../prisma/prisma.service";
 import { computeSessionTime } from "../domain/session-time-calculator";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
 import { computeHourlyRateBreakdown } from "../domain/hourly-rate-calculator";
+import { convertToBRL } from "../domain/currency-converter";
+import { TrackingFxService } from "./tracking-fx.service";
 
 const CATEGORY_LABELS: Record<string, string> = {
   FIXO: "Trabalhos fixos",
@@ -29,7 +31,10 @@ function dayKey(date: Date): string {
  */
 @Injectable()
 export class TrackingReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly fx: TrackingFxService,
+  ) {}
 
   async generate(userId: string, from: Date, to: Date) {
     const [rawSessions, projects, incomes] = await Promise.all([
@@ -42,13 +47,15 @@ export class TrackingReportsService {
       this.prisma.trackingIncome.findMany({ where: { userId, deletedAt: null, date: { gte: from, lt: to } } }),
     ]);
 
+    const usdToBrlRate = rawSessions.some((s) => s.job.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
+
     const sessions = rawSessions.map((s) => {
       const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
-      const hourlyRate = estimateJobHourlyRate({
-        monthlyValue: Number(s.job.monthlyValue),
-        expectedHoursPerDay: s.job.expectedHoursPerDay,
-        weekdays: s.job.weekdays,
-      });
+      const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
+      const hourlyRate =
+        monthlyValueBRL !== null
+          ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
+          : 0;
       const value = round2((time.netSeconds / 3600) * hourlyRate);
       return {
         checkIn: s.checkIn,

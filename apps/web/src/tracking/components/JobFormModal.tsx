@@ -1,9 +1,14 @@
 import { FormEvent, useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
-import { Input, Textarea } from "@/components/ui/Input";
+import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useCreateTrackingJob, useUpdateTrackingJob } from "../api";
-import { TrackingJob } from "../types";
+import { TrackingCurrency, TrackingJob } from "../types";
+
+const CURRENCY_OPTIONS = [
+  { value: "BRL", label: "Real (R$)" },
+  { value: "USD", label: "Dólar (US$)" },
+];
 
 interface Props {
   open: boolean;
@@ -30,6 +35,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
   const [company, setCompany] = useState("");
   const [client, setClient] = useState("");
   const [monthlyValue, setMonthlyValue] = useState("");
+  const [currency, setCurrency] = useState<TrackingCurrency>("BRL");
   const [expectedHoursPerDay, setExpectedHoursPerDay] = useState("8");
   const [startDate, setStartDate] = useState(todayISO());
   const [endDate, setEndDate] = useState("");
@@ -46,6 +52,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setCompany(job.company);
       setClient(job.client ?? "");
       setMonthlyValue(job.monthlyValue);
+      setCurrency(job.currency);
       setExpectedHoursPerDay(String(job.expectedHoursPerDay));
       setStartDate(toDateInput(job.startDate));
       setEndDate(toDateInput(job.endDate));
@@ -59,6 +66,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setCompany("");
       setClient("");
       setMonthlyValue("");
+      setCurrency("BRL");
       setExpectedHoursPerDay("8");
       setStartDate(todayISO());
       setEndDate("");
@@ -81,6 +89,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       company,
       client: client || undefined,
       monthlyValue: Number(monthlyValue),
+      currency,
       expectedHoursPerDay: Number(expectedHoursPerDay),
       startDate: new Date(startDate + "T12:00:00").toISOString(),
       endDate: endDate ? new Date(endDate + "T12:00:00").toISOString() : undefined,
@@ -124,9 +133,9 @@ export function JobFormModal({ open, onClose, job }: Props) {
           hint="Usado para calcular o 'próximo pagamento' no dashboard."
         />
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
           <Input
-            label="Valor mensal (R$)"
+            label={`Valor mensal (${currency === "USD" ? "US$" : "R$"})`}
             type="number"
             step="0.01"
             min="0"
@@ -134,17 +143,22 @@ export function JobFormModal({ open, onClose, job }: Props) {
             onChange={(e) => setMonthlyValue(e.target.value)}
             required
           />
-          <Input
-            label="Horas esperadas por dia"
-            type="number"
-            step="0.5"
-            min="0.5"
-            value={expectedHoursPerDay}
-            onChange={(e) => setExpectedHoursPerDay(e.target.value)}
-            hint="Usado para estimar o valor/hora antes de existir histórico de sessões."
-            required
-          />
+          <Select label="Moeda" options={CURRENCY_OPTIONS} value={currency} onChange={(e) => setCurrency(e.target.value as TrackingCurrency)} />
         </div>
+        {currency === "USD" && (
+          <p className="-mt-2 text-xs text-muted">Convertido pra BRL em tempo real, pela cotação do dia, em toda estimativa e no dashboard.</p>
+        )}
+
+        <Input
+          label="Horas esperadas por dia"
+          type="number"
+          step="0.5"
+          min="0.5"
+          value={expectedHoursPerDay}
+          onChange={(e) => setExpectedHoursPerDay(e.target.value)}
+          hint="Usado para estimar o valor/hora antes de existir histórico de sessões."
+          required
+        />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Data de início" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />

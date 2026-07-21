@@ -6,6 +6,7 @@ export interface CreateTrackingJobData {
   company: string;
   client?: string;
   monthlyValue: number;
+  currency?: "BRL" | "USD";
   expectedHoursPerDay?: number;
   startDate: Date;
   endDate?: Date;

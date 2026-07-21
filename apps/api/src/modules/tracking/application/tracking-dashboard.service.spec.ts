@@ -1,5 +1,7 @@
 import { TrackingDashboardService } from "./tracking-dashboard.service";
 import { PrismaService } from "../../../prisma/prisma.service";
+import { TrackingFxService } from "./tracking-fx.service";
+import { TrackingJobPaymentRepository } from "../domain/tracking-job-payment.repository";
 
 const JOB = {
   id: "job-1",
@@ -7,11 +9,25 @@ const JOB = {
   company: "Acme Corp",
   client: "Cliente X",
   monthlyValue: "4000" as any,
+  currency: "BRL" as const,
   expectedHoursPerDay: 8,
   weekdays: [1, 2, 3, 4, 5],
   active: true,
   paymentDay: 5,
 };
+
+function makeFx(): TrackingFxService {
+  return { getUsdToBrlRate: jest.fn().mockResolvedValue(5) } as unknown as TrackingFxService;
+}
+
+function makeJobPayments(): TrackingJobPaymentRepository {
+  return {
+    findForJobsAndMonth: jest.fn().mockResolvedValue(new Map()),
+    findByJobAndMonth: jest.fn(),
+    upsert: jest.fn(),
+    findAllByJob: jest.fn(),
+  } as unknown as TrackingJobPaymentRepository;
+}
 
 function makePrisma(overrides: {
   jobs?: any[];
@@ -34,7 +50,7 @@ function makePrisma(overrides: {
 function sessionOn(date: Date, hours: number) {
   const checkIn = date;
   const checkOut = new Date(date.getTime() + hours * 3600 * 1000);
-  return { checkIn, checkOut, pauses: [], job: JOB };
+  return { jobId: JOB.id, checkIn, checkOut, pauses: [], job: JOB };
 }
 
 describe("TrackingDashboardService.summary", () => {
@@ -44,7 +60,7 @@ describe("TrackingDashboardService.summary", () => {
     const earlierThisMonth = new Date(now.getFullYear(), now.getMonth(), 1, 9);
 
     const prisma = makePrisma({ sessions: [sessionOn(todayMorning, 2), sessionOn(earlierThisMonth, 3)] });
-    const service = new TrackingDashboardService(prisma);
+    const service = new TrackingDashboardService(prisma, makeFx(), makeJobPayments());
 
     const result = await service.summary("user-1");
 
@@ -58,7 +74,7 @@ describe("TrackingDashboardService.summary", () => {
     const now = new Date();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15, 9);
     const prisma = makePrisma({ sessions: [sessionOn(lastMonth, 4)] });
-    const service = new TrackingDashboardService(prisma);
+    const service = new TrackingDashboardService(prisma, makeFx(), makeJobPayments());
 
     const result = await service.summary("user-1");
 
@@ -72,7 +88,7 @@ describe("TrackingDashboardService.summary", () => {
       projects: [{ date: now, client: "Cliente Y", name: "Projeto Y", amountReceived: "500" as any, hoursSpent: "5" as any }],
       incomes: [{ date: now, amount: "200" as any }],
     });
-    const service = new TrackingDashboardService(prisma);
+    const service = new TrackingDashboardService(prisma, makeFx(), makeJobPayments());
 
     const result = await service.summary("user-1");
 
@@ -84,7 +100,7 @@ describe("TrackingDashboardService.summary", () => {
   it("computes nextPayment as the soonest upcoming paymentDay among active jobs", async () => {
     const now = new Date();
     const prisma = makePrisma({ jobs: [JOB] });
-    const service = new TrackingDashboardService(prisma);
+    const service = new TrackingDashboardService(prisma, makeFx(), makeJobPayments());
 
     const result = await service.summary("user-1");
 
@@ -95,7 +111,7 @@ describe("TrackingDashboardService.summary", () => {
 
   it("returns null nextPayment when no active job has a paymentDay set", async () => {
     const prisma = makePrisma({ jobs: [{ ...JOB, paymentDay: null }] });
-    const service = new TrackingDashboardService(prisma);
+    const service = new TrackingDashboardService(prisma, makeFx(), makeJobPayments());
 
     const result = await service.summary("user-1");
 
@@ -104,12 +120,46 @@ describe("TrackingDashboardService.summary", () => {
 
   it("returns a null averageHourlyRate and empty insights when there is no data at all", async () => {
     const prisma = makePrisma({ jobs: [] });
-    const service = new TrackingDashboardService(prisma);
+    const service = new TrackingDashboardService(prisma, makeFx(), makeJobPayments());
 
     const result = await service.summary("user-1");
 
     expect(result.averageHourlyRate).toBeNull();
     expect(result.totalRevenue).toBe(0);
     expect(Array.isArray(result.insights)).toBe(true);
+  });
+
+  it("uses the confirmed monthly payment instead of the session estimate once one exists for this month", async () => {
+    const now = new Date();
+    const todayMorning = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9);
+    const prisma = makePrisma({ sessions: [sessionOn(todayMorning, 5)] });
+    const jobPayments = {
+      findForJobsAndMonth: jest.fn().mockResolvedValue(new Map([["job-1", 6000]])),
+      findByJobAndMonth: jest.fn(),
+      upsert: jest.fn(),
+      findAllByJob: jest.fn(),
+    } as unknown as TrackingJobPaymentRepository;
+    const service = new TrackingDashboardService(prisma, makeFx(), jobPayments);
+
+    const result = await service.summary("user-1");
+
+    expect(result.fixedJobsRevenue).toBe(6000);
+    expect(result.revenueByClient[0]).toEqual({ client: "Cliente X", amount: 6000 });
+  });
+
+  it("converts a USD job's session value to BRL using the live exchange rate", async () => {
+    const now = new Date();
+    const todayMorning = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9);
+    const usdJob = { ...JOB, currency: "USD" as const, monthlyValue: "1000" as any };
+    const prisma = makePrisma({ jobs: [usdJob], sessions: [{ ...sessionOn(todayMorning, 8), job: usdJob }] });
+    const fx = { getUsdToBrlRate: jest.fn().mockResolvedValue(5) } as unknown as TrackingFxService;
+    const service = new TrackingDashboardService(prisma, fx, makeJobPayments());
+
+    const result = await service.summary("user-1");
+
+    expect(fx.getUsdToBrlRate).toHaveBeenCalled();
+    // 1000 USD * 5 = 5000 BRL/month, Mon-Fri 8h/day -> ~28.77/h; 8h worked -> ~230.16
+    expect(result.fixedJobsRevenue).toBeGreaterThan(0);
+    expect(result.fixedJobsRevenue).toBeLessThan(300);
   });
 });

@@ -95,7 +95,14 @@ export default function Jobs() {
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-xs text-muted">Valor mensal</p>
-                  <p className="font-semibold">{formatCurrency(job.monthlyValue)}</p>
+                  <p className="font-semibold">{formatCurrency(job.monthlyValue, job.currency)}</p>
+                  {job.currency === "USD" && (
+                    <p className="text-xs text-muted">
+                      {job.monthlyValueBRL !== null && job.monthlyValueBRL !== undefined
+                        ? `≈ ${formatCurrency(job.monthlyValueBRL)} hoje`
+                        : "cotação indisponível"}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-muted">Valor estimado/hora</p>
