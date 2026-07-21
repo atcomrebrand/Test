@@ -42,12 +42,31 @@ SERVER_IP="$(curl -fsSL -4 https://ifconfig.me || hostname -I | awk '{print $1}'
 # certificado válido. Se o IP da VPS mudar um dia, esse hostname muda junto.
 SSLIP_HOST="${SERVER_IP//./-}.sslip.io"
 
-log "1/9 — Atualizando pacotes e instalando dependências do sistema"
+log "1/10 — Atualizando pacotes e instalando dependências do sistema"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y curl git build-essential ufw nginx postgresql postgresql-contrib ca-certificates gnupg certbot
 
-log "2/9 — Instalando Node.js 20 LTS"
+log "2/10 — Configurando memória swap"
+# VPS pequenas (1-2GB de RAM) derrubam o `vite build` com "JavaScript heap out of memory"
+# (SIGABRT) porque o V8 calcula o limite do heap a partir da RAM física disponível — sem swap,
+# não tem pra onde estourar. 2GB de swap dá essa margem sem exigir upgrade de plano. Idempotente:
+# não recria se `/swapfile` já existir (ex: reexecução do script).
+if [ ! -f /swapfile ] && [ "$(swapon --show=NAME --noheadings | wc -l)" -eq 0 ]; then
+  fallocate -l 2G /swapfile
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  if ! grep -q '^/swapfile ' /etc/fstab; then
+    echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  fi
+  sysctl -w vm.swappiness=10 >/dev/null
+  if ! grep -q '^vm.swappiness' /etc/sysctl.conf; then
+    echo 'vm.swappiness=10' >> /etc/sysctl.conf
+  fi
+fi
+
+log "3/10 — Instalando Node.js 20 LTS"
 if ! command -v node >/dev/null || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]; then
   curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
   apt-get install -y nodejs
@@ -56,12 +75,12 @@ npm install -g pnpm@10 --silent
 node -v
 pnpm -v
 
-log "3/9 — Criando usuário de sistema '$APP_USER'"
+log "4/10 — Criando usuário de sistema '$APP_USER'"
 if ! id -u "$APP_USER" >/dev/null 2>&1; then
   useradd --system --create-home --shell /usr/sbin/nologin "$APP_USER"
 fi
 
-log "4/9 — Configurando PostgreSQL"
+log "5/10 — Configurando PostgreSQL"
 systemctl enable --now postgresql
 if [ ! -f /root/.parcelas_db_password ]; then
   DB_PASSWORD="$(openssl rand -hex 24)"
@@ -85,7 +104,7 @@ SELECT 'CREATE DATABASE $DB_NAME OWNER $DB_USER'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
 SQL
 
-log "5/9 — Clonando/atualizando o repositório em $APP_DIR"
+log "6/10 — Clonando/atualizando o repositório em $APP_DIR"
 # Depois da 1a instalação, $APP_DIR pertence a $APP_USER; git (rodando aqui como root)
 # recusa operar num diretório de outro dono a menos que ele seja marcado como confiável.
 git config --global --add safe.directory "$APP_DIR"
@@ -98,7 +117,7 @@ else
 fi
 chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
 
-log "6/9 — Configurando variáveis de ambiente"
+log "7/10 — Configurando variáveis de ambiente"
 if [ ! -f /root/.parcelas_jwt_secret ]; then
   JWT_SECRET="$(openssl rand -hex 32)"
   echo "$JWT_SECRET" > /root/.parcelas_jwt_secret
@@ -178,7 +197,7 @@ chmod 600 "$ENV_FILE"
 echo 'VITE_API_URL=/api/v1' > "$APP_DIR/apps/web/.env"
 chown "$APP_USER":"$APP_USER" "$APP_DIR/apps/web/.env"
 
-log "7/9 — Instalando dependências, gerando client do Prisma, rodando migrations, build e seed"
+log "8/10 — Instalando dependências, gerando client do Prisma, rodando migrations, build e seed"
 sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && pnpm install --no-frozen-lockfile"
 sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/api' && pnpm prisma:generate && pnpm prisma:deploy"
 
@@ -187,10 +206,13 @@ if [ ! -f "$SEED_MARKER" ]; then
   sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/api' && pnpm prisma:seed" && touch "$SEED_MARKER"
 fi
 
-sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/api' && pnpm build"
-sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/web' && pnpm build"
+# --max-old-space-size explícito: sem swap o build já não tinha memória pra abrir; mesmo com
+# swap agora disponível, o V8 por padrão calcula o teto do heap a partir só da RAM física
+# detectada no boot — sem essa flag ele nem tenta usar o swap e aborta do mesmo jeito.
+sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/api' && NODE_OPTIONS='--max-old-space-size=2048' pnpm build"
+sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/web' && NODE_OPTIONS='--max-old-space-size=2048' pnpm build"
 
-log "8/9 — Configurando serviço systemd do backend"
+log "9/10 — Configurando serviço systemd do backend"
 cat > /etc/systemd/system/parcelas-api.service <<EOF
 [Unit]
 Description=Parcelas API (NestJS)
@@ -213,7 +235,7 @@ systemctl daemon-reload
 systemctl enable --now parcelas-api
 systemctl restart parcelas-api
 
-log "9/9 — Configurando Nginx com HTTPS (Let's Encrypt em $SSLIP_HOST) e firewall"
+log "10/10 — Configurando Nginx com HTTPS (Let's Encrypt em $SSLIP_HOST) e firewall"
 mkdir -p "$ACME_WEBROOT"
 
 # Passo 1: config HTTP-only (serve o desafio do Let's Encrypt em /.well-known/acme-challenge/).
