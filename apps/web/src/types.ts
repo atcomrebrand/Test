@@ -119,6 +119,7 @@ export interface Settings {
   limitWarningPct: number;
   dashboardWidgets: string[];
   includeFinancingInTotals: boolean;
+  biometricLockEnabled: boolean;
 }
 
 export type FinancingKind = "CAR" | "MOTORCYCLE" | "HOUSE" | "OTHER";

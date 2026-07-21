@@ -10,4 +10,5 @@ export class UpdateSettingsDto {
   @IsOptional() @IsInt() @Min(1) @Max(100) limitWarningPct?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) dashboardWidgets?: string[];
   @IsOptional() @IsBoolean() includeFinancingInTotals?: boolean;
+  @IsOptional() @IsBoolean() biometricLockEnabled?: boolean;
 }

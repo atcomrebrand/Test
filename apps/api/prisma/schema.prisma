@@ -339,6 +339,13 @@ model Setting {
   dashboardWidgets         String[] @default(["summary", "evolution", "category", "limit", "recent"])
   /// Whether financing (car/moto/house) installments count toward the dashboard's "geral" totals.
   includeFinancingInTotals Boolean  @default(true)
+  /// Requires re-verifying Face ID/Touch ID every time the app is opened/returns to the
+  /// foreground, even with a valid JWT session already stored — an app-lock layer on top of
+  /// login, not a replacement for it. Only meaningful once the user has at least one
+  /// WebAuthnCredential registered; enforced in the frontend (hides/disables the toggle
+  /// otherwise) since there's nothing to lock the user out with if they turn this on with no
+  /// passkey on file.
+  biometricLockEnabled     Boolean  @default(false)
   updatedAt                DateTime @updatedAt
 
   @@map("settings")

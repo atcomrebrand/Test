@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
-import { BellRing, ScanFace, Smartphone, Trash2 } from "lucide-react";
+import { BellRing, Lock, ScanFace, Smartphone, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { isIos, isPushSupported, isStandalone, usePushStatus, useSendTestPush, useSubscribePush, useUnsubscribePush } from "@/features/usePush";
 import { useRegisterFaceId, useRemoveWebAuthnCredential, useWebAuthnCredentials } from "@/features/useWebAuthn";
+import { useSettings, useUpdateSettings } from "@/features/useSettings";
 
 export function SecuritySettingsCard() {
   const [webauthnSupported, setWebauthnSupported] = useState(false);
@@ -22,6 +23,10 @@ export function SecuritySettingsCard() {
   const { data: credentials } = useWebAuthnCredentials();
   const registerFaceId = useRegisterFaceId();
   const removeCredential = useRemoveWebAuthnCredential();
+  const hasCredential = (credentials?.length ?? 0) > 0;
+
+  const { data: settings } = useSettings();
+  const updateSettings = useUpdateSettings();
 
   function onTogglePush() {
     if (pushStatus?.subscribed) {
@@ -125,6 +130,31 @@ export function SecuritySettingsCard() {
             </>
           )}
         </div>
+
+        {webauthnSupported && (
+          <div className="border-t border-[rgb(var(--border))] pt-4">
+            <label className={`flex items-center justify-between gap-4 ${hasCredential ? "cursor-pointer" : "cursor-not-allowed opacity-60"}`}>
+              <div className="flex items-center gap-2">
+                <Lock className="h-4 w-4 shrink-0" />
+                <div>
+                  <p className="text-sm font-medium">Pedir Face ID/Touch ID toda vez que abrir o app</p>
+                  <p className="text-xs text-muted">
+                    {hasCredential
+                      ? "Mesmo já estando logado, o app pede o rosto/digital ao abrir ou voltar do segundo plano."
+                      : "Cadastre o Face ID/Touch ID acima primeiro para poder ativar isso."}
+                  </p>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                disabled={!hasCredential}
+                checked={Boolean(settings?.biometricLockEnabled)}
+                onChange={(e) => updateSettings.mutate({ biometricLockEnabled: e.target.checked })}
+                className="h-5 w-5 shrink-0 rounded accent-accent-500 disabled:cursor-not-allowed"
+              />
+            </label>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
