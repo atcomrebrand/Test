@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { StockQuoteProvider, CryptoQuoteProvider, EconomicIndicatorProvider } from "./domain/market-data.provider";
 import { BrapiProvider } from "./infrastructure/providers/brapi.provider";
 import { CoinGeckoProvider } from "./infrastructure/providers/coingecko.provider";
@@ -33,6 +34,7 @@ import { YahooDividendsProvider } from "./infrastructure/providers/yahoo-dividen
 import { DividendsService } from "./application/dividends.service";
 import { DividendsController } from "./interface/dividends.controller";
 import { DividendAutoSyncService } from "./application/dividend-auto-sync.service";
+import { DividendNotificationsService } from "./application/dividend-notifications.service";
 import { B3ImportService } from "./application/b3-import.service";
 import { B3ImportController } from "./interface/b3-import.controller";
 import { LaunchesController } from "./interface/launches.controller";
@@ -40,6 +42,7 @@ import { InvestmentsResetService } from "./application/investments-reset.service
 import { InvestmentsResetController } from "./interface/investments-reset.controller";
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [
     FixedIncomesController,
     AssetsController,
@@ -67,6 +70,7 @@ import { InvestmentsResetController } from "./interface/investments-reset.contro
     YahooDividendsProvider,
     DividendsService,
     DividendAutoSyncService,
+    DividendNotificationsService,
     B3ImportService,
     InvestmentsResetService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },

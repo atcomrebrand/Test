@@ -39,6 +39,7 @@ enum NotificationType {
   LATE_INSTALLMENT
   SPENDING_INCREASE
   CLOSING_SOON
+  DIVIDEND_PAYMENT
 }
 
 enum Theme {

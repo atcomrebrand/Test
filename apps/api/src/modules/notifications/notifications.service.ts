@@ -86,6 +86,13 @@ export class NotificationsService {
     }
   }
 
+  /** Public entry point for other modules (e.g. investments' dividend-payment alert) to reuse the
+   *  same "one push per user/type/title/day" dedup rule — never expected to fire twice for the
+   *  same title on the same day, whatever the caller. */
+  async notifyIfNew(userId: string, type: NotificationType, title: string, message: string) {
+    return this.createIfNotExists(userId, type, title, { message });
+  }
+
   async evaluateLimitUsage(userId: string, cardId: string) {
     const card = await this.prisma.card.findUnique({ where: { id: cardId } });
     const settings = await this.prisma.setting.findUnique({ where: { userId } });
