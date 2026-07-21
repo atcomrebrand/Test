@@ -297,6 +297,10 @@ export interface DashboardCards {
 export interface DashboardSummary {
   cards: DashboardCards;
   distribuicaoPorCategoria: { category: string; total: number }[];
+  /** Total ganho por categoria (realizado + não realizado) — diferente de distribuicaoPorCategoria,
+   *  que é valor atual, não lucro. Uma renda fixa já resgatada continua aparecendo aqui mesmo sem
+   *  nenhuma aplicação ativa no momento. */
+  ganhosPorCategoria: { category: string; total: number }[];
   distribuicaoPorAtivo: { label: string; class: string; value: number }[];
   topGanhos: { label: string; class: string; profit: number; profitPercent: number }[];
   topPerdas: { label: string; class: string; profit: number; profitPercent: number }[];

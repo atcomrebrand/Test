@@ -83,6 +83,78 @@ describe("InvestmentsDashboardService.summary — deleted assets stop counting e
   });
 });
 
+describe("InvestmentsDashboardService.summary — ganhosPorCategoria and redeemed CDB profit", () => {
+  it("keeps a redeemed fixed income's frozen netYield in lucroLiquido, not just active ones", async () => {
+    const redeemed = {
+      id: "fi-1",
+      institution: "Banco X",
+      type: "CDB",
+      principalAmount: "1000",
+      maturityDate: new Date("2026-01-01"),
+      redeemedAt: new Date("2026-03-01"),
+      calculation: { netValue: 1050, netYield: 50, netProfitabilityPercent: 5 },
+    };
+    const fixedIncomes = { findAll: jest.fn().mockResolvedValue([redeemed]) } as unknown as FixedIncomesService;
+    const service = new InvestmentsDashboardService(
+      makePrisma(jest.fn().mockResolvedValue({ _sum: { amount: 0 } })),
+      makeAssets(),
+      fixedIncomes,
+      makeCashAccounts(),
+    );
+
+    const result = await service.summary("user-1");
+
+    // A redeemed CDB no longer counts toward current capital (valorInvestido/valorAtual), since
+    // the money isn't sitting there anymore — but its already-earned profit should never vanish.
+    expect(result.cards.lucroLiquido).toBe(50);
+    expect(result.cards.valorInvestido).toBe(0);
+  });
+
+  it("breaks total gains down by category, combining active + redeemed fixed incomes under RENDA_FIXA", async () => {
+    const stock = { class: "STOCK", ticker: "PETR4", profit: 100, position: { realizedProfit: 20, investedAmount: 500 }, currentValue: 600 };
+    const crypto = { class: "CRYPTO", ticker: "BTC", profit: -10, position: { realizedProfit: 0, investedAmount: 200 }, currentValue: 190 };
+    const assets = { findAll: jest.fn().mockResolvedValue([stock, crypto]) } as unknown as AssetsService;
+    const redeemedCdb = {
+      institution: "Banco X",
+      type: "CDB",
+      principalAmount: "1000",
+      maturityDate: new Date("2026-01-01"),
+      redeemedAt: new Date("2026-03-01"),
+      calculation: { netValue: 1050, netYield: 50, netProfitabilityPercent: 5 },
+    };
+    const fixedIncomes = { findAll: jest.fn().mockResolvedValue([redeemedCdb]) } as unknown as FixedIncomesService;
+    const service = new InvestmentsDashboardService(
+      makePrisma(jest.fn().mockResolvedValue({ _sum: { amount: 0 } })),
+      assets,
+      fixedIncomes,
+      makeCashAccounts(),
+    );
+
+    const result = await service.summary("user-1");
+
+    expect(result.ganhosPorCategoria).toEqual(
+      expect.arrayContaining([
+        { category: "STOCK", total: 120 },
+        { category: "CRYPTO", total: -10 },
+        { category: "RENDA_FIXA", total: 50 },
+      ]),
+    );
+  });
+
+  it("omits RENDA_FIXA from ganhosPorCategoria when there's no fixed income at all, active or redeemed", async () => {
+    const service = new InvestmentsDashboardService(
+      makePrisma(jest.fn().mockResolvedValue({ _sum: { amount: 0 } })),
+      makeAssets(),
+      makeFixedIncomes(),
+      makeCashAccounts(),
+    );
+
+    const result = await service.summary("user-1");
+
+    expect(result.ganhosPorCategoria.find((c) => c.category === "RENDA_FIXA")).toBeUndefined();
+  });
+});
+
 describe("InvestmentsDashboardService.summary — refresh button forces fresh prices", () => {
   it("defaults to forceRefresh=false when not passed", async () => {
     const assets = makeAssets();

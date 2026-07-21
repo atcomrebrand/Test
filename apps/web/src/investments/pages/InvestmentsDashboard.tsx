@@ -66,7 +66,7 @@ export default function InvestmentsDashboard() {
 
   if (!data) return null;
 
-  const { cards, distribuicaoPorCategoria, topGanhos, topPerdas, proximosVencimentos, ultimosLancamentos, evolucaoPatrimonial } = data;
+  const { cards, distribuicaoPorCategoria, ganhosPorCategoria, topGanhos, topPerdas, proximosVencimentos, ultimosLancamentos, evolucaoPatrimonial } = data;
 
   const isEmpty = cards.patrimonioTotal === 0 && distribuicaoPorCategoria.length === 0;
 
@@ -123,6 +123,31 @@ export default function InvestmentsDashboard() {
         <StatTile label="Juros Recebidos" value={formatCurrency(cards.jurosRecebidos)} icon={<Coins className="h-4 w-4" />} delay={0.18} />
         <StatTile label="Aportes do Mês" value={formatCurrency(cards.aportesDoMes)} icon={<ArrowUpRight className="h-4 w-4" />} delay={0.21} />
       </div>
+
+      {ganhosPorCategoria.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Ganhos por categoria</CardTitle>
+            <span className="text-xs text-muted">Realizado + não realizado, desde o início</span>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {ganhosPorCategoria.map((g) => (
+                <div key={g.category} className="rounded-xl surface-2 p-3">
+                  <p className="text-xs text-muted">{CATEGORY_META[g.category]?.label ?? g.category}</p>
+                  <p className={`text-lg font-bold ${g.total >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                    {formatCurrency(g.total)}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <p className="mt-3 text-xs text-muted">
+              Uma renda fixa já resgatada continua contando aqui, mesmo sem nenhuma aplicação ativa agora — o
+              rendimento que ela já rendeu não desaparece só porque o dinheiro foi resgatado ou reinvestido.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">

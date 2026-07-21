@@ -33,6 +33,7 @@ export class InvestmentsDashboardService {
     ]);
 
     const activeFixedIncomes = enrichedFixedIncomes.filter((f) => !f.redeemedAt);
+    const redeemedFixedIncomes = enrichedFixedIncomes.filter((f) => f.redeemedAt);
 
     const assetsInvested = enrichedAssets.reduce((sum, a) => sum + a.position.investedAmount, 0);
     const assetsCurrentValue = enrichedAssets.reduce((sum, a) => sum + (a.currentValue ?? a.position.investedAmount), 0);
@@ -41,7 +42,14 @@ export class InvestmentsDashboardService {
 
     const fixedIncomeInvested = activeFixedIncomes.reduce((sum, f) => sum + Number(f.principalAmount), 0);
     const fixedIncomeNetValue = activeFixedIncomes.reduce((sum, f) => sum + f.calculation.netValue, 0);
-    const fixedIncomeNetYield = activeFixedIncomes.reduce((sum, f) => sum + f.calculation.netYield, 0);
+    // netYield is frozen at redemption date (see FixedIncomesService.redeem/enrich), so a redeemed
+    // CDB's rentabilidade doesn't change or vanish after redemption — but until now it also wasn't
+    // ADDED anywhere once redeemed, since only activeFixedIncomes fed into lucroLiquido. Including
+    // redeemedFixedIncomes here makes a matured/redeemed-and-reinvested CDB's profit keep counting
+    // toward total earnings forever, the same way a fully-sold stock's realizedProfit already does.
+    const fixedIncomeUnrealizedYield = activeFixedIncomes.reduce((sum, f) => sum + f.calculation.netYield, 0);
+    const fixedIncomeRealizedYield = redeemedFixedIncomes.reduce((sum, f) => sum + f.calculation.netYield, 0);
+    const fixedIncomeNetYield = fixedIncomeUnrealizedYield + fixedIncomeRealizedYield;
 
     const valorInvestido = assetsInvested + fixedIncomeInvested + cashBalance;
     const valorAtual = assetsCurrentValue + fixedIncomeNetValue + cashBalance;
@@ -67,6 +75,10 @@ export class InvestmentsDashboardService {
       },
       distribuicaoPorCategoria: this.distribuicaoPorCategoria(enrichedAssets, fixedIncomeNetValue, cashBalance),
       distribuicaoPorAtivo: this.distribuicaoPorAtivo(enrichedAssets, activeFixedIncomes),
+      // "Quanto ganhei no total" por categoria (Renda Fixa, Ações, FIIs, Cripto) — realizado
+      // (posições já vendidas/CDBs já resgatados) + não realizado (o que ainda está na carteira),
+      // pra dar o contexto geral de rentabilidade por tipo de investimento, não só o valor atual.
+      ganhosPorCategoria: this.ganhosPorCategoria(enrichedAssets, activeFixedIncomes, redeemedFixedIncomes),
       topGanhos: this.topMovers(enrichedAssets, activeFixedIncomes, "desc"),
       topPerdas: this.topMovers(enrichedAssets, activeFixedIncomes, "asc"),
       proximosVencimentos: this.proximosVencimentos(activeFixedIncomes),
@@ -95,6 +107,28 @@ export class InvestmentsDashboardService {
       ...fixedIncomes.map((f) => ({ label: f.institution, class: f.type, value: f.calculation.netValue })),
     ];
     return items.filter((i) => i.value > 0).sort((a, b) => b.value - a.value);
+  }
+
+  /** Total gained per category — realized (sold positions, redeemed CDBs) + unrealized (still
+   *  held) — separate from distribuicaoPorCategoria, which is current VALUE, not profit. A
+   *  redeemed fixed income keeps contributing here even with zero active applications: its
+   *  netYield is frozen at the redemption date, so reinvesting the proceeds elsewhere doesn't
+   *  erase what it already earned. */
+  private ganhosPorCategoria(
+    assets: Awaited<ReturnType<AssetsService["findAll"]>>,
+    activeFixedIncomes: Awaited<ReturnType<FixedIncomesService["findAll"]>>,
+    redeemedFixedIncomes: Awaited<ReturnType<FixedIncomesService["findAll"]>>,
+  ) {
+    const byClass = new Map<string, number>();
+    for (const asset of assets) {
+      const gain = (asset.profit ?? 0) + asset.position.realizedProfit;
+      byClass.set(asset.class, (byClass.get(asset.class) ?? 0) + gain);
+    }
+    if (activeFixedIncomes.length > 0 || redeemedFixedIncomes.length > 0) {
+      const fixedIncomeGain = [...activeFixedIncomes, ...redeemedFixedIncomes].reduce((sum, f) => sum + f.calculation.netYield, 0);
+      byClass.set("RENDA_FIXA", (byClass.get("RENDA_FIXA") ?? 0) + fixedIncomeGain);
+    }
+    return Array.from(byClass.entries()).map(([category, total]) => ({ category, total }));
   }
 
   private topMovers(
