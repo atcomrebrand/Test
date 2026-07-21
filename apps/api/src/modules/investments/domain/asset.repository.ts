@@ -43,7 +43,10 @@ export abstract class AssetRepository {
   abstract deleteIncome(id: string): Promise<void>;
   abstract sumIncomesByUser(userId: string, since?: Date): Promise<number>;
   /** All of a user's transactions across every asset, ticker included — used by the B3 import's
-   *  dedup/backfill logic instead of listing assets then N+1-querying each one's transactions. */
+   *  dedup/backfill logic instead of listing assets then N+1-querying each one's transactions.
+   *  Excludes soft-deleted assets' history: once an asset is deleted its old transactions/incomes
+   *  shouldn't keep counting in the Lançamentos ledger or dashboard totals, and shouldn't be
+   *  mistaken for "already imported" if the same ticker is re-added later. */
   abstract listAllTransactionsByUser(userId: string): Promise<(InvestmentTransaction & { asset: { ticker: string; class: string } })[]>;
   abstract listAllIncomesByUser(userId: string): Promise<(InvestmentIncome & { asset: { ticker: string; class: string } | null })[]>;
 }

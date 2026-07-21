@@ -37,7 +37,9 @@ describe("InvestmentsDashboardService.summary — dividendosRecebidos card", () 
     const result = await service.summary("user-1");
 
     expect(result.cards.dividendosRecebidos).toBe(507.12);
-    expect(aggregate).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "user-1", assetId: { not: null } } }));
+    expect(aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: "user-1", assetId: { not: null }, asset: { deletedAt: null } } }),
+    );
   });
 
   it("keeps jurosRecebidos scoped to the JUROS type (fixed-income interest), independent of the assetId-based dividend sum", async () => {
@@ -52,6 +54,32 @@ describe("InvestmentsDashboardService.summary — dividendosRecebidos card", () 
 
     expect(result.cards.dividendosRecebidos).toBe(100);
     expect(result.cards.jurosRecebidos).toBe(42);
+  });
+});
+
+describe("InvestmentsDashboardService.summary — deleted assets stop counting everywhere", () => {
+  it("excludes a soft-deleted asset's buy transactions from aportesDoMes", async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = makePrisma(jest.fn().mockResolvedValue({ _sum: { amount: 0 } }));
+    prisma.investmentTransaction.findMany = findMany;
+    const service = new InvestmentsDashboardService(prisma, makeAssets(), makeFixedIncomes(), makeCashAccounts());
+
+    await service.summary("user-1");
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ type: "BUY", asset: { deletedAt: null } }) }),
+    );
+  });
+
+  it("excludes a soft-deleted asset's transactions from evolucaoPatrimonial", async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = makePrisma(jest.fn().mockResolvedValue({ _sum: { amount: 0 } }));
+    prisma.investmentTransaction.findMany = findMany;
+    const service = new InvestmentsDashboardService(prisma, makeAssets(), makeFixedIncomes(), makeCashAccounts());
+
+    await service.summary("user-1");
+
+    expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "user-1", asset: { deletedAt: null } } }));
   });
 });
 

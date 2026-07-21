@@ -186,14 +186,14 @@ export class AssetPrismaRepository extends AssetRepository {
 
   listAllTransactionsByUser(userId: string) {
     return this.prisma.investmentTransaction.findMany({
-      where: { userId },
+      where: { userId, asset: { deletedAt: null } },
       include: { asset: { select: { ticker: true, class: true } } },
     });
   }
 
   listAllIncomesByUser(userId: string) {
     return this.prisma.investmentIncome.findMany({
-      where: { userId, assetId: { not: null } },
+      where: { userId, assetId: { not: null }, asset: { deletedAt: null } },
       include: { asset: { select: { ticker: true, class: true } } },
     });
   }

@@ -163,7 +163,7 @@ export class InvestmentsDashboardService {
    *  dashboard card consistent with it instead of silently under-reporting. */
   private async sumAssetIncome(userId: string) {
     const agg = await this.prisma.investmentIncome.aggregate({
-      where: { userId, assetId: { not: null } },
+      where: { userId, assetId: { not: null }, asset: { deletedAt: null } },
       _sum: { amount: true },
     });
     return Number(agg._sum.amount ?? 0);
@@ -176,7 +176,7 @@ export class InvestmentsDashboardService {
     const start = monthStart(new Date());
     const [buyTransactions, fixedIncomeApplications, manualContributions] = await Promise.all([
       this.prisma.investmentTransaction.findMany({
-        where: { userId, type: "BUY", transactionDate: { gte: start } },
+        where: { userId, type: "BUY", transactionDate: { gte: start }, asset: { deletedAt: null } },
         select: { quantity: true, unitPrice: true, fees: true },
       }),
       this.prisma.investmentFixedIncome.aggregate({
@@ -205,7 +205,7 @@ export class InvestmentsDashboardService {
 
     const [transactions, fixedIncomes] = await Promise.all([
       this.prisma.investmentTransaction.findMany({
-        where: { userId },
+        where: { userId, asset: { deletedAt: null } },
         select: { type: true, quantity: true, unitPrice: true, fees: true, transactionDate: true },
       }),
       this.prisma.investmentFixedIncome.findMany({
