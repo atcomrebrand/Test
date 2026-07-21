@@ -66,7 +66,7 @@ export default function InvestmentsDashboard() {
 
   if (!data) return null;
 
-  const { cards, distribuicaoPorCategoria, ganhosPorCategoria, topGanhos, topPerdas, proximosVencimentos, ultimosLancamentos, evolucaoPatrimonial } = data;
+  const { cards, distribuicaoPorCategoria, distribuicaoPorAtivo, ganhosPorCategoria, topGanhos, topPerdas, proximosVencimentos, ultimosLancamentos, evolucaoPatrimonial } = data;
 
   const isEmpty = cards.patrimonioTotal === 0 && distribuicaoPorCategoria.length === 0;
 
@@ -89,6 +89,16 @@ export default function InvestmentsDashboard() {
     name: CATEGORY_META[d.category]?.label ?? d.category,
     color: CATEGORY_META[d.category]?.color ?? "#8B8B8B",
     total: d.total,
+    key: d.category,
+  }));
+
+  // distribuicaoPorAtivo's `class` is the specific fixed-income type (CDB/LCI/LCA/TESOURO/OUTRO)
+  // for renda fixa rows, not "RENDA_FIXA" — normalize it so clicking that slice can match its items.
+  const ASSET_CLASS_KEYS = new Set(["STOCK", "FII", "CRYPTO", "FUND"]);
+  const categoryDetails = distribuicaoPorAtivo.map((d) => ({
+    label: d.label,
+    class: ASSET_CLASS_KEYS.has(d.class) ? d.class : "RENDA_FIXA",
+    value: d.value,
   }));
 
   return (
@@ -174,7 +184,11 @@ export default function InvestmentsDashboard() {
             <CardTitle>Distribuição por categoria</CardTitle>
           </CardHeader>
           <CardContent>
-            {categoryData.length === 0 ? <p className="py-10 text-center text-sm text-muted">Sem dados ainda.</p> : <CategoryChart data={categoryData} />}
+            {categoryData.length === 0 ? (
+              <p className="py-10 text-center text-sm text-muted">Sem dados ainda.</p>
+            ) : (
+              <CategoryChart data={categoryData} details={categoryDetails} />
+            )}
           </CardContent>
         </Card>
       </div>
