@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { TrackingJobsController } from "./interface/tracking-jobs.controller";
 import { TrackingSessionsController } from "./interface/tracking-sessions.controller";
 import { TrackingProjectsController } from "./interface/tracking-projects.controller";
@@ -22,6 +23,7 @@ import { TrackingHistoryService } from "./application/tracking-history.service";
 import { TrackingSearchService } from "./application/tracking-search.service";
 import { TrackingExportService } from "./application/tracking-export.service";
 import { TrackingAuditService } from "./application/tracking-audit.service";
+import { TrackingNotificationsService } from "./application/tracking-notifications.service";
 import { TrackingJobRepository } from "./domain/tracking-job.repository";
 import { TrackingJobPrismaRepository } from "./infrastructure/tracking-job.prisma.repository";
 import { TrackingSessionRepository } from "./domain/tracking-session.repository";
@@ -32,6 +34,7 @@ import { TrackingIncomeRepository } from "./domain/tracking-income.repository";
 import { TrackingIncomePrismaRepository } from "./infrastructure/tracking-income.prisma.repository";
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [
     TrackingJobsController,
     TrackingSessionsController,
@@ -58,6 +61,7 @@ import { TrackingIncomePrismaRepository } from "./infrastructure/tracking-income
     TrackingSearchService,
     TrackingExportService,
     TrackingAuditService,
+    TrackingNotificationsService,
     { provide: TrackingJobRepository, useClass: TrackingJobPrismaRepository },
     { provide: TrackingSessionRepository, useClass: TrackingSessionPrismaRepository },
     { provide: TrackingProjectRepository, useClass: TrackingProjectPrismaRepository },

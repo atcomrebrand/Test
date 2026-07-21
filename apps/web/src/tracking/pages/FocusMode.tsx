@@ -82,6 +82,38 @@ export default function FocusMode() {
     handleFinish();
   }
 
+  const anyModalOpen = editingCheckIn || reconcileOpen || !!summarySession || showCompletion;
+
+  // Espaço inicia/pausa/retoma, Esc finaliza — só quando nenhum modal está aberto e o foco não
+  // está num campo de texto (senão espaço/esc atrapalhariam digitação nas observações).
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (anyModalOpen) return;
+      const target = e.target as HTMLElement | null;
+      if (target && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        if (!activeSession) {
+          if (selectedJobId) start.mutate({ jobId: selectedJobId });
+        } else if (activeSession.status === "RUNNING") {
+          pause.mutate(activeSession.id);
+        } else if (activeSession.status === "PAUSED") {
+          resume.mutate(activeSession.id);
+        }
+      } else if (e.key === "Escape") {
+        if (activeSession) {
+          e.preventDefault();
+          handleFinish();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [anyModalOpen, activeSession, selectedJobId]);
+
   const activeJobs = useMemo(() => (jobs ?? []).filter((j) => j.active), [jobs]);
   const selectedJob = activeSession?.job ?? activeJobs.find((j) => j.id === selectedJobId) ?? null;
 
@@ -209,6 +241,14 @@ export default function FocusMode() {
               <Play className="h-5 w-5" />
               Iniciar Trabalho
             </Button>
+          )}
+
+          {(!activeSession || activeSession.status !== "COMPLETED") && (
+            <p className="hidden text-xs text-muted sm:block">
+              Atalhos: <kbd className="rounded border border-[rgb(var(--border))] px-1 py-0.5 font-mono">espaço</kbd>{" "}
+              {activeSession ? "pausa/retoma" : "inicia"} ·{" "}
+              <kbd className="rounded border border-[rgb(var(--border))] px-1 py-0.5 font-mono">esc</kbd> finaliza
+            </p>
           )}
 
           {activeSession?.status === "RUNNING" && (
