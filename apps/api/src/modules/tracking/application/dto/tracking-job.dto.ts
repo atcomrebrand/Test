@@ -1,23 +1,37 @@
 import { Type } from "class-transformer";
-import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsPositive, IsString, Max, Min, MinLength } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsPositive, IsString, Max, Min, MinLength, ValidateIf } from "class-validator";
 
 export class CreateTrackingJobDto {
+  @IsOptional()
+  @IsIn(["FIXO", "FREELANCE"])
+  type?: "FIXO" | "FREELANCE";
+
   @IsString()
   @MinLength(1)
   name!: string;
 
+  /** Opcional pra FREELANCE — o service preenche com o cliente (ou "Freelance") quando ausente. */
+  @IsOptional()
   @IsString()
-  @MinLength(1)
-  company!: string;
+  company?: string;
 
   @IsOptional()
   @IsString()
   client?: string;
 
+  /** Obrigatório só quando type = FIXO (o default). */
+  @ValidateIf((o) => (o.type ?? "FIXO") === "FIXO")
   @Type(() => Number)
   @IsNumber()
   @IsPositive()
-  monthlyValue!: number;
+  monthlyValue?: number;
+
+  /** Obrigatório só quando type = FREELANCE. */
+  @ValidateIf((o) => o.type === "FREELANCE")
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  totalAgreedValue?: number;
 
   @IsOptional()
   @IsIn(["BRL", "USD"])
@@ -65,10 +79,12 @@ export class CreateTrackingJobDto {
 }
 
 export class UpdateTrackingJobDto {
+  @IsOptional() @IsIn(["FIXO", "FREELANCE"]) type?: "FIXO" | "FREELANCE";
   @IsOptional() @IsString() @MinLength(1) name?: string;
-  @IsOptional() @IsString() @MinLength(1) company?: string;
+  @IsOptional() @IsString() company?: string;
   @IsOptional() @IsString() client?: string;
   @IsOptional() @Type(() => Number) @IsNumber() @IsPositive() monthlyValue?: number;
+  @IsOptional() @Type(() => Number) @IsNumber() @IsPositive() totalAgreedValue?: number;
   @IsOptional() @IsIn(["BRL", "USD"]) currency?: "BRL" | "USD";
   @IsOptional() @Type(() => Number) @IsNumber() @IsPositive() expectedHoursPerDay?: number;
   @IsOptional() @IsDateString() startDate?: string;

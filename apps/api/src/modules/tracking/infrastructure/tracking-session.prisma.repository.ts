@@ -80,6 +80,14 @@ export class TrackingSessionPrismaRepository extends TrackingSessionRepository {
     });
   }
 
+  findCompletedByJobIds(jobIds: string[]) {
+    if (jobIds.length === 0) return Promise.resolve([]);
+    return this.prisma.trackingSession.findMany({
+      where: { jobId: { in: jobIds }, status: "COMPLETED" },
+      include: INCLUDE,
+    });
+  }
+
   async delete(id: string) {
     await this.prisma.trackingSession.delete({ where: { id } });
   }

@@ -32,8 +32,8 @@ export default function Jobs() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Trabalhos Fixos</h1>
-          <p className="text-sm text-muted">Cadastre seus contratos fixos pra usar no Modo Foco.</p>
+          <h1 className="text-xl font-bold">Trabalhos</h1>
+          <p className="text-sm text-muted">Cadastre seus trabalhos fixos e freelances pra usar no Modo Foco.</p>
         </div>
         <Button onClick={openCreate}>
           <Plus className="h-4 w-4" />
@@ -52,8 +52,8 @@ export default function Jobs() {
       {!isLoading && (!data || data.length === 0) && (
         <EmptyState
           icon={<Briefcase className="h-7 w-7" />}
-          title="Nenhum trabalho fixo cadastrado"
-          description="Cadastre seu contrato fixo pra começar a cronometrar suas horas no Modo Foco."
+          title="Nenhum trabalho cadastrado"
+          description="Cadastre um trabalho fixo ou freelance pra começar a cronometrar suas horas no Modo Foco."
           action={
             <Button onClick={openCreate}>
               <Plus className="h-4 w-4" />
@@ -71,7 +71,10 @@ export default function Jobs() {
                 <div className="flex items-center gap-2">
                   <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: job.color }} />
                   <div>
-                    <p className="font-semibold">{job.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-semibold">{job.name}</p>
+                      <Badge tone={job.type === "FREELANCE" ? "accent" : "neutral"}>{job.type === "FREELANCE" ? "Freelance" : "Fixo"}</Badge>
+                    </div>
                     <p className="text-sm text-muted">
                       {job.company}
                       {job.client ? ` · ${job.client}` : ""}
@@ -93,34 +96,49 @@ export default function Jobs() {
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">
+                {job.type === "FIXO" ? (
+                  <div>
+                    <p className="text-xs text-muted">Valor mensal</p>
+                    <p className="font-semibold">{formatCurrency(job.monthlyValue ?? 0, job.currency)}</p>
+                    {job.currency === "USD" && (
+                      <p className="text-xs text-muted">
+                        {job.monthlyValueBRL !== null && job.monthlyValueBRL !== undefined
+                          ? `≈ ${formatCurrency(job.monthlyValueBRL)} hoje`
+                          : "cotação indisponível"}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-xs text-muted">Valor combinado</p>
+                    <p className="font-semibold">{formatCurrency(job.totalAgreedValue ?? 0, job.currency)}</p>
+                    {job.currency === "USD" && (
+                      <p className="text-xs text-muted">
+                        {job.totalAgreedValueBRL !== null && job.totalAgreedValueBRL !== undefined
+                          ? `≈ ${formatCurrency(job.totalAgreedValueBRL)} hoje`
+                          : "cotação indisponível"}
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div>
-                  <p className="text-xs text-muted">Valor mensal</p>
-                  <p className="font-semibold">{formatCurrency(job.monthlyValue, job.currency)}</p>
-                  {job.currency === "USD" && (
-                    <p className="text-xs text-muted">
-                      {job.monthlyValueBRL !== null && job.monthlyValueBRL !== undefined
-                        ? `≈ ${formatCurrency(job.monthlyValueBRL)} hoje`
-                        : "cotação indisponível"}
-                    </p>
-                  )}
-                </div>
-                <div>
-                  <p className="text-xs text-muted">Valor estimado/hora</p>
+                  <p className="text-xs text-muted">{job.type === "FIXO" ? "Valor estimado/hora" : "Valor atual/hora"}</p>
                   <p className="font-semibold">{formatCurrency(job.estimatedHourlyRate ?? 0)}</p>
                 </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5">
-                {WEEKDAY_LABELS.map((label, day) => (
-                  <span
-                    key={day}
-                    className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
-                      job.weekdays.includes(day) ? "bg-violet-500/10 text-violet-600 dark:text-violet-400" : "text-muted"
-                    }`}
-                  >
-                    {label}
-                  </span>
-                ))}
+                {job.type === "FIXO" &&
+                  WEEKDAY_LABELS.map((label, day) => (
+                    <span
+                      key={day}
+                      className={`rounded-md px-1.5 py-0.5 text-[10px] font-medium ${
+                        job.weekdays.includes(day) ? "bg-violet-500/10 text-violet-600 dark:text-violet-400" : "text-muted"
+                      }`}
+                    >
+                      {label}
+                    </span>
+                  ))}
                 {!job.active && <Badge tone="neutral">Inativo</Badge>}
               </div>
             </CardContent>

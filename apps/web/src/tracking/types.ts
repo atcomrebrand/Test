@@ -1,14 +1,18 @@
 export type TrackingSessionStatus = "RUNNING" | "PAUSED" | "COMPLETED";
-export type TrackingProjectStatus = "EM_ANDAMENTO" | "CONCLUIDO" | "CANCELADO";
+export type TrackingJobType = "FIXO" | "FREELANCE";
 export type TrackingIncomeCategory = "DIVIDENDO" | "VENDA" | "BONIFICACAO" | "CASHBACK" | "REEMBOLSO" | "PRESENTE" | "OUTRO";
 export type TrackingCurrency = "BRL" | "USD";
 
 export interface TrackingJob {
   id: string;
+  type: TrackingJobType;
   name: string;
   company: string;
   client: string | null;
-  monthlyValue: string;
+  /** Só existe quando type = FIXO. */
+  monthlyValue: string | null;
+  /** Só existe quando type = FREELANCE — valor total combinado pelo projeto inteiro. */
+  totalAgreedValue: string | null;
   currency: TrackingCurrency;
   expectedHoursPerDay: number;
   startDate: string;
@@ -20,8 +24,10 @@ export interface TrackingJob {
   notes: string | null;
   active: boolean;
   estimatedHourlyRate?: number | null;
-  /** monthlyValue já convertido pra BRL (= monthlyValue quando currency é BRL). */
+  /** monthlyValue já convertido pra BRL (= monthlyValue quando currency é BRL). Só p/ FIXO. */
   monthlyValueBRL?: number | null;
+  /** totalAgreedValue já convertido pra BRL. Só p/ FREELANCE. */
+  totalAgreedValueBRL?: number | null;
   /** Cotação USD->BRL de hoje usada na conversão — null quando currency é BRL. */
   fxRate?: number | null;
   createdAt: string;
@@ -75,19 +81,6 @@ export interface TrackingSession {
   hourlyRate: number;
   equivalentValue: number;
   isLongRunning: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface TrackingProject {
-  id: string;
-  name: string;
-  client: string | null;
-  amountReceived: string;
-  date: string;
-  hoursSpent: string;
-  status: TrackingProjectStatus;
-  notes: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -195,7 +188,7 @@ export interface TrackingHistoryResponse {
 }
 
 export interface TrackingSearchResult {
-  type: "SESSION" | "PROJECT" | "INCOME";
+  type: "SESSION" | "INCOME";
   id: string;
   label: string;
   sublabel: string;

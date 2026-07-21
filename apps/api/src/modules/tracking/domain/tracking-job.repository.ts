@@ -2,10 +2,12 @@ import { TrackingJob } from "@prisma/client";
 
 export interface CreateTrackingJobData {
   userId: string;
+  type?: "FIXO" | "FREELANCE";
   name: string;
   company: string;
   client?: string;
-  monthlyValue: number;
+  monthlyValue?: number;
+  totalAgreedValue?: number;
   currency?: "BRL" | "USD";
   expectedHoursPerDay?: number;
   startDate: Date;

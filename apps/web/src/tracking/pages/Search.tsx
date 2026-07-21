@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Search as SearchIcon, Timer, FolderKanban, Wallet } from "lucide-react";
+import { Search as SearchIcon, Timer, Wallet } from "lucide-react";
 import { Input } from "@/components/ui/Input";
 import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -9,7 +9,6 @@ import { useTrackingSearch } from "../api";
 
 const TYPE_META = {
   SESSION: { label: "Sessão", icon: Timer, color: "text-violet-500 bg-violet-500/10" },
-  PROJECT: { label: "Projeto", icon: FolderKanban, color: "text-amber-500 bg-amber-500/10" },
   INCOME: { label: "Entrada", icon: Wallet, color: "text-blue-500 bg-blue-500/10" },
 } as const;
 

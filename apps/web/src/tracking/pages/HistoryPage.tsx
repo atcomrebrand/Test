@@ -8,9 +8,8 @@ import { useTrackingHistory } from "../api";
 import { TrackingHistoryItem } from "../types";
 
 const ENTITY_LABEL: Record<string, string> = {
-  TrackingJob: "Trabalho fixo",
+  TrackingJob: "Trabalho",
   TrackingSession: "Sessão",
-  TrackingProject: "Projeto extra",
   TrackingIncome: "Outra entrada",
 };
 

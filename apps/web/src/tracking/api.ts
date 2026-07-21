@@ -10,7 +10,6 @@ import {
   TrackingJob,
   TrackingJobPayment,
   TrackingPendingJobPayment,
-  TrackingProject,
   TrackingReportSummary,
   TrackingSearchResult,
   TrackingSession,
@@ -22,7 +21,7 @@ function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
 }
 
 // ---------------------------------------------------------------------------
-// Trabalhos Fixos
+// Trabalhos (fixo ou freelance)
 // ---------------------------------------------------------------------------
 
 export function useTrackingJobs() {
@@ -38,7 +37,7 @@ export function useCreateTrackingJob() {
     mutationFn: (data: Record<string, unknown>) => api.post<TrackingJob>("/tracking/jobs", data),
     onSuccess: () => {
       invalidateAll(qc);
-      toast.success("Trabalho fixo cadastrado!");
+      toast.success("Trabalho cadastrado!");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -50,7 +49,7 @@ export function useUpdateTrackingJob() {
     mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.patch<TrackingJob>(`/tracking/jobs/${id}`, data),
     onSuccess: () => {
       invalidateAll(qc);
-      toast.success("Trabalho fixo atualizado!");
+      toast.success("Trabalho atualizado!");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -62,7 +61,7 @@ export function useDeleteTrackingJob() {
     mutationFn: (id: string) => api.delete(`/tracking/jobs/${id}`),
     onSuccess: () => {
       invalidateAll(qc);
-      toast.success("Trabalho fixo removido.");
+      toast.success("Trabalho removido.");
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -192,53 +191,6 @@ export function useTrackingDashboard() {
   return useQuery({
     queryKey: ["tracking", "dashboard"],
     queryFn: () => api.get<TrackingDashboardSummary>("/tracking/dashboard"),
-  });
-}
-
-// ---------------------------------------------------------------------------
-// Projetos Extras
-// ---------------------------------------------------------------------------
-
-export function useTrackingProjects() {
-  return useQuery({
-    queryKey: ["tracking", "projects"],
-    queryFn: () => api.get<TrackingProject[]>("/tracking/projects"),
-  });
-}
-
-export function useCreateTrackingProject() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (data: Record<string, unknown>) => api.post<TrackingProject>("/tracking/projects", data),
-    onSuccess: () => {
-      invalidateAll(qc);
-      toast.success("Projeto cadastrado!");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-}
-
-export function useUpdateTrackingProject() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.patch<TrackingProject>(`/tracking/projects/${id}`, data),
-    onSuccess: () => {
-      invalidateAll(qc);
-      toast.success("Projeto atualizado!");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-}
-
-export function useDeleteTrackingProject() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: (id: string) => api.delete(`/tracking/projects/${id}`),
-    onSuccess: () => {
-      invalidateAll(qc);
-      toast.success("Projeto removido.");
-    },
-    onError: (e: Error) => toast.error(e.message),
   });
 }
 

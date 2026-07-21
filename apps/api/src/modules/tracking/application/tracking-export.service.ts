@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { computeSessionTime } from "../domain/session-time-calculator";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
+import { computeFreelanceHourlyRate } from "../domain/freelance-hourly-rate";
 import { convertToBRL } from "../domain/currency-converter";
 import { TrackingFxService } from "./tracking-fx.service";
 
@@ -36,6 +37,25 @@ export class TrackingExportService {
 
     const usdToBrlRate = sessions.some((s) => s.job.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
 
+    // All-time query already has every session ever, so a freelance job's cumulative hours can be
+    // summed directly from this same batch — no extra query needed (matches dashboard/stats).
+    const freelanceSecondsByJob = new Map<string, number>();
+    for (const s of sessions) {
+      if (s.job.type !== "FREELANCE") continue;
+      const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
+      freelanceSecondsByJob.set(s.jobId, (freelanceSecondsByJob.get(s.jobId) ?? 0) + time.netSeconds);
+    }
+    const freelanceRateByJob = new Map<string, number>();
+    for (const s of sessions) {
+      if (s.job.type !== "FREELANCE" || s.job.totalAgreedValue === null || freelanceRateByJob.has(s.jobId)) continue;
+      const totalAgreedValueBRL = convertToBRL(Number(s.job.totalAgreedValue), s.job.currency, usdToBrlRate);
+      const rate =
+        totalAgreedValueBRL !== null
+          ? computeFreelanceHourlyRate({ totalAgreedValueBRL, totalNetSeconds: freelanceSecondsByJob.get(s.jobId) ?? 0 })
+          : null;
+      freelanceRateByJob.set(s.jobId, rate ?? 0);
+    }
+
     const header = [
       "Trabalho",
       "Empresa",
@@ -53,11 +73,16 @@ export class TrackingExportService {
 
     const rows = sessions.map((s) => {
       const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
-      const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
-      const hourlyRate =
-        monthlyValueBRL !== null
-          ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
-          : 0;
+      let hourlyRate: number;
+      if (s.job.type === "FREELANCE") {
+        hourlyRate = freelanceRateByJob.get(s.jobId) ?? 0;
+      } else {
+        const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
+        hourlyRate =
+          monthlyValueBRL !== null
+            ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
+            : 0;
+      }
       const value = (time.netSeconds / 3600) * hourlyRate;
 
       return [

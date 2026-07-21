@@ -3,11 +3,16 @@ import { Modal } from "@/components/ui/Modal";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useCreateTrackingJob, useUpdateTrackingJob } from "../api";
-import { TrackingCurrency, TrackingJob } from "../types";
+import { TrackingCurrency, TrackingJob, TrackingJobType } from "../types";
 
 const CURRENCY_OPTIONS = [
   { value: "BRL", label: "Real (R$)" },
   { value: "USD", label: "Dólar (US$)" },
+];
+
+const TYPE_OPTIONS = [
+  { value: "FIXO", label: "Fixo" },
+  { value: "FREELANCE", label: "Freelance" },
 ];
 
 interface Props {
@@ -31,10 +36,12 @@ export function JobFormModal({ open, onClose, job }: Props) {
   const update = useUpdateTrackingJob();
   const isEditing = !!job;
 
+  const [type, setType] = useState<TrackingJobType>("FIXO");
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [client, setClient] = useState("");
   const [monthlyValue, setMonthlyValue] = useState("");
+  const [totalAgreedValue, setTotalAgreedValue] = useState("");
   const [currency, setCurrency] = useState<TrackingCurrency>("BRL");
   const [expectedHoursPerDay, setExpectedHoursPerDay] = useState("8");
   const [startDate, setStartDate] = useState(todayISO());
@@ -48,10 +55,12 @@ export function JobFormModal({ open, onClose, job }: Props) {
   useEffect(() => {
     if (!open) return;
     if (job) {
+      setType(job.type);
       setName(job.name);
       setCompany(job.company);
       setClient(job.client ?? "");
-      setMonthlyValue(job.monthlyValue);
+      setMonthlyValue(job.monthlyValue ?? "");
+      setTotalAgreedValue(job.totalAgreedValue ?? "");
       setCurrency(job.currency);
       setExpectedHoursPerDay(String(job.expectedHoursPerDay));
       setStartDate(toDateInput(job.startDate));
@@ -62,10 +71,12 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setWeekdays(job.weekdays);
       setNotes(job.notes ?? "");
     } else {
+      setType("FIXO");
       setName("");
       setCompany("");
       setClient("");
       setMonthlyValue("");
+      setTotalAgreedValue("");
       setCurrency("BRL");
       setExpectedHoursPerDay("8");
       setStartDate(todayISO());
@@ -85,16 +96,18 @@ export function JobFormModal({ open, onClose, job }: Props) {
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     const payload = {
+      type,
       name,
-      company,
+      company: company || undefined,
       client: client || undefined,
-      monthlyValue: Number(monthlyValue),
+      monthlyValue: type === "FIXO" ? Number(monthlyValue) : undefined,
+      totalAgreedValue: type === "FREELANCE" ? Number(totalAgreedValue) : undefined,
       currency,
       expectedHoursPerDay: Number(expectedHoursPerDay),
       startDate: new Date(startDate + "T12:00:00").toISOString(),
       endDate: endDate ? new Date(endDate + "T12:00:00").toISOString() : undefined,
-      paymentMethod: paymentMethod || undefined,
-      paymentDay: paymentDay ? Number(paymentDay) : undefined,
+      paymentMethod: type === "FIXO" ? paymentMethod || undefined : undefined,
+      paymentDay: type === "FIXO" && paymentDay ? Number(paymentDay) : undefined,
       color,
       weekdays,
       notes: notes || undefined,
@@ -110,80 +123,118 @@ export function JobFormModal({ open, onClose, job }: Props) {
   const isPending = create.isPending || update.isPending;
 
   return (
-    <Modal open={open} onClose={onClose} title={isEditing ? "Editar trabalho fixo" : "Novo trabalho fixo"} size="lg">
+    <Modal open={open} onClose={onClose} title={isEditing ? "Editar trabalho" : "Novo trabalho"} size="lg">
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <Select
+          label="Tipo"
+          options={TYPE_OPTIONS}
+          value={type}
+          onChange={(e) => setType(e.target.value as TrackingJobType)}
+          disabled={isEditing}
+          hint={isEditing ? "O tipo não pode ser alterado depois de criado." : "Fixo: salário mensal recorrente. Freelance: valor total combinado por projeto."}
+        />
+
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Nome" value={name} onChange={(e) => setName(e.target.value)} required autoFocus />
-          <Input label="Empresa" value={company} onChange={(e) => setCompany(e.target.value)} required />
+          <Input
+            label={type === "FREELANCE" ? "Empresa (opcional)" : "Empresa"}
+            value={company}
+            onChange={(e) => setCompany(e.target.value)}
+            required={type === "FIXO"}
+          />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Cliente (opcional)" value={client} onChange={(e) => setClient(e.target.value)} />
-          <Input label="Forma de pagamento (opcional)" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder="Ex: PIX, transferência..." />
+          {type === "FIXO" && (
+            <Input label="Forma de pagamento (opcional)" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder="Ex: PIX, transferência..." />
+          )}
         </div>
 
-        <Input
-          label="Dia do pagamento (opcional)"
-          type="number"
-          min="1"
-          max="31"
-          value={paymentDay}
-          onChange={(e) => setPaymentDay(e.target.value)}
-          placeholder="Ex: 5"
-          hint="Usado para calcular o 'próximo pagamento' no dashboard."
-        />
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
+        {type === "FIXO" && (
           <Input
-            label={`Valor mensal (${currency === "USD" ? "US$" : "R$"})`}
+            label="Dia do pagamento (opcional)"
             type="number"
-            step="0.01"
-            min="0"
-            value={monthlyValue}
-            onChange={(e) => setMonthlyValue(e.target.value)}
-            required
+            min="1"
+            max="31"
+            value={paymentDay}
+            onChange={(e) => setPaymentDay(e.target.value)}
+            placeholder="Ex: 5"
+            hint="Usado para calcular o 'próximo pagamento' no dashboard."
           />
-          <Select label="Moeda" options={CURRENCY_OPTIONS} value={currency} onChange={(e) => setCurrency(e.target.value as TrackingCurrency)} />
-        </div>
+        )}
+
+        {type === "FIXO" ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
+            <Input
+              label={`Valor mensal (${currency === "USD" ? "US$" : "R$"})`}
+              type="number"
+              step="0.01"
+              min="0"
+              value={monthlyValue}
+              onChange={(e) => setMonthlyValue(e.target.value)}
+              required
+            />
+            <Select label="Moeda" options={CURRENCY_OPTIONS} value={currency} onChange={(e) => setCurrency(e.target.value as TrackingCurrency)} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto]">
+            <Input
+              label={`Valor total combinado (${currency === "USD" ? "US$" : "R$"})`}
+              type="number"
+              step="0.01"
+              min="0"
+              value={totalAgreedValue}
+              onChange={(e) => setTotalAgreedValue(e.target.value)}
+              hint="O valor/hora é recalculado automaticamente: valor total ÷ horas cronometradas até agora."
+              required
+            />
+            <Select label="Moeda" options={CURRENCY_OPTIONS} value={currency} onChange={(e) => setCurrency(e.target.value as TrackingCurrency)} />
+          </div>
+        )}
         {currency === "USD" && (
           <p className="-mt-2 text-xs text-muted">Convertido pra BRL em tempo real, pela cotação do dia, em toda estimativa e no dashboard.</p>
         )}
 
-        <Input
-          label="Horas esperadas por dia"
-          type="number"
-          step="0.5"
-          min="0.5"
-          value={expectedHoursPerDay}
-          onChange={(e) => setExpectedHoursPerDay(e.target.value)}
-          hint="Usado para estimar o valor/hora antes de existir histórico de sessões."
-          required
-        />
+        {type === "FIXO" && (
+          <Input
+            label="Horas esperadas por dia"
+            type="number"
+            step="0.5"
+            min="0.5"
+            value={expectedHoursPerDay}
+            onChange={(e) => setExpectedHoursPerDay(e.target.value)}
+            hint="Usado para estimar o valor/hora antes de existir histórico de sessões."
+            required
+          />
+        )}
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Data de início" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
           <Input label="Data de término (opcional)" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
         </div>
 
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-[rgb(var(--text))]">Dias da semana trabalhados</label>
-          <div className="flex flex-wrap gap-1.5">
-            {WEEKDAY_LABELS.map((label, day) => (
-              <button
-                key={day}
-                type="button"
-                onClick={() => toggleWeekday(day)}
-                className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-                  weekdays.includes(day)
-                    ? "border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400"
-                    : "border-[rgb(var(--border))] text-muted hover:surface-2"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+        {type === "FIXO" && (
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[rgb(var(--text))]">Dias da semana trabalhados</label>
+            <div className="flex flex-wrap gap-1.5">
+              {WEEKDAY_LABELS.map((label, day) => (
+                <button
+                  key={day}
+                  type="button"
+                  onClick={() => toggleWeekday(day)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    weekdays.includes(day)
+                      ? "border-violet-500 bg-violet-500/10 text-violet-600 dark:text-violet-400"
+                      : "border-[rgb(var(--border))] text-muted hover:surface-2"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="flex items-center gap-3">
           <label className="text-sm font-medium text-[rgb(var(--text))]">Cor</label>

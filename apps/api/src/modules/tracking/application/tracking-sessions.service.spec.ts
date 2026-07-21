@@ -8,10 +8,12 @@ import { TrackingFxService } from "./tracking-fx.service";
 const JOB = {
   id: "job-1",
   userId: "user-1",
+  type: "FIXO" as const,
   name: "Empresa X",
   company: "Empresa X",
   client: null,
   monthlyValue: 4000 as any,
+  totalAgreedValue: null as any,
   currency: "BRL" as const,
   expectedHoursPerDay: 8,
   startDate: new Date("2026-01-01"),
@@ -24,6 +26,17 @@ const JOB = {
   deletedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
+};
+
+const FREELANCE_JOB = {
+  ...JOB,
+  id: "job-2",
+  type: "FREELANCE" as const,
+  name: "Landing page",
+  company: "Cliente Y",
+  client: "Cliente Y",
+  monthlyValue: null as any,
+  totalAgreedValue: 800 as any,
 };
 
 function makeSession(overrides: Partial<TrackingSessionWithPauses> = {}): TrackingSessionWithPauses {
@@ -56,6 +69,7 @@ function makeRepos(session: TrackingSessionWithPauses | null = null) {
     updateManual: jest.fn(),
     findAllByUser: jest.fn().mockResolvedValue([]),
     findRunningOlderThan: jest.fn().mockResolvedValue([]),
+    findCompletedByJobIds: jest.fn().mockResolvedValue([]),
     delete: jest.fn().mockResolvedValue(undefined),
   } as any;
 
@@ -255,5 +269,50 @@ describe("TrackingSessionsService.createManual", () => {
     await expect(
       service.createManual("user-1", { jobId: "missing", checkIn: "2026-07-18T09:00:00.000Z", checkOut: "2026-07-18T17:00:00.000Z" }),
     ).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe("TrackingSessionsService.present (FREELANCE jobs)", () => {
+  it("computes the hourly rate as totalAgreedValue ÷ this session's own live hours, when it's the only one so far", async () => {
+    // 4h in, R$800 combinado -> R$200/h so far
+    const checkIn = new Date(Date.now() - 4 * 3600 * 1000);
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession({ job: FREELANCE_JOB as any, jobId: "job-2", checkIn, status: "RUNNING" }));
+
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+    const result = await service.getActive("user-1");
+
+    expect(sessions.findCompletedByJobIds).toHaveBeenCalledWith(["job-2"]);
+    expect(result?.hourlyRate).toBeCloseTo(200, 0);
+  });
+
+  it("includes previously completed sessions of the same job when computing the rate", async () => {
+    const checkIn = new Date(Date.now() - 4 * 3600 * 1000);
+    const priorSession = makeSession({
+      id: "session-prior",
+      jobId: "job-2",
+      job: FREELANCE_JOB as any,
+      status: "COMPLETED",
+      checkIn: new Date("2026-07-01T09:00:00Z"),
+      checkOut: new Date("2026-07-01T13:00:00Z"), // 4h already logged
+    });
+    const { sessions, jobs, audit, fx } = makeRepos(makeSession({ job: FREELANCE_JOB as any, jobId: "job-2", checkIn, status: "RUNNING" }));
+    sessions.findCompletedByJobIds.mockResolvedValue([priorSession]);
+
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+    const result = await service.getActive("user-1");
+
+    // 4h prior + 4h now = 8h total -> R$800/8h = R$100/h
+    expect(result?.hourlyRate).toBeCloseTo(100, 0);
+  });
+
+  it("returns hourlyRate 0 when no hours have been logged yet for the freelance job", async () => {
+    const { sessions, jobs, audit, fx } = makeRepos(
+      makeSession({ job: FREELANCE_JOB as any, jobId: "job-2", checkIn: new Date(), status: "RUNNING" }),
+    );
+
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+    const result = await service.getActive("user-1");
+
+    expect(result?.hourlyRate).toBe(0);
   });
 });

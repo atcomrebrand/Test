@@ -53,7 +53,7 @@ export function AddPastSessionModal({ open, onClose, initialDate }: Props) {
         <p className="text-sm text-muted">Registre um dia de trabalho que ficou de fora do cronômetro ao vivo.</p>
 
         <Select
-          label="Trabalho fixo"
+          label="Trabalho"
           value={jobId}
           onChange={(e) => setJobId(e.target.value)}
           options={[{ value: "", label: "Selecione..." }, ...activeJobs.map((j) => ({ value: j.id, label: `${j.name} — ${j.company}` }))]}

@@ -32,7 +32,6 @@ import { TrackingLayout } from "./tracking/TrackingLayout";
 import FocusMode from "./tracking/pages/FocusMode";
 import Jobs from "./tracking/pages/Jobs";
 import TrackingDashboard from "./tracking/pages/Dashboard";
-import Projects from "./tracking/pages/Projects";
 import Incomes from "./tracking/pages/Incomes";
 import CalendarView from "./tracking/pages/CalendarView";
 import Reports from "./tracking/pages/Reports";
@@ -82,7 +81,6 @@ export default function App() {
           <Route path="/horas" element={<FocusMode />} />
           <Route path="/horas/dashboard" element={<TrackingDashboard />} />
           <Route path="/horas/trabalhos" element={<Jobs />} />
-          <Route path="/horas/projetos" element={<Projects />} />
           <Route path="/horas/entradas" element={<Incomes />} />
           <Route path="/horas/calendario" element={<CalendarView />} />
           <Route path="/horas/relatorios" element={<Reports />} />

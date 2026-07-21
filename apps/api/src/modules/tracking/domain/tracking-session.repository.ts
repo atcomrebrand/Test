@@ -34,5 +34,8 @@ export abstract class TrackingSessionRepository {
   abstract findAllByUser(userId: string, range?: { from: Date; to: Date }): Promise<TrackingSessionWithPauses[]>;
   /** For the "forgot to check out" cron sweep — RUNNING/PAUSED sessions started before `cutoff`. */
   abstract findRunningOlderThan(cutoff: Date): Promise<TrackingSessionWithPauses[]>;
+  /** All COMPLETED sessions across a batch of jobs in one query — used to sum a trabalho
+   *  freelance's total hours worked so far (its valor/hora is always totalAgreedValue ÷ that sum). */
+  abstract findCompletedByJobIds(jobIds: string[]): Promise<TrackingSessionWithPauses[]>;
   abstract delete(id: string): Promise<void>;
 }

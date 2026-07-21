@@ -5,7 +5,6 @@ import {
   Timer,
   LayoutDashboard,
   Briefcase,
-  FolderKanban,
   Wallet,
   CalendarDays,
   FileBarChart,
@@ -23,7 +22,6 @@ const PRIMARY_ITEMS = [
 ];
 
 const MORE_ITEMS: { to: string; label: string; icon: typeof Timer }[] = [
-  { to: "/horas/projetos", label: "Projetos", icon: FolderKanban },
   { to: "/horas/entradas", label: "Entradas", icon: Wallet },
   { to: "/horas/calendario", label: "Calendário", icon: CalendarDays },
   { to: "/horas/relatorios", label: "Relatórios", icon: FileBarChart },

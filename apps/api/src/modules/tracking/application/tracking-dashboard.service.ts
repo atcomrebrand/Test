@@ -6,6 +6,7 @@ import { computeHourlyRateBreakdown } from "../domain/hourly-rate-calculator";
 import { generateInsights } from "../domain/insights-generator";
 import { convertToBRL } from "../domain/currency-converter";
 import { computeFixedJobRevenue, FixedJobRevenueResult } from "../domain/fixed-job-revenue";
+import { computeFreelanceHourlyRate } from "../domain/freelance-hourly-rate";
 import { LONG_SESSION_HOURS } from "./tracking-sessions.service";
 import { TrackingFxService } from "./tracking-fx.service";
 import { TrackingJobPaymentRepository } from "../domain/tracking-job-payment.repository";
@@ -44,6 +45,7 @@ function dayKey(date: Date): string {
 
 interface EnrichedSession {
   jobId: string;
+  jobType: string;
   checkIn: Date;
   netSeconds: number;
   value: number;
@@ -53,9 +55,10 @@ interface EnrichedSession {
 /**
  * All-in-one dashboard aggregation, mirroring InvestmentsDashboardService's shape: a single
  * `summary(userId)` that fans out to the raw tables, enriches sessions with the same
- * computeSessionTime/estimateJobHourlyRate formulas the timer itself uses (so a session's "value"
- * here always matches what Modo Foco showed live), then reduces everything into the stat
- * tiles/charts/insights the dashboard page needs.
+ * computeSessionTime/hourlyRate formulas the timer itself uses (so a session's "value" here always
+ * matches what Modo Foco showed live), then reduces everything into the stat tiles/charts/insights
+ * the dashboard page needs. Trabalho fixo and freelance are both TrackingJob+TrackingSession now —
+ * they only diverge in how hourlyRate is derived (estimateJobHourlyRate vs computeFreelanceHourlyRate).
  */
 @Injectable()
 export class TrackingDashboardService {
@@ -74,28 +77,53 @@ export class TrackingDashboardService {
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const prevMonthEnd = monthStart;
 
-    const [jobs, rawSessions, projects, incomes] = await Promise.all([
+    const [jobs, rawSessions, incomes] = await Promise.all([
       this.prisma.trackingJob.findMany({ where: { userId, deletedAt: null } }),
       this.prisma.trackingSession.findMany({
         where: { userId, status: "COMPLETED" },
         include: { pauses: true, job: true },
         orderBy: { checkIn: "asc" },
       }),
-      this.prisma.trackingProject.findMany({ where: { userId, deletedAt: null } }),
       this.prisma.trackingIncome.findMany({ where: { userId, deletedAt: null } }),
     ]);
 
     const usdToBrlRate = jobs.some((j) => j.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
 
+    // Freelance jobs have no fixed hourly rate — it's always totalAgreedValue ÷ ALL hours ever
+    // cronometradas (rawSessions has no date filter, so this is the true all-time total), applied
+    // uniformly to every session of that job so "receita este mês" apura proporcionalmente às
+    // horas trabalhadas nesse mês.
+    const freelanceSecondsByJob = new Map<string, number>();
+    for (const s of rawSessions) {
+      if (s.job.type !== "FREELANCE") continue;
+      const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
+      freelanceSecondsByJob.set(s.jobId, (freelanceSecondsByJob.get(s.jobId) ?? 0) + time.netSeconds);
+    }
+    const freelanceRateByJob = new Map<string, number>();
+    for (const job of jobs) {
+      if (job.type !== "FREELANCE" || job.totalAgreedValue === null) continue;
+      const totalAgreedValueBRL = convertToBRL(Number(job.totalAgreedValue), job.currency, usdToBrlRate);
+      const rate =
+        totalAgreedValueBRL !== null
+          ? computeFreelanceHourlyRate({ totalAgreedValueBRL, totalNetSeconds: freelanceSecondsByJob.get(job.id) ?? 0 })
+          : null;
+      freelanceRateByJob.set(job.id, rate ?? 0);
+    }
+
     const sessions: EnrichedSession[] = rawSessions.map((s) => {
       const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
-      const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
-      const hourlyRate =
-        monthlyValueBRL !== null
-          ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
-          : 0;
+      let hourlyRate: number;
+      if (s.job.type === "FREELANCE") {
+        hourlyRate = freelanceRateByJob.get(s.jobId) ?? 0;
+      } else {
+        const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
+        hourlyRate =
+          monthlyValueBRL !== null
+            ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
+            : 0;
+      }
       const value = round2((time.netSeconds / 3600) * hourlyRate);
-      return { jobId: s.jobId, checkIn: s.checkIn, netSeconds: time.netSeconds, value, clientLabel: s.job.client ?? s.job.company };
+      return { jobId: s.jobId, jobType: s.job.type, checkIn: s.checkIn, netSeconds: time.netSeconds, value, clientLabel: s.job.client ?? s.job.company };
     });
 
     const inRange = (date: Date, from: Date, to: Date) => date >= from && date < to;
@@ -108,11 +136,14 @@ export class TrackingDashboardService {
     const hoursThisMonth = sumBy(sessionsThisMonth, (s) => s.netSeconds) / 3600;
     const hoursPrevMonth = sumBy(sessionsPrevMonth, (s) => s.netSeconds) / 3600;
 
+    const fixoJobs = jobs.filter((j) => j.type === "FIXO");
+    const freelanceJobs = jobs.filter((j) => j.type === "FREELANCE");
+
     const prevMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const jobIds = jobs.map((j) => j.id);
+    const fixoJobIds = fixoJobs.map((j) => j.id);
     const [confirmedThisMonth, confirmedPrevMonth] = await Promise.all([
-      this.jobPayments.findForJobsAndMonth(jobIds, now.getFullYear(), now.getMonth() + 1),
-      this.jobPayments.findForJobsAndMonth(jobIds, prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1),
+      this.jobPayments.findForJobsAndMonth(fixoJobIds, now.getFullYear(), now.getMonth() + 1),
+      this.jobPayments.findForJobsAndMonth(fixoJobIds, prevMonthDate.getFullYear(), prevMonthDate.getMonth() + 1),
     ]);
 
     const groupByJob = (list: EnrichedSession[]) => {
@@ -123,7 +154,8 @@ export class TrackingDashboardService {
     const sessionsThisMonthByJob = groupByJob(sessionsThisMonth);
     const sessionsPrevMonthByJob = groupByJob(sessionsPrevMonth);
 
-    const jobRevenuesThisMonth: FixedJobRevenueResult[] = jobs.map((job) =>
+    // FIXO: o valor confirmado manualmente (se existir pro mês) sempre vence a estimativa por horas.
+    const fixoRevenuesThisMonth: FixedJobRevenueResult[] = fixoJobs.map((job) =>
       computeFixedJobRevenue({
         jobId: job.id,
         clientLabel: job.client ?? job.company,
@@ -131,7 +163,7 @@ export class TrackingDashboardService {
         confirmedAmountBRL: confirmedThisMonth.get(job.id) ?? null,
       }),
     );
-    const jobRevenuesPrevMonth: FixedJobRevenueResult[] = jobs.map((job) =>
+    const fixoRevenuesPrevMonth: FixedJobRevenueResult[] = fixoJobs.map((job) =>
       computeFixedJobRevenue({
         jobId: job.id,
         clientLabel: job.client ?? job.company,
@@ -140,14 +172,24 @@ export class TrackingDashboardService {
       }),
     );
 
-    const fixedJobsRevenue = sumBy(jobRevenuesThisMonth, (r) => r.amount);
-    const fixedJobsRevenuePrevMonth = sumBy(jobRevenuesPrevMonth, (r) => r.amount);
+    // FREELANCE: não tem confirmação mensal — o valor já é sempre real (totalAgreedValue ÷ horas).
+    const freelanceRevenuesThisMonth = freelanceJobs.map((job) => ({
+      clientLabel: job.client ?? job.company,
+      amount: round2(sumBy(sessionsThisMonthByJob.get(job.id) ?? [], (s) => s.value)),
+    }));
+    const freelanceRevenuesPrevMonth = freelanceJobs.map((job) => ({
+      clientLabel: job.client ?? job.company,
+      amount: round2(sumBy(sessionsPrevMonthByJob.get(job.id) ?? [], (s) => s.value)),
+    }));
 
-    const projectsThisMonth = projects.filter((p) => inRange(p.date, monthStart, monthEnd));
-    const projectsPrevMonth = projects.filter((p) => inRange(p.date, prevMonthStart, prevMonthEnd));
-    const freelanceRevenue = sumBy(projectsThisMonth, (p) => Number(p.amountReceived));
-    const freelanceRevenuePrevMonth = sumBy(projectsPrevMonth, (p) => Number(p.amountReceived));
-    const freelanceHoursThisMonth = sumBy(projectsThisMonth, (p) => Number(p.hoursSpent));
+    const fixedJobsRevenue = sumBy(fixoRevenuesThisMonth, (r) => r.amount);
+    const fixedJobsRevenuePrevMonth = sumBy(fixoRevenuesPrevMonth, (r) => r.amount);
+    const freelanceRevenue = sumBy(freelanceRevenuesThisMonth, (r) => r.amount);
+    const freelanceRevenuePrevMonth = sumBy(freelanceRevenuesPrevMonth, (r) => r.amount);
+
+    const freelanceSessionsThisMonth = sessionsThisMonth.filter((s) => s.jobType === "FREELANCE");
+    const freelanceSessionsPrevMonth = sessionsPrevMonth.filter((s) => s.jobType === "FREELANCE");
+    const freelanceHoursThisMonth = sumBy(freelanceSessionsThisMonth, (s) => s.netSeconds) / 3600;
 
     const incomesThisMonth = incomes.filter((i) => inRange(i.date, monthStart, monthEnd));
     const incomesPrevMonth = incomes.filter((i) => inRange(i.date, prevMonthStart, prevMonthEnd));
@@ -159,7 +201,7 @@ export class TrackingDashboardService {
 
     const breakdown = computeHourlyRateBreakdown({
       fixedJobsRevenue,
-      fixedJobsSeconds: sumBy(sessionsThisMonth, (s) => s.netSeconds),
+      fixedJobsSeconds: sumBy(sessionsThisMonth.filter((s) => s.jobType === "FIXO"), (s) => s.netSeconds),
       freelanceRevenue,
       freelanceHours: freelanceHoursThisMonth,
       otherIncome,
@@ -167,9 +209,9 @@ export class TrackingDashboardService {
 
     const prevBreakdown = computeHourlyRateBreakdown({
       fixedJobsRevenue: fixedJobsRevenuePrevMonth,
-      fixedJobsSeconds: sumBy(sessionsPrevMonth, (s) => s.netSeconds),
+      fixedJobsSeconds: sumBy(sessionsPrevMonth.filter((s) => s.jobType === "FIXO"), (s) => s.netSeconds),
       freelanceRevenue: freelanceRevenuePrevMonth,
-      freelanceHours: sumBy(projectsPrevMonth, (p) => Number(p.hoursSpent)),
+      freelanceHours: sumBy(freelanceSessionsPrevMonth, (s) => s.netSeconds) / 3600,
       otherIncome: otherIncomePrevMonth,
     });
 
@@ -179,9 +221,9 @@ export class TrackingDashboardService {
     const daysWithoutWork = Math.max(0, daysElapsedInMonth - daysWorked);
     const averageDailyHours = daysWorked > 0 ? hoursThisMonth / daysWorked : null;
 
-    const nextPayment = this.computeNextPayment(jobs, now);
+    const nextPayment = this.computeNextPayment(fixoJobs, now);
     const hoursByDay = this.buildHoursByDay(sessions, now);
-    const revenueByClient = this.buildRevenueByClient(jobRevenuesThisMonth, projectsThisMonth);
+    const revenueByClient = this.buildRevenueByClient(fixoRevenuesThisMonth, freelanceRevenuesThisMonth);
 
     const revenueByCategory = (
       [
@@ -200,7 +242,7 @@ export class TrackingDashboardService {
     const forgottenCheckoutsCount = await this.countForgottenCheckouts(userId, now);
     const lastSession = sessions[sessions.length - 1] ?? null;
     const daysSinceLastSession = lastSession ? Math.floor((now.getTime() - lastSession.checkIn.getTime()) / 86_400_000) : null;
-    const isBestMonthEver = this.isBestMonthEver(sessions, projects, incomes, now);
+    const isBestMonthEver = this.isBestMonthEver(sessions, incomes, now);
     const bestProductivityWindow = this.computeBestProductivityWindow(sessions);
 
     const insights = generateInsights({
@@ -239,8 +281,8 @@ export class TrackingDashboardService {
     };
   }
 
-  private computeNextPayment(jobs: { name: string; company: string; paymentDay: number | null; active: boolean }[], now: Date) {
-    const candidates = jobs
+  private computeNextPayment(fixoJobs: { name: string; company: string; paymentDay: number | null; active: boolean }[], now: Date) {
+    const candidates = fixoJobs
       .filter((j) => j.active && j.paymentDay)
       .map((j) => {
         const day = j.paymentDay!;
@@ -271,17 +313,13 @@ export class TrackingDashboardService {
   }
 
   private buildRevenueByClient(
-    jobRevenuesThisMonth: FixedJobRevenueResult[],
-    projectsThisMonth: { client: string | null; name: string; amountReceived: unknown }[],
+    fixoRevenuesThisMonth: FixedJobRevenueResult[],
+    freelanceRevenuesThisMonth: { clientLabel: string; amount: number }[],
   ) {
     const totals = new Map<string, number>();
-    for (const r of jobRevenuesThisMonth) {
+    for (const r of [...fixoRevenuesThisMonth, ...freelanceRevenuesThisMonth]) {
       if (r.amount <= 0) continue;
       totals.set(r.clientLabel, (totals.get(r.clientLabel) ?? 0) + r.amount);
-    }
-    for (const p of projectsThisMonth) {
-      const label = p.client ?? p.name;
-      totals.set(label, (totals.get(label) ?? 0) + Number(p.amountReceived));
     }
     return Array.from(totals.entries())
       .map(([client, amount]) => ({ client, amount: round2(amount) }))
@@ -296,19 +334,13 @@ export class TrackingDashboardService {
     });
   }
 
-  private isBestMonthEver(
-    sessions: EnrichedSession[],
-    projects: { date: Date; amountReceived: unknown }[],
-    incomes: { date: Date; amount: unknown }[],
-    now: Date,
-  ) {
+  private isBestMonthEver(sessions: EnrichedSession[], incomes: { date: Date; amount: unknown }[], now: Date) {
     const totalsByMonth = new Map<string, number>();
     const add = (date: Date, amount: number) => {
       const key = `${date.getFullYear()}-${date.getMonth()}`;
       totalsByMonth.set(key, (totalsByMonth.get(key) ?? 0) + amount);
     };
     for (const s of sessions) add(s.checkIn, s.value);
-    for (const p of projects) add(p.date, Number(p.amountReceived));
     for (const i of incomes) add(i.date, Number(i.amount));
 
     const currentKey = `${now.getFullYear()}-${now.getMonth()}`;

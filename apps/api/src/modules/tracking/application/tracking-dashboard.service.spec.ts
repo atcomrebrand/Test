@@ -5,15 +5,32 @@ import { TrackingJobPaymentRepository } from "../domain/tracking-job-payment.rep
 
 const JOB = {
   id: "job-1",
+  type: "FIXO" as const,
   name: "Contrato Principal",
   company: "Acme Corp",
   client: "Cliente X",
   monthlyValue: "4000" as any,
+  totalAgreedValue: null,
   currency: "BRL" as const,
   expectedHoursPerDay: 8,
   weekdays: [1, 2, 3, 4, 5],
   active: true,
   paymentDay: 5,
+};
+
+const FREELANCE_JOB = {
+  id: "job-freelance-1",
+  type: "FREELANCE" as const,
+  name: "Projeto Y",
+  company: "Cliente Y",
+  client: "Cliente Y",
+  monthlyValue: null,
+  totalAgreedValue: "500" as any,
+  currency: "BRL" as const,
+  expectedHoursPerDay: 8,
+  weekdays: [1, 2, 3, 4, 5],
+  active: true,
+  paymentDay: null,
 };
 
 function makeFx(): TrackingFxService {
@@ -29,20 +46,13 @@ function makeJobPayments(): TrackingJobPaymentRepository {
   } as unknown as TrackingJobPaymentRepository;
 }
 
-function makePrisma(overrides: {
-  jobs?: any[];
-  sessions?: any[];
-  projects?: any[];
-  incomes?: any[];
-  forgottenCount?: number;
-}) {
+function makePrisma(overrides: { jobs?: any[]; sessions?: any[]; incomes?: any[]; forgottenCount?: number }) {
   return {
     trackingJob: { findMany: jest.fn().mockResolvedValue(overrides.jobs ?? [JOB]) },
     trackingSession: {
       findMany: jest.fn().mockResolvedValue(overrides.sessions ?? []),
       count: jest.fn().mockResolvedValue(overrides.forgottenCount ?? 0),
     },
-    trackingProject: { findMany: jest.fn().mockResolvedValue(overrides.projects ?? []) },
     trackingIncome: { findMany: jest.fn().mockResolvedValue(overrides.incomes ?? []) },
   } as unknown as PrismaService;
 }
@@ -84,8 +94,10 @@ describe("TrackingDashboardService.summary", () => {
 
   it("adds freelance and other-income revenue into the total, without adding freelance hours to fixed-job hours incorrectly", async () => {
     const now = new Date();
+    const freelanceSession = { jobId: FREELANCE_JOB.id, checkIn: now, checkOut: new Date(now.getTime() + 5 * 3600 * 1000), pauses: [], job: FREELANCE_JOB };
     const prisma = makePrisma({
-      projects: [{ date: now, client: "Cliente Y", name: "Projeto Y", amountReceived: "500" as any, hoursSpent: "5" as any }],
+      jobs: [FREELANCE_JOB],
+      sessions: [freelanceSession],
       incomes: [{ date: now, amount: "200" as any }],
     });
     const service = new TrackingDashboardService(prisma, makeFx(), makeJobPayments());
@@ -93,6 +105,7 @@ describe("TrackingDashboardService.summary", () => {
     const result = await service.summary("user-1");
 
     expect(result.freelanceRevenue).toBe(500);
+    expect(result.fixedJobsRevenue).toBe(0);
     expect(result.otherIncome).toBe(200);
     expect(result.totalRevenue).toBe(700);
   });

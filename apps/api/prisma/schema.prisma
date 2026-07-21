@@ -156,7 +156,6 @@ model User {
 
   trackingJobs        TrackingJob[]
   trackingSessions    TrackingSession[]
-  trackingProjects    TrackingProject[]
   trackingIncomes     TrackingIncome[]
   trackingAuditLogs   TrackingAuditLog[]
   trackingJobPayments TrackingJobPayment[]
@@ -653,10 +652,9 @@ enum TrackingSessionStatus {
   COMPLETED
 }
 
-enum TrackingProjectStatus {
-  EM_ANDAMENTO
-  CONCLUIDO
-  CANCELADO
+enum TrackingJobType {
+  FIXO
+  FREELANCE
 }
 
 enum TrackingIncomeCategory {
@@ -674,30 +672,39 @@ enum TrackingCurrency {
   USD
 }
 
-/// A "trabalho fixo" (recurring job/contract). `expectedHoursPerDay` + `weekdays` let us estimate
-/// an hourly rate from `monthlyValue` before any session history exists — once sessions pile up,
-/// the real hourly rate comes from actual worked time instead of this estimate.
+/// Unifica trabalho fixo e freela/projeto avulso — ambos cronometrados no Modo Foco pelo mesmo
+/// motor de sessões, só divergindo em como o valor/hora é calculado (ver `type`):
+/// - FIXO: `expectedHoursPerDay` + `weekdays` estimam um valor/hora a partir de `monthlyValue`
+///   antes de existir histórico de sessões (estimateJobHourlyRate).
+/// - FREELANCE: não tem jornada nem salário mensal — só um valor total combinado
+///   (`totalAgreedValue`) pelo projeto inteiro. O valor/hora é sempre `totalAgreedValue` dividido
+///   pelo total de horas cronometradas até agora (computeFreelanceHourlyRate), recalculado a cada
+///   sessão nova — não existe estimativa "antes de cronometrar" como no fixo.
 model TrackingJob {
   id                  String           @id @default(cuid())
   userId              String
   user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                TrackingJobType  @default(FIXO)
   name                String
   company             String
   client              String?
-  monthlyValue        Decimal          @db.Decimal(12, 2)
-  /// Moeda de monthlyValue. Quando USD, o valor é convertido pra BRL em tempo real (cotação do dia)
-  /// em toda estimativa/exibição — a fonte da verdade pro valor realmente recebido em cada mês
-  /// continua sendo a confirmação manual em TrackingJobPayment.
+  /// Obrigatório só quando type = FIXO.
+  monthlyValue        Decimal?         @db.Decimal(12, 2)
+  /// Obrigatório só quando type = FREELANCE — valor total combinado pelo projeto inteiro.
+  totalAgreedValue    Decimal?         @db.Decimal(12, 2)
+  /// Moeda de monthlyValue/totalAgreedValue. Quando USD, o valor é convertido pra BRL em tempo real
+  /// (cotação do dia) em toda estimativa/exibição — a fonte da verdade pro valor realmente
+  /// recebido em cada mês (só p/ FIXO) continua sendo a confirmação manual em TrackingJobPayment.
   currency            TrackingCurrency @default(BRL)
   expectedHoursPerDay Float            @default(8)
   startDate           DateTime
   endDate             DateTime?
   paymentMethod       String?
-  /// Dia do mês em que o pagamento cai (1-31) — usado pra calcular "próximo pagamento" no
-  /// dashboard. Opcional porque nem todo trabalho tem um dia fixo conhecido.
+  /// Dia do mês em que o pagamento cai (1-31) — usado pra calcular "próximo pagamento" e a
+  /// confirmação mensal no dashboard. Só faz sentido pra FIXO (recorrente); freelance fica null.
   paymentDay          Int?
   color               String           @default("#7C3AED")
-  /// 0=domingo..6=sábado
+  /// 0=domingo..6=sábado — só relevante pra FIXO.
   weekdays            Int[]            @default([1, 2, 3, 4, 5])
   notes               String?
   active              Boolean          @default(true)
@@ -789,27 +796,6 @@ model TrackingSessionPause {
 
   @@index([sessionId])
   @@map("tracking_session_pauses")
-}
-
-/// Freela/projeto avulso — hours are entered manually (no live timer), unlike TrackingJob sessions.
-model TrackingProject {
-  id             String                @id @default(cuid())
-  userId         String
-  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name           String
-  client         String?
-  amountReceived Decimal               @db.Decimal(12, 2)
-  date           DateTime
-  hoursSpent     Decimal               @db.Decimal(8, 2)
-  status         TrackingProjectStatus @default(CONCLUIDO)
-  notes          String?
-  deletedAt      DateTime?
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-
-  @@index([userId, date])
-  @@index([userId, deletedAt])
-  @@map("tracking_projects")
 }
 
 /// Outras entradas (dividendos, vendas, cashback, etc.) — counts toward total revenue but not

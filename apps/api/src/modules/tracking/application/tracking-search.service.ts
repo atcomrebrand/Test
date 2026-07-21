@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 
 export interface SearchResult {
-  type: "SESSION" | "PROJECT" | "INCOME";
+  type: "SESSION" | "INCOME";
   id: string;
   label: string;
   sublabel: string;
@@ -12,9 +12,9 @@ export interface SearchResult {
 
 const RESULT_LIMIT = 30;
 
-/** Free-text search across cliente/empresa/projeto/categoria/observações, plus an exact-amount
- *  match when the query parses as a number — spanning sessions (via their trabalho fixo), projetos
- *  extras and outras entradas in one unified result list. */
+/** Free-text search across trabalho (fixo ou freelance)/cliente/empresa/categoria/observações,
+ *  plus an exact-amount match when the query parses as a number — spanning sessions (fixo e
+ *  freelance, via seu trabalho) e outras entradas em uma lista de resultados unificada. */
 @Injectable()
 export class TrackingSearchService {
   constructor(private readonly prisma: PrismaService) {}
@@ -26,32 +26,29 @@ export class TrackingSearchService {
     const amount = Number(q.replace(",", "."));
     const hasAmount = !Number.isNaN(amount) && q.length > 0;
 
-    const [sessions, projects, incomes] = await Promise.all([
+    const [sessions, incomes] = await Promise.all([
       this.prisma.trackingSession.findMany({
         where: {
           userId,
           status: "COMPLETED",
           OR: [
             { notes: { contains: q, mode: "insensitive" } },
-            { job: { is: { OR: [{ company: { contains: q, mode: "insensitive" } }, { client: { contains: q, mode: "insensitive" } }] } } },
+            {
+              job: {
+                is: {
+                  OR: [
+                    { name: { contains: q, mode: "insensitive" } },
+                    { company: { contains: q, mode: "insensitive" } },
+                    { client: { contains: q, mode: "insensitive" } },
+                    ...(hasAmount ? [{ monthlyValue: amount as any }, { totalAgreedValue: amount as any }] : []),
+                  ],
+                },
+              },
+            },
           ],
         },
         include: { job: true },
         orderBy: { checkIn: "desc" },
-        take: RESULT_LIMIT,
-      }),
-      this.prisma.trackingProject.findMany({
-        where: {
-          userId,
-          deletedAt: null,
-          OR: [
-            { name: { contains: q, mode: "insensitive" } },
-            { client: { contains: q, mode: "insensitive" } },
-            { notes: { contains: q, mode: "insensitive" } },
-            ...(hasAmount ? [{ amountReceived: amount as any }] : []),
-          ],
-        },
-        orderBy: { date: "desc" },
         take: RESULT_LIMIT,
       }),
       this.prisma.trackingIncome.findMany({
@@ -75,17 +72,9 @@ export class TrackingSearchService {
         type: "SESSION" as const,
         id: s.id,
         label: `${s.job.name} — ${s.job.company}`,
-        sublabel: s.job.client ?? s.notes ?? "Sessão de trabalho",
+        sublabel: s.job.client ?? s.notes ?? (s.job.type === "FREELANCE" ? "Projeto extra" : "Sessão de trabalho"),
         amount: 0,
         date: s.checkIn,
-      })),
-      ...projects.map((p) => ({
-        type: "PROJECT" as const,
-        id: p.id,
-        label: p.name,
-        sublabel: p.client ?? "Projeto extra",
-        amount: Number(p.amountReceived),
-        date: p.date,
       })),
       ...incomes.map((i) => ({
         type: "INCOME" as const,

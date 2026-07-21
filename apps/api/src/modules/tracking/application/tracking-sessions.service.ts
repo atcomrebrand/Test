@@ -6,6 +6,7 @@ import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
 import { convertToBRL } from "../domain/currency-converter";
 import { TrackingAuditService } from "./tracking-audit.service";
 import { TrackingFxService } from "./tracking-fx.service";
+import { computeFreelanceRates } from "./freelance-rate.helper";
 import { CreateManualSessionDto, ManualEditSessionDto, StartSessionDto } from "./dto/tracking-session.dto";
 
 /** Sessions running longer than this are flagged as "esqueceu de finalizar" candidates — both to
@@ -113,7 +114,9 @@ export class TrackingSessionsService {
   /** Adds the derived numbers (elapsed time, equivalent value) to a raw session row using the same
    *  computeSessionTime formula the frontend's live ticker uses, so client and server never disagree.
    *  When the job is USD-denominated, converts to BRL using today's rate first — everything downstream
-   *  (dashboard, relatórios, o card do Modo Foco) always deals in BRL. */
+   *  (dashboard, relatórios, o card do Modo Foco) always deals in BRL. FIXO uses estimateJobHourlyRate;
+   *  FREELANCE uses computeFreelanceRates (totalAgreedValue ÷ horas cronometradas até agora, incluindo
+   *  esta sessão — se ela ainda não está COMPLETED no banco, soma seu tempo ao vivo pra não ficar de fora). */
   private async present(session: TrackingSessionWithPauses) {
     const time = computeSessionTime({
       checkIn: session.checkIn,
@@ -123,11 +126,19 @@ export class TrackingSessionsService {
 
     const currency = session.job.currency ?? "BRL";
     const usdToBrlRate = currency === "USD" ? await this.fx.getUsdToBrlRate() : null;
-    const monthlyValueBRL = convertToBRL(Number(session.job.monthlyValue), currency, usdToBrlRate);
-    const hourlyRate =
-      monthlyValueBRL !== null
-        ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: session.job.expectedHoursPerDay, weekdays: session.job.weekdays })
-        : 0;
+
+    let hourlyRate: number;
+    if (session.job.type === "FREELANCE") {
+      const extraSeconds = session.status === "COMPLETED" ? new Map<string, number>() : new Map([[session.jobId, time.netSeconds]]);
+      const rates = await computeFreelanceRates(this.sessions, [session.job], usdToBrlRate, extraSeconds);
+      hourlyRate = rates.get(session.jobId) ?? 0;
+    } else {
+      const monthlyValueBRL = convertToBRL(Number(session.job.monthlyValue), currency, usdToBrlRate);
+      hourlyRate =
+        monthlyValueBRL !== null
+          ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: session.job.expectedHoursPerDay, weekdays: session.job.weekdays })
+          : 0;
+    }
 
     const isLongRunning = session.status !== "COMPLETED" && time.grossSeconds >= LONG_SESSION_HOURS * 3600;
 
@@ -153,9 +164,9 @@ export class TrackingSessionsService {
 
   private async getOwnedJob(userId: string, jobId: string) {
     const job = await this.jobs.findById(jobId);
-    if (!job) throw new NotFoundException("Trabalho fixo não encontrado.");
+    if (!job) throw new NotFoundException("Trabalho não encontrado.");
     if (job.userId !== userId) throw new ForbiddenException();
-    if (!job.active) throw new ConflictException("Trabalho fixo está inativo.");
+    if (!job.active) throw new ConflictException("Trabalho está inativo.");
     return job;
   }
 }

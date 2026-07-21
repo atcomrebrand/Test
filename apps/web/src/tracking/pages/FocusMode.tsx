@@ -171,8 +171,8 @@ export default function FocusMode() {
     return (
       <EmptyState
         icon={<Timer className="h-7 w-7" />}
-        title="Nenhum trabalho fixo cadastrado"
-        description="Cadastre um trabalho fixo em 'Trabalhos' antes de iniciar o cronômetro."
+        title="Nenhum trabalho cadastrado"
+        description="Cadastre um trabalho fixo ou freelance em 'Trabalhos' antes de iniciar o cronômetro."
       />
     );
   }
@@ -201,15 +201,25 @@ export default function FocusMode() {
               </p>
             </div>
             <div className="grid grid-cols-2 gap-3 text-sm">
+              {selectedJob.type === "FREELANCE" ? (
+                <div>
+                  <p className="text-xs text-muted">Valor combinado</p>
+                  <p className="font-semibold">{formatCurrency(selectedJob.totalAgreedValue ?? 0, selectedJob.currency)}</p>
+                  {selectedJob.currency === "USD" && selectedJob.totalAgreedValueBRL != null && (
+                    <p className="text-xs text-muted">≈ {formatCurrency(selectedJob.totalAgreedValueBRL)} hoje</p>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <p className="text-xs text-muted">Valor mensal</p>
+                  <p className="font-semibold">{formatCurrency(selectedJob.monthlyValue ?? 0, selectedJob.currency)}</p>
+                  {selectedJob.currency === "USD" && selectedJob.monthlyValueBRL != null && (
+                    <p className="text-xs text-muted">≈ {formatCurrency(selectedJob.monthlyValueBRL)} hoje</p>
+                  )}
+                </div>
+              )}
               <div>
-                <p className="text-xs text-muted">Valor mensal</p>
-                <p className="font-semibold">{formatCurrency(selectedJob.monthlyValue, selectedJob.currency)}</p>
-                {selectedJob.currency === "USD" && selectedJob.monthlyValueBRL != null && (
-                  <p className="text-xs text-muted">≈ {formatCurrency(selectedJob.monthlyValueBRL)} hoje</p>
-                )}
-              </div>
-              <div>
-                <p className="text-xs text-muted">Valor estimado/hora</p>
+                <p className="text-xs text-muted">{selectedJob.type === "FREELANCE" ? "Valor atual/hora" : "Valor estimado/hora"}</p>
                 <p className="font-semibold">{formatCurrency(activeSession?.hourlyRate ?? selectedJob.estimatedHourlyRate ?? 0)}</p>
               </div>
               <div>
@@ -227,7 +237,7 @@ export default function FocusMode() {
 
       {!activeSession && (
         <Select
-          label="Selecione um trabalho fixo"
+          label="Selecione um trabalho"
           value={selectedJobId}
           onChange={(e) => setSelectedJobId(e.target.value)}
           options={[{ value: "", label: "Selecione..." }, ...activeJobs.map((j) => ({ value: j.id, label: `${j.name} — ${j.company}` }))]}

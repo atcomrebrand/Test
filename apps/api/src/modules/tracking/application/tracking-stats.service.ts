@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { computeSessionTime } from "../domain/session-time-calculator";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
+import { computeFreelanceHourlyRate } from "../domain/freelance-hourly-rate";
 import { convertToBRL } from "../domain/currency-converter";
 import { TrackingFxService } from "./tracking-fx.service";
 
@@ -32,9 +33,9 @@ function topEntries(map: Map<string, number>, limit: number) {
 }
 
 /**
- * All-time records/rankings, computed once over the entire session/project/income history — same
- * enrichment approach as the dashboard (computeSessionTime + estimateJobHourlyRate) so a session's
- * value always matches what it shows everywhere else.
+ * All-time records/rankings, computed once over the entire session/income history — same
+ * enrichment approach as the dashboard (computeSessionTime + hourlyRate per job type) so a
+ * session's value always matches what it shows everywhere else.
  */
 @Injectable()
 export class TrackingStatsService {
@@ -44,27 +45,54 @@ export class TrackingStatsService {
   ) {}
 
   async summary(userId: string) {
-    const [rawSessions, projects, incomes] = await Promise.all([
+    const [rawSessions, incomes] = await Promise.all([
       this.prisma.trackingSession.findMany({
         where: { userId, status: "COMPLETED" },
         include: { pauses: true, job: true },
         orderBy: { checkIn: "asc" },
       }),
-      this.prisma.trackingProject.findMany({ where: { userId, deletedAt: null } }),
       this.prisma.trackingIncome.findMany({ where: { userId, deletedAt: null } }),
     ]);
 
     const usdToBrlRate = rawSessions.some((s) => s.job.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
 
+    // All-time query already has every session ever, so a freelance job's cumulative hours can be
+    // summed directly from this same batch — no extra query needed (unlike the range-filtered
+    // reports service, which has to fetch outside its window separately).
+    const freelanceSecondsByJob = new Map<string, number>();
+    for (const s of rawSessions) {
+      if (s.job.type !== "FREELANCE") continue;
+      const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
+      freelanceSecondsByJob.set(s.jobId, (freelanceSecondsByJob.get(s.jobId) ?? 0) + time.netSeconds);
+    }
+    const freelanceRateByJob = new Map<string, number>();
+    for (const s of rawSessions) {
+      if (s.job.type !== "FREELANCE" || s.job.totalAgreedValue === null || freelanceRateByJob.has(s.jobId)) continue;
+      const totalAgreedValueBRL = convertToBRL(Number(s.job.totalAgreedValue), s.job.currency, usdToBrlRate);
+      const rate =
+        totalAgreedValueBRL !== null
+          ? computeFreelanceHourlyRate({ totalAgreedValueBRL, totalNetSeconds: freelanceSecondsByJob.get(s.jobId) ?? 0 })
+          : null;
+      freelanceRateByJob.set(s.jobId, rate ?? 0);
+    }
+
     const sessions = rawSessions.map((s) => {
       const time = computeSessionTime({ checkIn: s.checkIn, checkOut: s.checkOut, pauses: s.pauses });
-      const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
-      const hourlyRate =
-        monthlyValueBRL !== null
-          ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
-          : 0;
+      let hourlyRate: number;
+      if (s.job.type === "FREELANCE") {
+        hourlyRate = freelanceRateByJob.get(s.jobId) ?? 0;
+      } else {
+        const monthlyValueBRL = convertToBRL(Number(s.job.monthlyValue), s.job.currency, usdToBrlRate);
+        hourlyRate =
+          monthlyValueBRL !== null
+            ? estimateJobHourlyRate({ monthlyValue: monthlyValueBRL, expectedHoursPerDay: s.job.expectedHoursPerDay, weekdays: s.job.weekdays })
+            : 0;
+      }
       const value = round2((time.netSeconds / 3600) * hourlyRate);
       return {
+        jobId: s.jobId,
+        jobType: s.job.type,
+        jobName: s.job.name,
         checkIn: s.checkIn,
         checkOut: s.checkOut,
         netSeconds: time.netSeconds,
@@ -76,11 +104,9 @@ export class TrackingStatsService {
 
     const totalHoursAllTime = round2(sessions.reduce((sum, s) => sum + s.netSeconds, 0) / 3600);
     const sessionsRevenue = sessions.reduce((sum, s) => sum + s.value, 0);
-    const projectsRevenue = projects.reduce((sum, p) => sum + Number(p.amountReceived), 0);
     const incomesRevenue = incomes.reduce((sum, i) => sum + Number(i.amount), 0);
-    const totalRevenueAllTime = round2(sessionsRevenue + projectsRevenue + incomesRevenue);
-    const totalHoursForRate = totalHoursAllTime + projects.reduce((sum, p) => sum + Number(p.hoursSpent), 0);
-    const averageHourlyRateAllTime = totalHoursForRate > 0 ? round2(totalRevenueAllTime / totalHoursForRate) : null;
+    const totalRevenueAllTime = round2(sessionsRevenue + incomesRevenue);
+    const averageHourlyRateAllTime = totalHoursAllTime > 0 ? round2(totalRevenueAllTime / totalHoursAllTime) : null;
 
     const revenueByMonth = new Map<string, number>();
     const addToMonth = (date: Date, amount: number) => {
@@ -88,17 +114,21 @@ export class TrackingStatsService {
       revenueByMonth.set(key, (revenueByMonth.get(key) ?? 0) + amount);
     };
     for (const s of sessions) addToMonth(s.checkIn, s.value);
-    for (const p of projects) addToMonth(p.date, Number(p.amountReceived));
     for (const i of incomes) addToMonth(i.date, Number(i.amount));
 
     const monthEntries = Array.from(revenueByMonth.entries()).sort((a, b) => (a[0] < b[0] ? -1 : 1));
     const bestMonth = monthEntries.length > 0 ? monthEntries.reduce((a, b) => (b[1] > a[1] ? b : a)) : null;
     const worstMonth = monthEntries.length > 0 ? monthEntries.reduce((a, b) => (b[1] < a[1] ? b : a)) : null;
 
+    const freelanceJobTotals = new Map<string, { name: string; amount: number }>();
+    for (const s of sessions) {
+      if (s.jobType !== "FREELANCE") continue;
+      const prev = freelanceJobTotals.get(s.jobId);
+      freelanceJobTotals.set(s.jobId, { name: s.jobName, amount: (prev?.amount ?? 0) + s.value });
+    }
+    const freelanceJobEntries = Array.from(freelanceJobTotals.values());
     const biggestProject =
-      projects.length > 0
-        ? projects.reduce((a, b) => (Number(b.amountReceived) > Number(a.amountReceived) ? b : a))
-        : null;
+      freelanceJobEntries.length > 0 ? freelanceJobEntries.reduce((a, b) => (b.amount > a.amount ? b : a)) : null;
     const biggestOtherIncome = incomes.length > 0 ? incomes.reduce((a, b) => (Number(b.amount) > Number(a.amount) ? b : a)) : null;
 
     const workedDayKeys = new Set(sessions.map((s) => dayKey(s.checkIn)));
@@ -108,10 +138,7 @@ export class TrackingStatsService {
 
     const clientRanking = topEntries(this.groupSum(sessions, (s) => s.clientLabel, (s) => s.value), 5);
     const companyRanking = topEntries(this.groupSum(sessions, (s) => s.company, (s) => s.value), 5);
-    const projectRanking = topEntries(
-      new Map(projects.map((p) => [p.name, Number(p.amountReceived)] as const)),
-      5,
-    );
+    const projectRanking = topEntries(new Map(freelanceJobEntries.map((p) => [p.name, p.amount] as const)), 5);
 
     const averageStartHour = this.averageHour(sessions.map((s) => s.checkIn));
     const averageEndHour = this.averageHour(sessions.filter((s) => s.checkOut).map((s) => s.checkOut!));
@@ -125,7 +152,7 @@ export class TrackingStatsService {
       averageHourlyRateAllTime,
       bestMonth: bestMonth ? { month: bestMonth[0], amount: round2(bestMonth[1]) } : null,
       worstMonth: worstMonth ? { month: worstMonth[0], amount: round2(worstMonth[1]) } : null,
-      biggestProject: biggestProject ? { name: biggestProject.name, amount: Number(biggestProject.amountReceived) } : null,
+      biggestProject: biggestProject ? { name: biggestProject.name, amount: round2(biggestProject.amount) } : null,
       biggestOtherIncome: biggestOtherIncome ? { name: biggestOtherIncome.name, amount: Number(biggestOtherIncome.amount) } : null,
       checkInsCount,
       averageDailyHours,

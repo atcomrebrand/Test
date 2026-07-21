@@ -23,10 +23,12 @@ export class TrackingJobPrismaRepository extends TrackingJobRepository {
     return this.prisma.trackingJob.create({
       data: {
         userId: data.userId,
+        type: data.type ?? "FIXO",
         name: data.name,
         company: data.company,
         client: data.client,
         monthlyValue: data.monthlyValue,
+        totalAgreedValue: data.totalAgreedValue,
         currency: data.currency ?? "BRL",
         expectedHoursPerDay: data.expectedHoursPerDay ?? 8,
         startDate: data.startDate,
