@@ -36,7 +36,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen flex-col bg-[rgb(var(--bg))]">
-      <header className="flex items-center justify-between border-b border-[rgb(var(--border))] px-4 py-4 md:px-8">
+      <header className="flex items-center justify-between border-b border-[rgb(var(--border))] px-4 pb-4 pt-[calc(1rem_+_env(safe-area-inset-top))] md:px-8">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-500 text-white">
             <Wrench className="h-5 w-5" />

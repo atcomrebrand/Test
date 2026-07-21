@@ -11,7 +11,7 @@ export function Layout() {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar />
-        <main className="flex-1 px-4 pb-24 pt-5 md:px-6 md:pb-8">
+        <main className="flex-1 px-4 pb-[calc(6rem_+_env(safe-area-inset-bottom))] pt-5 md:px-6 md:pb-8">
           <Outlet />
         </main>
       </div>

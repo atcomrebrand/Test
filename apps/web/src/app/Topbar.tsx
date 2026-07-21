@@ -23,7 +23,7 @@ export function Topbar() {
   const unreadCount = notifications?.filter((n) => !n.read).length ?? 0;
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-3 border-b border-[rgb(var(--border))] surface/80 px-4 backdrop-blur md:px-6">
+    <header className="sticky top-0 z-30 flex min-h-16 items-center justify-between gap-3 border-b border-[rgb(var(--border))] surface/80 px-4 pt-[env(safe-area-inset-top)] backdrop-blur md:px-6">
       <Link
         to="/"
         className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-muted transition-colors hover:surface-2 md:hidden"

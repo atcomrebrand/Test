@@ -18,7 +18,7 @@ const INVESTMENT_NAV = [
 export function InvestmentsLayout() {
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="surface sticky top-0 z-20 border-b border-[rgb(var(--border))]">
+      <header className="surface sticky top-0 z-20 border-b border-[rgb(var(--border))] pt-[env(safe-area-inset-top)]">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
           <div className="flex items-center gap-3">
             <NavLink
@@ -58,7 +58,7 @@ export function InvestmentsLayout() {
         </div>
       </header>
 
-      <main className="flex-1 px-4 pb-24 pt-5 md:px-6 md:pb-10">
+      <main className="flex-1 px-4 pb-[calc(6rem_+_env(safe-area-inset-bottom))] pt-5 md:px-6 md:pb-10">
         <Outlet />
       </main>
 

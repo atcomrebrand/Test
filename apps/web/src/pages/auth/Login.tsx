@@ -42,7 +42,7 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[rgb(var(--bg))] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[rgb(var(--bg))] px-4 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)]">
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
