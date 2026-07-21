@@ -12,6 +12,7 @@ import { QuoteDetailCard } from "../components/QuoteDetailCard";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
 import { StakingConfigModal } from "../components/StakingConfigModal";
+import { YieldingIndicator } from "../components/YieldingIndicator";
 import { ChartRange } from "../types";
 
 export default function AssetDetail() {
@@ -51,6 +52,7 @@ export default function AssetDetail() {
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">{asset.ticker}</h1>
             <Badge tone="neutral">{asset.class}</Badge>
+            {asset.class === "CRYPTO" && asset.staking && <YieldingIndicator label="Rendendo" />}
             <button
               onClick={() => toggleFavorite.mutate({ id: asset.id, favorite: !asset.favorite })}
               className={cn(
@@ -104,7 +106,10 @@ export default function AssetDetail() {
       {asset.class === "CRYPTO" && (
         <Card>
           <CardHeader>
-            <CardTitle>Staking</CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle>Staking</CardTitle>
+              {asset.staking && <YieldingIndicator />}
+            </div>
             <Button variant="ghost" size="sm" onClick={() => setStakingOpen(true)}>
               <Pencil className="h-4 w-4" />
               {asset.stakingApyPercent ? "Editar" : "Configurar"}
@@ -114,10 +119,15 @@ export default function AssetDetail() {
             {asset.staking ? (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-muted">
-                  Taxa configurada: <span className="font-semibold text-[rgb(var(--text))]">{asset.staking.apyPercent}% a.a.</span> — cada
-                  corretora paga uma taxa diferente, então ajuste aqui pra bater com a sua.
+                  Taxa configurada: <span className="font-semibold text-[rgb(var(--text))]">{asset.staking.apyPercent}% a.a.</span> sobre{" "}
+                  <span className="font-semibold text-[rgb(var(--text))]">{asset.staking.stakingPercent}%</span> da posição — cada
+                  corretora paga uma taxa diferente e nem sempre a carteira toda está staked, então ajuste aqui pra bater com a sua.
                 </p>
-                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <div className="rounded-xl surface-2 p-3">
+                    <p className="text-xs text-muted">Valor staked</p>
+                    <p className="font-semibold">{formatCurrency(asset.staking.stakedAmount)}</p>
+                  </div>
                   <div className="rounded-xl surface-2 p-3">
                     <p className="text-xs text-muted">Desde</p>
                     <p className="font-semibold">{formatDate(asset.staking.sinceDate)}</p>

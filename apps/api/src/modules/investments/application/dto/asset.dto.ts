@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsBoolean, IsDateString, IsIn, IsNumber, IsOptional, IsPositive, IsString, Min, MinLength } from "class-validator";
+import { IsBoolean, IsDateString, IsIn, IsNumber, IsOptional, IsPositive, IsString, Max, Min, MinLength } from "class-validator";
 
 const ASSET_CLASSES = ["STOCK", "FII", "CRYPTO"] as const;
 const TRANSACTION_TYPES = ["BUY", "SELL"] as const;
@@ -34,14 +34,6 @@ export class CreateAssetDto {
   @IsOptional()
   @IsString()
   notes?: string;
-
-  /** Staking APY (% a.a.) — configurable because it varies per exchange, mainly relevant for
-   *  stablecoins (USDT, USDC, BUSD...) but usable for any crypto that offers staking. */
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  stakingApyPercent?: number;
 }
 
 export class UpdateAssetDto {
@@ -50,7 +42,13 @@ export class UpdateAssetDto {
   @IsOptional() @IsString() wallet?: string;
   @IsOptional() @IsString() network?: string;
   @IsOptional() @IsString() notes?: string;
+  /** Staking APY (% a.a.) — configurable because it varies per exchange, mainly relevant for
+   *  stablecoins (USDT, USDC, BUSD...) but usable for any crypto that offers staking. Only ever
+   *  set via the dedicated "Staking" button (never asked at creation), since it's not something
+   *  most people know off-hand when first registering an asset. */
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) stakingApyPercent?: number;
+  /** % of the position actually staked (0-100) — set alongside stakingApyPercent. */
+  @IsOptional() @Type(() => Number) @IsNumber() @Min(0) @Max(100) stakingPercent?: number;
   @IsOptional() @IsBoolean() favorite?: boolean;
 }
 

@@ -455,6 +455,10 @@ model InvestmentAsset {
   /// diferente pra staking de stablecoins e outras criptos, então não há uma taxa "de mercado"
   /// única pra buscar automaticamente.
   stakingApyPercent Decimal?             @db.Decimal(7, 4)
+  /// What % of the position's invested amount is actually staked (0-100) — most people don't
+  /// stake their entire holding. Null/unset is treated as 100% for anyone who configured staking
+  /// before this field existed, so their existing estimate doesn't silently change.
+  stakingPercent    Decimal?             @db.Decimal(5, 2)
   favorite          Boolean              @default(false)
   notes             String?
   deletedAt         DateTime?

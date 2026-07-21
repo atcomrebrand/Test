@@ -56,3 +56,40 @@ describe("AssetsService — dividend sync reaches the portfolio list and dashboa
     expect(result.incomeHistory).not.toEqual(preSync);
   });
 });
+
+describe("AssetsService — crypto staking estimate only counts the staked % of the position", () => {
+  const transactions = [
+    { type: "BUY", quantity: "10" as any, unitPrice: "100" as any, fees: "0" as any, transactionDate: new Date("2026-01-01") },
+  ];
+
+  it("bases the estimated yield on investedAmount * stakingPercent/100, not the whole holding", async () => {
+    const asset = { id: "a1", userId: "user-1", class: "CRYPTO", ticker: "ETH", stakingApyPercent: "10" as any, stakingPercent: "50" as any };
+    const assets = makeAssetRepo({
+      findById: jest.fn().mockResolvedValue(asset),
+      findByIdWithTransactions: jest.fn().mockResolvedValue({ ...asset, transactions, incomes: [] }),
+      listTransactions: jest.fn().mockResolvedValue(transactions),
+    });
+    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset: jest.fn().mockResolvedValue(0) } as unknown as DividendAutoSyncService);
+
+    const result = await service.findOne("user-1", "a1");
+
+    // investedAmount = 10 * 100 = 1000; only 50% of that is assumed staked.
+    expect(result.staking?.stakingPercent).toBe(50);
+    expect(result.staking?.stakedAmount).toBe(500);
+  });
+
+  it("defaults stakingPercent to 100 when unset, so configs made before this field existed keep their estimate", async () => {
+    const asset = { id: "a1", userId: "user-1", class: "CRYPTO", ticker: "ETH", stakingApyPercent: "10" as any, stakingPercent: null };
+    const assets = makeAssetRepo({
+      findById: jest.fn().mockResolvedValue(asset),
+      findByIdWithTransactions: jest.fn().mockResolvedValue({ ...asset, transactions, incomes: [] }),
+      listTransactions: jest.fn().mockResolvedValue(transactions),
+    });
+    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset: jest.fn().mockResolvedValue(0) } as unknown as DividendAutoSyncService);
+
+    const result = await service.findOne("user-1", "a1");
+
+    expect(result.staking?.stakingPercent).toBe(100);
+    expect(result.staking?.stakedAmount).toBe(1000);
+  });
+});

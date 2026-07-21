@@ -15,6 +15,7 @@ import { AssetFormModal } from "../components/AssetFormModal";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
 import { StakingConfigModal } from "../components/StakingConfigModal";
+import { YieldingIndicator } from "../components/YieldingIndicator";
 
 const TAB_OPTIONS = [
   { value: "STOCK", label: "Ações" },
@@ -89,7 +90,10 @@ export default function Portfolio() {
             <CardContent className="flex flex-col gap-4">
               <div className="flex items-start justify-between">
                 <Link to={`/investimentos/carteira/${asset.id}`} className="group">
-                  <p className="font-semibold group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{asset.ticker}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{asset.ticker}</p>
+                    {tab === "CRYPTO" && asset.staking && <YieldingIndicator />}
+                  </div>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     {asset.broker && <Badge tone="neutral">{asset.broker}</Badge>}
                     {asset.wallet && <Badge tone="neutral">{asset.wallet}</Badge>}
@@ -156,7 +160,9 @@ export default function Portfolio() {
 
               {tab === "CRYPTO" && asset.staking && (
                 <div className="rounded-xl bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
-                  <p className="font-semibold">Staking a {asset.staking.apyPercent}% a.a.</p>
+                  <p className="font-semibold">
+                    {asset.staking.stakingPercent}% da posição em staking a {asset.staking.apyPercent}% a.a.
+                  </p>
                   <p>
                     Estimativa acumulada: {formatCurrency(asset.staking.estimatedYield)} ({asset.staking.daysHeld} dias)
                   </p>

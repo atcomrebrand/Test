@@ -9,6 +9,7 @@ import { formatCurrency, formatDate } from "@/lib/format";
 import { useDeleteFixedIncome, useFixedIncomes, useRedeemFixedIncome } from "../api";
 import { FixedIncomeFormModal } from "../components/FixedIncomeFormModal";
 import { AddInterestModal } from "../components/AddInterestModal";
+import { YieldingIndicator } from "../components/YieldingIndicator";
 
 const INDEXER_LABEL: Record<string, string> = {
   PREFIXADO: "Prefixado",
@@ -67,7 +68,10 @@ export default function FixedIncomePage() {
               <CardContent className="flex flex-col gap-4">
                 <div className="flex items-start justify-between">
                   <div>
-                    <p className="font-semibold">{f.institution}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold">{f.institution}</p>
+                      {!f.redeemedAt && <YieldingIndicator />}
+                    </div>
                     <div className="mt-1 flex items-center gap-2">
                       <Badge tone="accent">{f.type}</Badge>
                       <Badge tone="neutral">{INDEXER_LABEL[f.indexer]}</Badge>

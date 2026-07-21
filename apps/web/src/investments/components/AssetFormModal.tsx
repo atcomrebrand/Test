@@ -30,7 +30,6 @@ export function AssetFormModal({ open, onClose, assetClass, prefill }: Props) {
   const [broker, setBroker] = useState("");
   const [wallet, setWallet] = useState("");
   const [network, setNetwork] = useState("");
-  const [stakingApy, setStakingApy] = useState("");
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedSearch(search), 300);
@@ -62,7 +61,6 @@ export function AssetFormModal({ open, onClose, assetClass, prefill }: Props) {
     setBroker("");
     setWallet("");
     setNetwork("");
-    setStakingApy("");
     setSelected(false);
   }
 
@@ -83,7 +81,6 @@ export function AssetFormModal({ open, onClose, assetClass, prefill }: Props) {
         broker: broker || undefined,
         wallet: wallet || undefined,
         network: network || undefined,
-        stakingApyPercent: stakingApy ? Number(stakingApy) : undefined,
       },
       {
         onSuccess: () => {
@@ -164,16 +161,6 @@ export function AssetFormModal({ open, onClose, assetClass, prefill }: Props) {
           <>
             <Input label="Carteira" value={wallet} onChange={(e) => setWallet(e.target.value)} placeholder="Ex: cold wallet, corretora" />
             <Input label="Rede" value={network} onChange={(e) => setNetwork(e.target.value)} placeholder="Ex: Bitcoin, ERC-20" />
-            <Input
-              label="APY de staking (% a.a.) — opcional"
-              type="number"
-              step="0.01"
-              min="0"
-              placeholder="Ex: 8.5"
-              value={stakingApy}
-              onChange={(e) => setStakingApy(e.target.value)}
-              hint="Cada corretora paga uma taxa diferente — deixe em branco se não for fazer staking."
-            />
           </>
         )}
 

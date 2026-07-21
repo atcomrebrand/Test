@@ -13,16 +13,26 @@ interface Props {
 export function StakingConfigModal({ asset, onClose }: Props) {
   const updateAsset = useUpdateAsset();
   const [apy, setApy] = useState("");
+  const [percent, setPercent] = useState("");
 
   useEffect(() => {
-    if (asset) setApy(asset.stakingApyPercent ?? "");
+    if (asset) {
+      setApy(asset.stakingApyPercent ?? "");
+      setPercent(asset.stakingPercent ?? "100");
+    }
   }, [asset]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!asset) return;
     updateAsset.mutate(
-      { id: asset.id, data: { stakingApyPercent: apy === "" ? null : Number(apy) } },
+      {
+        id: asset.id,
+        data: {
+          stakingApyPercent: apy === "" ? null : Number(apy),
+          stakingPercent: apy === "" ? null : Number(percent || 100),
+        },
+      },
       { onSuccess: onClose },
     );
   }
@@ -44,6 +54,17 @@ export function StakingConfigModal({ asset, onClose }: Props) {
           value={apy}
           onChange={(e) => setApy(e.target.value)}
           autoFocus
+        />
+        <Input
+          label="Quanto da posição está em staking (%)"
+          type="number"
+          step="1"
+          min="0"
+          max="100"
+          placeholder="Ex: 100"
+          value={percent}
+          onChange={(e) => setPercent(e.target.value)}
+          hint="Nem sempre é a carteira toda — informe o % que realmente está staked na corretora."
         />
         <div className="mt-2 flex justify-end gap-2">
           <Button type="button" variant="secondary" onClick={onClose}>

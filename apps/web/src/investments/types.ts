@@ -11,6 +11,11 @@ export interface CatalogEntry {
 
 export interface StakingEstimate {
   apyPercent: number;
+  /** % of the position assumed staked (0-100) — defaults to 100 for configs made before this
+   *  field existed. */
+  stakingPercent: number;
+  /** investedAmount * stakingPercent/100 — the actual base the yield estimate is computed on. */
+  stakedAmount: number;
   sinceDate: string;
   daysHeld: number;
   estimatedYield: number;
@@ -54,6 +59,7 @@ export interface InvestmentAsset {
   notes: string | null;
   createdAt: string;
   stakingApyPercent: string | null;
+  stakingPercent: string | null;
   favorite: boolean;
   position: Position;
   currentPrice: number | null;

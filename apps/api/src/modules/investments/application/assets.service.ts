@@ -71,7 +71,6 @@ export class AssetsService {
       wallet: dto.wallet,
       network: dto.network,
       notes: dto.notes,
-      stakingApyPercent: dto.stakingApyPercent,
     });
   }
 
@@ -224,7 +223,9 @@ export class AssetsService {
 
   /** Estimated (not realized) staking yield since the asset's first buy, at the user-configured
    *  APY — informational only, never mixed into profit/dashboard totals. Real payouts should be
-   *  logged as a STAKING income entry, which does count toward totals like any other income. */
+   *  logged as a STAKING income entry, which does count toward totals like any other income.
+   *  Only stakingPercent of the position is assumed staked (defaults to 100% for configs made
+   *  before that field existed), since most people don't stake their entire holding. */
   private estimateStaking(asset: InvestmentAsset, position: ReturnType<typeof calculatePosition>, transactions: InvestmentTransaction[]) {
     if (!asset.stakingApyPercent || position.quantity <= 0) return null;
 
@@ -232,14 +233,17 @@ export class AssetsService {
     if (buyDates.length === 0) return null;
     const sinceDate = new Date(Math.min(...buyDates));
 
+    const stakingPercent = asset.stakingPercent !== null && asset.stakingPercent !== undefined ? Number(asset.stakingPercent) : 100;
+    const stakedAmount = position.investedAmount * (stakingPercent / 100);
+
     const result = calculateStakingYield({
-      investedAmount: position.investedAmount,
+      investedAmount: stakedAmount,
       apyPercent: Number(asset.stakingApyPercent),
       sinceDate,
       asOfDate: new Date(),
     });
 
-    return { apyPercent: Number(asset.stakingApyPercent), sinceDate, ...result };
+    return { apyPercent: Number(asset.stakingApyPercent), stakingPercent, stakedAmount, sinceDate, ...result };
   }
 
   private async getOwned(userId: string, id: string) {
