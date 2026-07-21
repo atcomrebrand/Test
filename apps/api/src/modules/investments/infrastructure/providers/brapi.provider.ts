@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { baseTickerFor } from "../../domain/fractional-ticker";
 import {
   AssetFundamentals,
   CatalogEntry,
@@ -19,16 +20,8 @@ interface BrapiHistoricalPoint {
   adjustedClose?: number;
 }
 
-/** B3 appends "F" to a ticker to mark the fractional-lot market segment (e.g. BBSE3F trades the
- *  same underlying stock as BBSE3, just in odd lots, at its own price — usually close to but not
- *  identical to the round-lot price). BRAPI's quote endpoint only prices the round-lot ticker, so
- *  a fractional ticker is priced via its base ticker as a best-effort fallback, always flagged
- *  `approximate: true` rather than presented as an exact fractional-market quote. */
-const FRACTIONAL_TICKER_PATTERN = /^([A-Z]{4}\d{1,2})F$/;
-
-function baseTickerFor(ticker: string): string | null {
-  return ticker.toUpperCase().match(FRACTIONAL_TICKER_PATTERN)?.[1] ?? null;
-}
+/** Fractional-lot tickers (e.g. BBSE3F) are priced/reported via their round-lot base ticker as a
+ *  best-effort fallback — see fractional-ticker.ts for why. */
 
 /** Maps a ChartRange to BRAPI's `range`/`interval` query params. CUSTOM requests the nearest
  *  enclosing bucket for the requested span (BRAPI has no arbitrary-range param) — the caller

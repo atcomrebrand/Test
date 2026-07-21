@@ -29,6 +29,7 @@ import { ArticlePreviewService } from "./infrastructure/article-preview.service"
 import { NewsService } from "./application/news.service";
 import { NewsController } from "./interface/news.controller";
 import { DividendsCacheService } from "./infrastructure/dividends-cache.service";
+import { YahooDividendsProvider } from "./infrastructure/providers/yahoo-dividends.provider";
 import { DividendsService } from "./application/dividends.service";
 import { DividendsController } from "./interface/dividends.controller";
 import { DividendAutoSyncService } from "./application/dividend-auto-sync.service";
@@ -63,6 +64,7 @@ import { InvestmentsResetController } from "./interface/investments-reset.contro
     ArticlePreviewService,
     NewsService,
     DividendsCacheService,
+    YahooDividendsProvider,
     DividendsService,
     DividendAutoSyncService,
     B3ImportService,
