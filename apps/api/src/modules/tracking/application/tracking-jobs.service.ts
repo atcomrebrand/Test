@@ -32,6 +32,7 @@ export class TrackingJobsService {
       startDate: new Date(dto.startDate),
       endDate: dto.endDate ? new Date(dto.endDate) : undefined,
       paymentMethod: dto.paymentMethod,
+      paymentDay: dto.paymentDay,
       color: dto.color,
       weekdays: dto.weekdays,
       notes: dto.notes,

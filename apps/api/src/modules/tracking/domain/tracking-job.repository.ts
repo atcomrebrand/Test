@@ -10,6 +10,7 @@ export interface CreateTrackingJobData {
   startDate: Date;
   endDate?: Date;
   paymentMethod?: string;
+  paymentDay?: number;
   color?: string;
   weekdays?: number[];
   notes?: string;

@@ -682,6 +682,9 @@ model TrackingJob {
   startDate           DateTime
   endDate             DateTime?
   paymentMethod       String?
+  /// Dia do mês em que o pagamento cai (1-31) — usado pra calcular "próximo pagamento" no
+  /// dashboard. Opcional porque nem todo trabalho tem um dia fixo conhecido.
+  paymentDay          Int?
   color               String    @default("#7C3AED")
   /// 0=domingo..6=sábado
   weekdays            Int[]     @default([1, 2, 3, 4, 5])

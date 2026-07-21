@@ -31,6 +31,7 @@ export class TrackingJobPrismaRepository extends TrackingJobRepository {
         startDate: data.startDate,
         endDate: data.endDate,
         paymentMethod: data.paymentMethod,
+        paymentDay: data.paymentDay,
         color: data.color ?? "#7C3AED",
         weekdays: data.weekdays ?? [1, 2, 3, 4, 5],
         notes: data.notes,

@@ -34,6 +34,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
   const [startDate, setStartDate] = useState(todayISO());
   const [endDate, setEndDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentDay, setPaymentDay] = useState("");
   const [color, setColor] = useState("#7C3AED");
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
   const [notes, setNotes] = useState("");
@@ -49,6 +50,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setStartDate(toDateInput(job.startDate));
       setEndDate(toDateInput(job.endDate));
       setPaymentMethod(job.paymentMethod ?? "");
+      setPaymentDay(job.paymentDay ? String(job.paymentDay) : "");
       setColor(job.color);
       setWeekdays(job.weekdays);
       setNotes(job.notes ?? "");
@@ -61,6 +63,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setStartDate(todayISO());
       setEndDate("");
       setPaymentMethod("");
+      setPaymentDay("");
       setColor("#7C3AED");
       setWeekdays([1, 2, 3, 4, 5]);
       setNotes("");
@@ -82,6 +85,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       startDate: new Date(startDate + "T12:00:00").toISOString(),
       endDate: endDate ? new Date(endDate + "T12:00:00").toISOString() : undefined,
       paymentMethod: paymentMethod || undefined,
+      paymentDay: paymentDay ? Number(paymentDay) : undefined,
       color,
       weekdays,
       notes: notes || undefined,
@@ -108,6 +112,17 @@ export function JobFormModal({ open, onClose, job }: Props) {
           <Input label="Cliente (opcional)" value={client} onChange={(e) => setClient(e.target.value)} />
           <Input label="Forma de pagamento (opcional)" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value)} placeholder="Ex: PIX, transferência..." />
         </div>
+
+        <Input
+          label="Dia do pagamento (opcional)"
+          type="number"
+          min="1"
+          max="31"
+          value={paymentDay}
+          onChange={(e) => setPaymentDay(e.target.value)}
+          placeholder="Ex: 5"
+          hint="Usado para calcular o 'próximo pagamento' no dashboard."
+        />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input

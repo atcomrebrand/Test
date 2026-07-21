@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
-import { TrackingJob, TrackingSession } from "./types";
+import { TrackingDashboardSummary, TrackingIncome, TrackingJob, TrackingProject, TrackingSession } from "./types";
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["tracking"] });
@@ -122,6 +122,111 @@ export function useUpdateSessionManual() {
     onSuccess: () => {
       invalidateAll(qc);
       toast.success("Sessão atualizada!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+
+export function useTrackingDashboard() {
+  return useQuery({
+    queryKey: ["tracking", "dashboard"],
+    queryFn: () => api.get<TrackingDashboardSummary>("/tracking/dashboard"),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Projetos Extras
+// ---------------------------------------------------------------------------
+
+export function useTrackingProjects() {
+  return useQuery({
+    queryKey: ["tracking", "projects"],
+    queryFn: () => api.get<TrackingProject[]>("/tracking/projects"),
+  });
+}
+
+export function useCreateTrackingProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => api.post<TrackingProject>("/tracking/projects", data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Projeto cadastrado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateTrackingProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.patch<TrackingProject>(`/tracking/projects/${id}`, data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Projeto atualizado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteTrackingProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/tracking/projects/${id}`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Projeto removido.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Outras Entradas
+// ---------------------------------------------------------------------------
+
+export function useTrackingIncomes() {
+  return useQuery({
+    queryKey: ["tracking", "incomes"],
+    queryFn: () => api.get<TrackingIncome[]>("/tracking/incomes"),
+  });
+}
+
+export function useCreateTrackingIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => api.post<TrackingIncome>("/tracking/incomes", data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Entrada cadastrada!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateTrackingIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.patch<TrackingIncome>(`/tracking/incomes/${id}`, data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Entrada atualizada!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteTrackingIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/tracking/incomes/${id}`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Entrada removida.");
     },
     onError: (e: Error) => toast.error(e.message),
   });

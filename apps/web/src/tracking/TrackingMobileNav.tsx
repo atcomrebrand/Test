@@ -1,16 +1,20 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { MoreHorizontal, Timer, Briefcase } from "lucide-react";
+import { MoreHorizontal, Timer, LayoutDashboard, Briefcase, FolderKanban, Wallet } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Modal } from "@/components/ui/Modal";
 
 const PRIMARY_ITEMS = [
   { to: "/horas", label: "Modo Foco", icon: Timer, end: true },
+  { to: "/horas/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/horas/trabalhos", label: "Trabalhos", icon: Briefcase },
 ];
 
-/** Grows as later phases add Projetos/Entradas/Calendário/Relatórios/Estatísticas/Histórico. */
-const MORE_ITEMS: { to: string; label: string; icon: typeof Timer }[] = [];
+/** Grows as later phases add Calendário/Relatórios/Estatísticas/Histórico. */
+const MORE_ITEMS: { to: string; label: string; icon: typeof Timer }[] = [
+  { to: "/horas/projetos", label: "Projetos", icon: FolderKanban },
+  { to: "/horas/entradas", label: "Entradas", icon: Wallet },
+];
 
 /** Same primary-items + "Mais" pattern as InvestmentsMobileNav, so Horas feels like part of the
  *  same product on mobile — the "Mais" button only renders once there's something to put in it. */

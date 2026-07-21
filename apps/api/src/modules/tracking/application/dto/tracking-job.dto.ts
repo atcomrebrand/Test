@@ -37,6 +37,13 @@ export class CreateTrackingJobDto {
   paymentMethod?: string;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(31)
+  paymentDay?: number;
+
+  @IsOptional()
   @IsString()
   color?: string;
 
@@ -62,6 +69,7 @@ export class UpdateTrackingJobDto {
   @IsOptional() @IsDateString() startDate?: string;
   @IsOptional() @IsDateString() endDate?: string;
   @IsOptional() @IsString() paymentMethod?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(31) paymentDay?: number;
   @IsOptional() @IsString() color?: string;
 
   @IsOptional()
