@@ -12,8 +12,8 @@ import { useAuthStore } from "@/store/auth";
 
 export default function Login() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const [email, setEmail] = useState("mauroo.galvaoo@gmail.com");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [faceIdAvailable, setFaceIdAvailable] = useState(false);
   const login = useLogin();
   const loginWithFaceId = useLoginWithFaceId();
@@ -65,9 +65,6 @@ export default function Login() {
           <Button type="submit" loading={login.isPending} className="mt-2 w-full">
             Entrar
           </Button>
-          <p className="text-center text-xs text-muted">
-            Conta demo já preenchida — é só clicar em Entrar.
-          </p>
         </form>
 
         {faceIdAvailable && (
