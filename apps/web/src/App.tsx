@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./app/Layout";
 import { ProtectedRoute } from "./app/ProtectedRoute";
 import Login from "./pages/auth/Login";
@@ -23,7 +23,6 @@ import Explore from "./investments/pages/Explore";
 import MarketAssetDetail from "./investments/pages/MarketAssetDetail";
 import Portfolio from "./investments/pages/Portfolio";
 import AssetDetail from "./investments/pages/AssetDetail";
-import FixedIncomePage from "./investments/pages/FixedIncomePage";
 import History from "./investments/pages/History";
 import News from "./investments/pages/News";
 import Dividends from "./investments/pages/Dividends";
@@ -60,7 +59,7 @@ export default function App() {
           <Route path="/investimentos/explorar/:class/:ticker" element={<MarketAssetDetail />} />
           <Route path="/investimentos/carteira" element={<Portfolio />} />
           <Route path="/investimentos/carteira/:id" element={<AssetDetail />} />
-          <Route path="/investimentos/renda-fixa" element={<FixedIncomePage />} />
+          <Route path="/investimentos/renda-fixa" element={<Navigate to="/investimentos/carteira" replace />} />
           <Route path="/investimentos/historico" element={<History />} />
           <Route path="/investimentos/noticias" element={<News />} />
           <Route path="/investimentos/proventos" element={<Dividends />} />

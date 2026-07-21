@@ -108,10 +108,11 @@ export function useRefreshMarketQuoteDetail(assetClass: string, ticker: string |
   });
 }
 
-export function useAssets(assetClass?: string) {
+export function useAssets(assetClass?: string, enabled = true) {
   return useQuery({
     queryKey: ["investments", "assets", assetClass ?? "all"],
     queryFn: () => api.get<InvestmentAsset[]>("/investments/assets", { params: assetClass ? { class: assetClass } : undefined }),
+    enabled,
   });
 }
 
