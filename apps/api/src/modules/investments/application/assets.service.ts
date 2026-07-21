@@ -37,14 +37,14 @@ export class AssetsService {
 
   async findOne(userId: string, id: string) {
     const asset = await this.getOwned(userId, id);
-    // Catches up dividends for assets added before automatic sync existed, or whenever BRAPI's
-    // history grew since the last visit — no explicit "sync" action needed, opening the asset is
-    // enough. Runs before re-reading transactions/incomes so the response reflects it immediately.
-    await this.dividendSync.syncAsset(userId, id);
     const full = await this.assets.findByIdWithTransactions(id);
     if (!full) throw new NotFoundException("Ativo não encontrado.");
     const enriched = await this.enrich(asset, full.transactions);
-    return { ...enriched, transactions: full.transactions, incomeHistory: full.incomes };
+    // enrich() just ran the dividend sync (see below) — re-reads incomes instead of reusing
+    // full.incomes (captured before that sync) so a newly-recorded payment shows up immediately
+    // instead of only on the next request.
+    const incomeHistory = await this.assets.listIncomes(id);
+    return { ...enriched, transactions: full.transactions, incomeHistory };
   }
 
   /** Live price + change% + price history + fundamentals — the asset detail page. */
@@ -185,6 +185,13 @@ export class AssetsService {
   }
 
   private async enrich(asset: InvestmentAsset, transactions: InvestmentTransaction[], forceRefresh = false) {
+    // Keeps dividendsReceived/dividendYield accurate everywhere this asset is shown — the
+    // Portfolio list and the investments Dashboard both go through findAll(), not just the
+    // asset's own detail page — without requiring the user to open every asset individually
+    // first. No-ops instantly for CRYPTO (checked inside syncAsset) and is best-effort: a
+    // BRAPI/Yahoo hiccup here must never break listing the asset.
+    await this.dividendSync.syncAsset(asset.userId, asset.id);
+
     const position = calculatePosition(
       transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate })),
     );
