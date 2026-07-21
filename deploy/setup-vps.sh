@@ -246,6 +246,14 @@ ufw allow 80/tcp >/dev/null
 ufw allow 443/tcp >/dev/null
 ufw --force enable >/dev/null
 
+# Se uma execução anterior do certbot foi interrompida no meio (SSH caiu, reexecução em paralelo
+# etc), o lock file fica órfão e todo certbot novo recusa rodar com "Another instance of Certbot
+# is already running" mesmo sem nenhum processo de verdade ativo. Só limpa esse lock quando
+# confirma que não há certbot rodando de verdade — nunca interrompe uma execução em andamento.
+if ! pgrep -f "certbot" >/dev/null 2>&1; then
+  rm -f /var/lib/letsencrypt/.certbot.lock /var/log/letsencrypt/.certbot.lock /etc/letsencrypt/.certbot.lock 2>/dev/null || true
+fi
+
 # Passo 2: emite (ou renova) o certificado. --deploy-hook fica salvo no arquivo de renovação do
 # certbot e roda automaticamente também nas renovações futuras feitas pelo timer do systemd
 # (certbot.timer, instalado junto com o pacote), então o Nginx recarrega sozinho com o certificado
