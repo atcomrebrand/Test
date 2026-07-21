@@ -87,15 +87,30 @@ export default function FixedIncomePage() {
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 rounded-xl surface-2 p-3">
-                  <div>
-                    <p className="text-xs text-muted">Valor bruto</p>
-                    <p className="text-lg font-bold">{formatCurrency(f.calculation.grossValue)}</p>
+                <div className="grid grid-cols-3 gap-2 rounded-xl surface-2 p-3">
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted">Investido</p>
+                    <p className="truncate text-sm font-bold">{formatCurrency(f.principalAmount)}</p>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted">Valor líquido</p>
-                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(f.calculation.netValue)}</p>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted">Bruto</p>
+                    <p className="truncate text-sm font-bold">{formatCurrency(f.calculation.grossValue)}</p>
                   </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-muted">Líquido</p>
+                    <p className="truncate text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(f.calculation.netValue)}</p>
+                  </div>
+                </div>
+
+                <div
+                  className={`rounded-xl p-3 text-sm font-semibold ${
+                    f.calculation.netYield >= 0
+                      ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      : "bg-red-500/10 text-red-600 dark:text-red-400"
+                  }`}
+                >
+                  {f.calculation.netYield >= 0 ? "+" : "-"}
+                  {formatCurrency(Math.abs(f.calculation.netYield))} ({f.calculation.netProfitabilityPercent.toFixed(2)}%)
                 </div>
 
                 <div className="grid grid-cols-3 gap-2 text-center text-xs">
