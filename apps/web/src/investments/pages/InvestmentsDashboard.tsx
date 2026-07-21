@@ -128,7 +128,7 @@ export default function InvestmentsDashboard() {
         <Card>
           <CardHeader>
             <CardTitle>Ganhos por categoria</CardTitle>
-            <span className="text-xs text-muted">Realizado + não realizado, desde o início</span>
+            <span className="text-xs text-muted">Realizado + não realizado + dividendos, desde o início</span>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -142,8 +142,9 @@ export default function InvestmentsDashboard() {
               ))}
             </div>
             <p className="mt-3 text-xs text-muted">
-              Uma renda fixa já resgatada continua contando aqui, mesmo sem nenhuma aplicação ativa agora — o
-              rendimento que ela já rendeu não desaparece só porque o dinheiro foi resgatado ou reinvestido.
+              Inclui os dividendos/proventos recebidos de cada ativo, não só a valorização do preço. Uma renda
+              fixa já resgatada continua contando aqui, mesmo sem nenhuma aplicação ativa agora — o rendimento que
+              ela já rendeu não desaparece só porque o dinheiro foi resgatado ou reinvestido.
             </p>
           </CardContent>
         </Card>

@@ -76,8 +76,9 @@ export class InvestmentsDashboardService {
       distribuicaoPorCategoria: this.distribuicaoPorCategoria(enrichedAssets, fixedIncomeNetValue, cashBalance),
       distribuicaoPorAtivo: this.distribuicaoPorAtivo(enrichedAssets, activeFixedIncomes),
       // "Quanto ganhei no total" por categoria (Renda Fixa, Ações, FIIs, Cripto) — realizado
-      // (posições já vendidas/CDBs já resgatados) + não realizado (o que ainda está na carteira),
-      // pra dar o contexto geral de rentabilidade por tipo de investimento, não só o valor atual.
+      // (posições já vendidas/CDBs já resgatados) + não realizado (o que ainda está na carteira)
+      // + dividendos/proventos recebidos, pra dar o contexto geral de rentabilidade por tipo de
+      // investimento, não só o valor atual.
       ganhosPorCategoria: this.ganhosPorCategoria(enrichedAssets, activeFixedIncomes, redeemedFixedIncomes),
       topGanhos: this.topMovers(enrichedAssets, activeFixedIncomes, "desc"),
       topPerdas: this.topMovers(enrichedAssets, activeFixedIncomes, "asc"),
@@ -110,10 +111,14 @@ export class InvestmentsDashboardService {
   }
 
   /** Total gained per category — realized (sold positions, redeemed CDBs) + unrealized (still
-   *  held) — separate from distribuicaoPorCategoria, which is current VALUE, not profit. A
-   *  redeemed fixed income keeps contributing here even with zero active applications: its
-   *  netYield is frozen at the redemption date, so reinvesting the proceeds elsewhere doesn't
-   *  erase what it already earned. */
+   *  held) + dividendos/proventos recebidos — separate from distribuicaoPorCategoria, which is
+   *  current VALUE, not profit, and from cards.lucroLiquido, which is price-appreciation-only
+   *  (dividendosRecebidos/jurosRecebidos are its own stat tiles). Proventos are just as much a
+   *  real gain from holding an asset as price appreciation, so this "total ganho" view folds them
+   *  in — otherwise dividend-heavy stocks/FIIs would look like they earned far less than they
+   *  actually did. A redeemed fixed income keeps contributing here even with zero active
+   *  applications: its netYield is frozen at the redemption date, so reinvesting the proceeds
+   *  elsewhere doesn't erase what it already earned. */
   private ganhosPorCategoria(
     assets: Awaited<ReturnType<AssetsService["findAll"]>>,
     activeFixedIncomes: Awaited<ReturnType<FixedIncomesService["findAll"]>>,
@@ -121,7 +126,7 @@ export class InvestmentsDashboardService {
   ) {
     const byClass = new Map<string, number>();
     for (const asset of assets) {
-      const gain = (asset.profit ?? 0) + asset.position.realizedProfit;
+      const gain = (asset.profit ?? 0) + asset.position.realizedProfit + asset.dividendsReceived;
       byClass.set(asset.class, (byClass.get(asset.class) ?? 0) + gain);
     }
     if (activeFixedIncomes.length > 0 || redeemedFixedIncomes.length > 0) {

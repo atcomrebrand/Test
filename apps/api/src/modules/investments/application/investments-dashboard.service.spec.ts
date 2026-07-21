@@ -111,8 +111,22 @@ describe("InvestmentsDashboardService.summary — ganhosPorCategoria and redeeme
   });
 
   it("breaks total gains down by category, combining active + redeemed fixed incomes under RENDA_FIXA", async () => {
-    const stock = { class: "STOCK", ticker: "PETR4", profit: 100, position: { realizedProfit: 20, investedAmount: 500 }, currentValue: 600 };
-    const crypto = { class: "CRYPTO", ticker: "BTC", profit: -10, position: { realizedProfit: 0, investedAmount: 200 }, currentValue: 190 };
+    const stock = {
+      class: "STOCK",
+      ticker: "PETR4",
+      profit: 100,
+      position: { realizedProfit: 20, investedAmount: 500 },
+      currentValue: 600,
+      dividendsReceived: 0,
+    };
+    const crypto = {
+      class: "CRYPTO",
+      ticker: "BTC",
+      profit: -10,
+      position: { realizedProfit: 0, investedAmount: 200 },
+      currentValue: 190,
+      dividendsReceived: 0,
+    };
     const assets = { findAll: jest.fn().mockResolvedValue([stock, crypto]) } as unknown as AssetsService;
     const redeemedCdb = {
       institution: "Banco X",
@@ -139,6 +153,28 @@ describe("InvestmentsDashboardService.summary — ganhosPorCategoria and redeeme
         { category: "RENDA_FIXA", total: 50 },
       ]),
     );
+  });
+
+  it("folds dividendsReceived into the per-asset gain, so a dividend-heavy stock doesn't look like it earned less than it did", async () => {
+    const stock = {
+      class: "STOCK",
+      ticker: "BBAS3",
+      profit: 10,
+      position: { realizedProfit: 0, investedAmount: 500 },
+      currentValue: 510,
+      dividendsReceived: 200,
+    };
+    const assets = { findAll: jest.fn().mockResolvedValue([stock]) } as unknown as AssetsService;
+    const service = new InvestmentsDashboardService(
+      makePrisma(jest.fn().mockResolvedValue({ _sum: { amount: 0 } })),
+      assets,
+      makeFixedIncomes(),
+      makeCashAccounts(),
+    );
+
+    const result = await service.summary("user-1");
+
+    expect(result.ganhosPorCategoria).toEqual(expect.arrayContaining([{ category: "STOCK", total: 210 }]));
   });
 
   it("omits RENDA_FIXA from ganhosPorCategoria when there's no fixed income at all, active or redeemed", async () => {
