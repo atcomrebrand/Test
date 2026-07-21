@@ -10,7 +10,9 @@
 #   4. Clona o repositório em /opt/parcelas e faz o build do backend (NestJS) e do frontend (Vite).
 #   5. Roda as migrations do Prisma e popula o banco com dados de demonstração.
 #   6. Configura o backend como serviço systemd (reinicia sozinho se cair ou se o servidor reiniciar).
-#   7. Configura o Nginx para servir o frontend e fazer proxy de /api/v1 para o backend.
+#   7. Configura o Nginx com HTTPS (Let's Encrypt) num hostname sslip.io gratuito — sem precisar
+#      comprar domínio — e faz proxy de /api/v1 para o backend. HTTPS é obrigatório para Face ID
+#      (WebAuthn) e notificações push funcionarem no navegador; não tem como contornar isso.
 #   8. Configura o firewall (ufw) liberando apenas SSH, HTTP e HTTPS.
 #
 # Idempotente: pode rodar de novo com segurança (ex: para atualizar após um novo `git push`).
@@ -25,6 +27,7 @@ DB_NAME="creditcard_prod"
 DB_USER="cc_app"
 API_PORT="3333"
 ENV_FILE="$APP_DIR/apps/api/.env"
+ACME_WEBROOT="/var/www/certbot"
 
 log() { echo -e "\n\033[1;36m==> $*\033[0m"; }
 
@@ -34,11 +37,15 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 SERVER_IP="$(curl -fsSL -4 https://ifconfig.me || hostname -I | awk '{print $1}')"
+# sslip.io resolve "1-2-3-4.sslip.io" para 1.2.3.4 automaticamente (sem cadastro, sem propagação
+# de DNS) — dá um hostname real e público de graça, o suficiente para o Let's Encrypt emitir um
+# certificado válido. Se o IP da VPS mudar um dia, esse hostname muda junto.
+SSLIP_HOST="${SERVER_IP//./-}.sslip.io"
 
 log "1/9 — Atualizando pacotes e instalando dependências do sistema"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
-apt-get install -y curl git build-essential ufw nginx postgresql postgresql-contrib ca-certificates gnupg
+apt-get install -y curl git build-essential ufw nginx postgresql postgresql-contrib ca-certificates gnupg certbot
 
 log "2/9 — Instalando Node.js 20 LTS"
 if ! command -v node >/dev/null || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]; then
@@ -112,12 +119,53 @@ elif [ -f /root/.parcelas_brapi_token ]; then
   BRAPI_TOKEN="$(cat /root/.parcelas_brapi_token)"
 fi
 
+# Chaves VAPID (notificações push): geradas uma única vez e reaproveitadas em toda reexecução —
+# trocar essas chaves invalidaria todas as inscrições de push já feitas pelos aparelhos. Geradas
+# com o crypto nativo do Node (mesmo algoritmo que a lib "web-push" usa por baixo dos panos —
+# ECDH sobre prime256v1) para não depender do node_modules do app, que ainda não existe neste
+# ponto do script (só é instalado no passo 7).
+if [ ! -f /root/.parcelas_vapid_public ]; then
+  VAPID_JSON="$(node -e "
+    const crypto = require('crypto');
+    const ecdh = crypto.createECDH('prime256v1');
+    ecdh.generateKeys();
+    const b64url = (buf) => buf.toString('base64').replace(/\+/g,'-').replace(/\//g,'_').replace(/=+\$/,'');
+    // getPrivateKey() omits leading zero bytes instead of zero-padding to the curve's 32-byte
+    // field size — pad it back or the private key material is silently wrong.
+    const rawPriv = ecdh.getPrivateKey();
+    const priv = rawPriv.length === 32 ? rawPriv : Buffer.concat([Buffer.alloc(32 - rawPriv.length), rawPriv]);
+    console.log(JSON.stringify({ publicKey: b64url(ecdh.getPublicKey()), privateKey: b64url(priv) }));
+  ")"
+  echo "$VAPID_JSON" | node -e "const k=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write(k.publicKey)" > /root/.parcelas_vapid_public
+  echo "$VAPID_JSON" | node -e "const k=JSON.parse(require('fs').readFileSync(0,'utf8'));process.stdout.write(k.privateKey)" > /root/.parcelas_vapid_private
+  chmod 600 /root/.parcelas_vapid_public /root/.parcelas_vapid_private
+fi
+VAPID_PUBLIC_KEY="$(cat /root/.parcelas_vapid_public)"
+VAPID_PRIVATE_KEY="$(cat /root/.parcelas_vapid_private)"
+
+# LETSENCRYPT_EMAIL é opcional (só recebe avisos de expiração/renovação do certificado — a
+# renovação automática em si não depende disso). Nunca fica hardcoded aqui nem no repositório,
+# mesmo padrão do BRAPI_TOKEN: passe na hora de rodar e fica persistida localmente nesta VPS.
+#   LETSENCRYPT_EMAIL=seu-email@exemplo.com bash -c "$(curl -fsSL <raw-url-deste-arquivo>)"
+if [ -n "${LETSENCRYPT_EMAIL:-}" ]; then
+  echo "$LETSENCRYPT_EMAIL" > /root/.parcelas_letsencrypt_email
+  chmod 600 /root/.parcelas_letsencrypt_email
+elif [ -f /root/.parcelas_letsencrypt_email ]; then
+  LETSENCRYPT_EMAIL="$(cat /root/.parcelas_letsencrypt_email)"
+fi
+
 cat > "$ENV_FILE" <<EOF
 DATABASE_URL="postgresql://$DB_USER:$DB_PASSWORD@localhost:5432/$DB_NAME?schema=public"
 JWT_SECRET="$JWT_SECRET"
 JWT_EXPIRES_IN="7d"
 PORT=$API_PORT
-WEB_ORIGIN="http://$SERVER_IP"
+WEB_ORIGIN="https://$SSLIP_HOST"
+VAPID_PUBLIC_KEY="$VAPID_PUBLIC_KEY"
+VAPID_PRIVATE_KEY="$VAPID_PRIVATE_KEY"
+VAPID_SUBJECT="mailto:${LETSENCRYPT_EMAIL:-no-reply@example.com}"
+RP_ID="$SSLIP_HOST"
+RP_NAME="Ferramentas do Mauro"
+RP_ORIGIN="https://$SSLIP_HOST"
 EOF
 if [ -n "${BRAPI_TOKEN:-}" ]; then
   echo "BRAPI_TOKEN=\"$BRAPI_TOKEN\"" >> "$ENV_FILE"
@@ -165,11 +213,76 @@ systemctl daemon-reload
 systemctl enable --now parcelas-api
 systemctl restart parcelas-api
 
-log "9/9 — Configurando Nginx e firewall"
+log "9/9 — Configurando Nginx com HTTPS (Let's Encrypt em $SSLIP_HOST) e firewall"
+mkdir -p "$ACME_WEBROOT"
+
+# Passo 1: config HTTP-only (serve o desafio do Let's Encrypt em /.well-known/acme-challenge/).
+# Precisa existir e estar no ar ANTES de pedir o certificado, senão o certbot não consegue validar
+# que este servidor realmente responde por $SSLIP_HOST.
 cat > /etc/nginx/sites-available/parcelas <<EOF
 server {
     listen 80;
-    server_name _;
+    server_name $SSLIP_HOST;
+
+    location /.well-known/acme-challenge/ {
+        root $ACME_WEBROOT;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+EOF
+ln -sf /etc/nginx/sites-available/parcelas /etc/nginx/sites-enabled/parcelas
+rm -f /etc/nginx/sites-enabled/default
+nginx -t
+systemctl enable --now nginx
+systemctl reload nginx
+
+ufw default deny incoming >/dev/null
+ufw default allow outgoing >/dev/null
+ufw allow 22/tcp >/dev/null
+ufw allow 80/tcp >/dev/null
+ufw allow 443/tcp >/dev/null
+ufw --force enable >/dev/null
+
+# Passo 2: emite (ou renova) o certificado. --deploy-hook fica salvo no arquivo de renovação do
+# certbot e roda automaticamente também nas renovações futuras feitas pelo timer do systemd
+# (certbot.timer, instalado junto com o pacote), então o Nginx recarrega sozinho com o certificado
+# novo sem precisar rodar este script de novo.
+CERTBOT_EMAIL_ARGS=(--register-unsafely-without-email)
+if [ -n "${LETSENCRYPT_EMAIL:-}" ]; then
+  CERTBOT_EMAIL_ARGS=(-m "$LETSENCRYPT_EMAIL")
+fi
+certbot certonly --webroot -w "$ACME_WEBROOT" -d "$SSLIP_HOST" \
+  --non-interactive --agree-tos "${CERTBOT_EMAIL_ARGS[@]}" \
+  --deploy-hook "systemctl reload nginx"
+# Garante que a renovação automática (twice-daily) está ativa, independente do pacote já vir com
+# ela habilitada por padrão ou não.
+systemctl enable --now certbot.timer 2>/dev/null || true
+
+# Passo 3: config final — HTTPS de verdade, com o desafio do ACME sempre acessível por HTTP puro
+# (necessário para as renovações automáticas, que também usam o desafio HTTP-01).
+cat > /etc/nginx/sites-available/parcelas <<EOF
+server {
+    listen 80;
+    server_name $SSLIP_HOST;
+
+    location /.well-known/acme-challenge/ {
+        root $ACME_WEBROOT;
+    }
+
+    location / {
+        return 301 https://\$host\$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    server_name $SSLIP_HOST;
+
+    ssl_certificate     /etc/letsencrypt/live/$SSLIP_HOST/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$SSLIP_HOST/privkey.pem;
 
     root $APP_DIR/apps/web/dist;
     index index.html;
@@ -188,26 +301,17 @@ server {
     }
 }
 EOF
-ln -sf /etc/nginx/sites-available/parcelas /etc/nginx/sites-enabled/parcelas
-rm -f /etc/nginx/sites-enabled/default
 nginx -t
-systemctl enable --now nginx
 systemctl reload nginx
-
-ufw default deny incoming >/dev/null
-ufw default allow outgoing >/dev/null
-ufw allow 22/tcp >/dev/null
-ufw allow 80/tcp >/dev/null
-ufw allow 443/tcp >/dev/null
-ufw --force enable >/dev/null
 
 echo
 echo "======================================================================"
 echo " Instalação concluída!"
 echo "======================================================================"
-echo " Acesse:        http://$SERVER_IP"
+echo " Acesse:        https://$SSLIP_HOST"
 echo " Login demo:    mauroo.galvaoo@gmail.com / demo1234"
 echo
+echo " HTTPS:              Let's Encrypt em $SSLIP_HOST (renova sozinho via certbot.timer)"
 echo " Backend (systemd): systemctl status parcelas-api"
 echo " Logs do backend:   journalctl -u parcelas-api -f"
 echo " Config Nginx:       /etc/nginx/sites-available/parcelas"
@@ -217,6 +321,12 @@ if [ -n "${BRAPI_TOKEN:-}" ]; then
 else
   echo " Token BRAPI:        não configurado (rate limit de cotações mais baixo)"
   echo "                     rode de novo com: BRAPI_TOKEN=sua_chave bash -c \"\$(curl -fsSL <url>)\""
+fi
+if [ -n "${LETSENCRYPT_EMAIL:-}" ]; then
+  echo " E-mail Let's Encrypt: configurado (avisos de expiração do certificado)"
+else
+  echo " E-mail Let's Encrypt: não configurado (sem avisos por e-mail; a renovação automática funciona igual)"
+  echo "                     rode de novo com: LETSENCRYPT_EMAIL=seu-email bash -c \"\$(curl -fsSL <url>)\""
 fi
 echo
 echo " Para atualizar após um novo push no repositório, rode este mesmo"

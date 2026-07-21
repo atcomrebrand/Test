@@ -147,7 +147,48 @@ model User {
   investmentAuditLogs     InvestmentAuditLog[]
   investmentSetting       InvestmentSetting?
 
+  pushSubscriptions   PushSubscription[]
+  webauthnCredentials WebAuthnCredential[]
+
   @@map("users")
+}
+
+/// One row per device/browser subscribed to Web Push (a phone added to the home screen counts as
+/// one). `endpoint` is unique because it's the push service's own per-device URL — resubscribing
+/// the same device naturally reuses the same endpoint. keys.p256dh/auth are supplied by the
+/// browser's subscribe() call and are otherwise-meaningless base64url blobs to us.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+/// A Face ID/Touch ID (or other platform authenticator) passkey registered for login.
+/// `counter` guards against cloned authenticators (must strictly increase on every use, per the
+/// WebAuthn spec) — Int is enough headroom for a device used many times a day for decades.
+model WebAuthnCredential {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String   @unique
+  publicKey    Bytes
+  counter      Int      @default(0)
+  deviceType   String
+  backedUp     Boolean  @default(false)
+  transports   String[]
+  name         String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("webauthn_credentials")
 }
 
 model Card {

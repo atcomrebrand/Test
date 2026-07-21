@@ -13,6 +13,7 @@ import { useDeleteAccount, useResetAccountData } from "@/features/useAccount";
 import { useThemeStore } from "@/store/theme";
 import { Download, RotateCcw, UserX } from "lucide-react";
 import { getToken } from "@/lib/api";
+import { SecuritySettingsCard } from "@/components/SecuritySettingsCard";
 
 const ALERT_ITEMS: { key: keyof import("@/types").Settings; label: string; description: string }[] = [
   { key: "alertLimitWarning", label: "Limite quase no fim", description: "Avisa ao ultrapassar o percentual configurado." },
@@ -137,6 +138,8 @@ export default function SettingsPage() {
           ))}
         </CardContent>
       </Card>
+
+      <SecuritySettingsCard />
 
       <Card>
         <CardHeader>

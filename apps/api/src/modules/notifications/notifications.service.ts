@@ -1,6 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
+import { Cron, CronExpression } from "@nestjs/schedule";
 import { PrismaService } from "../../prisma/prisma.service";
 import { NotificationType } from "@prisma/client";
+import { PushService } from "../push/push.service";
 
 const START_OF_TODAY = () => {
   const d = new Date();
@@ -10,7 +12,27 @@ const START_OF_TODAY = () => {
 
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(NotificationsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushService,
+  ) {}
+
+  /** `generate()` below only actually runs when a user has the app open (dashboard load, bell
+   *  icon click) — fine for the in-app list, but a real OS push needs to reach the phone even
+   *  while the app is closed. This sweeps every user on a fixed schedule so that still happens. */
+  @Cron(CronExpression.EVERY_6_HOURS)
+  async generateForAllUsers() {
+    const users = await this.prisma.user.findMany({ select: { id: true } });
+    for (const user of users) {
+      try {
+        await this.generate(user.id);
+      } catch (err) {
+        this.logger.warn(`Falha ao gerar notificações para o usuário ${user.id}: ${(err as Error).message}`);
+      }
+    }
+  }
 
   async list(userId: string) {
     return this.prisma.notification.findMany({
@@ -105,6 +127,11 @@ export class NotificationsService {
       where: { userId, type, title, createdAt: { gte: START_OF_TODAY() } },
     });
     if (existing) return existing;
-    return this.prisma.notification.create({ data: { userId, type, title, message: data.message } });
+
+    const notification = await this.prisma.notification.create({ data: { userId, type, title, message: data.message } });
+    // Only on the genuinely-new path — a notification that already existed today shouldn't
+    // re-buzz the phone every time generate() happens to run again (page load, cron sweep).
+    await this.push.notifyUser(userId, { title, body: data.message, url: "/" });
+    return notification;
   }
 }

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
 import { ConfigModule } from "@nestjs/config";
+import { ScheduleModule } from "@nestjs/schedule";
 import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
 import { PrismaModule } from "./prisma/prisma.module";
 import { AuthModule } from "./modules/auth/auth.module";
@@ -19,10 +20,13 @@ import { ExportModule } from "./modules/export/export.module";
 import { AccountModule } from "./modules/account/account.module";
 import { FinancingsModule } from "./modules/financings/financings.module";
 import { InvestmentsModule } from "./modules/investments/investments.module";
+import { PushModule } from "./modules/push/push.module";
+import { WebAuthnModule } from "./modules/webauthn/webauthn.module";
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 120 }]),
     PrismaModule,
     AuthModule,
@@ -41,6 +45,8 @@ import { InvestmentsModule } from "./modules/investments/investments.module";
     AccountModule,
     FinancingsModule,
     InvestmentsModule,
+    PushModule,
+    WebAuthnModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

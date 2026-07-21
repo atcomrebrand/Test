@@ -1,18 +1,28 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Link, Navigate, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { CreditCard } from "lucide-react";
+import { browserSupportsWebAuthn, platformAuthenticatorIsAvailable } from "@simplewebauthn/browser";
+import { CreditCard, ScanFace } from "lucide-react";
+import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { useLogin } from "@/features/useAuth";
+import { useLoginWithFaceId } from "@/features/useWebAuthn";
 import { useAuthStore } from "@/store/auth";
 
 export default function Login() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [email, setEmail] = useState("mauroo.galvaoo@gmail.com");
   const [password, setPassword] = useState("demo1234");
+  const [faceIdAvailable, setFaceIdAvailable] = useState(false);
   const login = useLogin();
+  const loginWithFaceId = useLoginWithFaceId();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!browserSupportsWebAuthn()) return;
+    platformAuthenticatorIsAvailable().then(setFaceIdAvailable);
+  }, []);
 
   if (isAuthenticated) return <Navigate to="/" replace />;
 
@@ -22,6 +32,13 @@ export default function Login() {
       { email, password },
       { onSuccess: () => navigate("/") },
     );
+  }
+
+  function onFaceIdLogin() {
+    loginWithFaceId.mutate(undefined, {
+      onSuccess: () => navigate("/"),
+      onError: () => toast.error("Não foi possível entrar com Face ID/Touch ID."),
+    });
   }
 
   return (
@@ -52,6 +69,25 @@ export default function Login() {
             Conta demo já preenchida — é só clicar em Entrar.
           </p>
         </form>
+
+        {faceIdAvailable && (
+          <>
+            <div className="my-4 flex items-center gap-3 text-xs text-muted">
+              <span className="h-px flex-1 bg-[rgb(var(--border))]" />
+              ou
+              <span className="h-px flex-1 bg-[rgb(var(--border))]" />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              loading={loginWithFaceId.isPending}
+              onClick={onFaceIdLogin}
+            >
+              <ScanFace className="h-4 w-4" /> Entrar com Face ID/Touch ID
+            </Button>
+          </>
+        )}
 
         <p className="mt-6 text-center text-sm text-muted">
           Não tem conta?{" "}
