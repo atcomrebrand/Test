@@ -49,7 +49,7 @@ export class InvestmentsDashboardService {
     const rentabilidadePercent = valorInvestido > 0 ? (lucroLiquido / valorInvestido) * 100 : 0;
 
     const [dividendosRecebidos, jurosRecebidos, aportesDoMes] = await Promise.all([
-      this.sumIncomeByType(userId, ["DIVIDENDO", "JCP", "RENDIMENTO"]),
+      this.sumAssetIncome(userId),
       this.sumIncomeByType(userId, ["JUROS"]),
       this.contributionsThisMonth(userId),
     ]);
@@ -150,6 +150,20 @@ export class InvestmentsDashboardService {
   private async sumIncomeByType(userId: string, types: string[]) {
     const agg = await this.prisma.investmentIncome.aggregate({
       where: { userId, type: { in: types as any } },
+      _sum: { amount: true },
+    });
+    return Number(agg._sum.amount ?? 0);
+  }
+
+  /** All proventos received on stocks/FIIs/crypto — scoped by the assetId relation rather than a
+   *  type list, so it also counts income the automatic BRAPI/Yahoo sync files as "OUTRO" (Yahoo
+   *  never splits dividend vs. JCP, and BRAPI's own FII "Rendimento" label doesn't match
+   *  classifyDividendType's DIVIDENDO/JCP checks either) — which is most of a typical portfolio's
+   *  history. The Proventos calendar page already totals every type the same way; this keeps the
+   *  dashboard card consistent with it instead of silently under-reporting. */
+  private async sumAssetIncome(userId: string) {
+    const agg = await this.prisma.investmentIncome.aggregate({
+      where: { userId, assetId: { not: null } },
       _sum: { amount: true },
     });
     return Number(agg._sum.amount ?? 0);
