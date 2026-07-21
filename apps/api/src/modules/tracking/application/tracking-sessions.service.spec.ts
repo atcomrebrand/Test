@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { TrackingSessionsService } from "./tracking-sessions.service";
 import { TrackingSessionRepository, TrackingSessionWithPauses } from "../domain/tracking-session.repository";
 import { TrackingJobRepository } from "../domain/tracking-job.repository";
@@ -48,6 +48,7 @@ function makeRepos(session: TrackingSessionWithPauses | null = null) {
     findActiveByUser: jest.fn().mockResolvedValue(session),
     findById: jest.fn().mockResolvedValue(session),
     create: jest.fn(),
+    createCompleted: jest.fn().mockImplementation((data) => Promise.resolve(makeSession({ ...data, status: "COMPLETED", pauses: [] }))),
     addPause: jest.fn().mockResolvedValue(undefined),
     resumeLatestPause: jest.fn().mockResolvedValue(undefined),
     updateStatus: jest.fn().mockResolvedValue(undefined),
@@ -207,5 +208,52 @@ describe("TrackingSessionsService.getActive", () => {
     const result = await service.getActive("user-1");
 
     expect(result?.isLongRunning).toBe(true);
+  });
+});
+
+describe("TrackingSessionsService.createManual", () => {
+  it("creates an already-COMPLETED session directly, without touching the active-session check", async () => {
+    const { sessions, jobs, audit, fx } = makeRepos(null);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+
+    const checkIn = "2026-07-18T09:00:00.000Z";
+    const checkOut = "2026-07-18T17:00:00.000Z";
+    const result = await service.createManual("user-1", { jobId: "job-1", checkIn, checkOut, notes: "esqueci de cronometrar" });
+
+    expect(sessions.createCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-1", jobId: "job-1", checkIn: new Date(checkIn), checkOut: new Date(checkOut) }),
+    );
+    expect(sessions.findActiveByUser).not.toHaveBeenCalled();
+    expect(result.status).toBe("COMPLETED");
+    expect(result.netSeconds).toBeCloseTo(8 * 3600, 0);
+  });
+
+  it("throws BadRequestException when checkOut is before or equal to checkIn", async () => {
+    const { sessions, jobs, audit, fx } = makeRepos(null);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+
+    await expect(
+      service.createManual("user-1", { jobId: "job-1", checkIn: "2026-07-18T17:00:00.000Z", checkOut: "2026-07-18T09:00:00.000Z" }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it("throws BadRequestException when checkOut is in the future", async () => {
+    const { sessions, jobs, audit, fx } = makeRepos(null);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+    const future = new Date(Date.now() + 3600_000).toISOString();
+
+    await expect(
+      service.createManual("user-1", { jobId: "job-1", checkIn: new Date().toISOString(), checkOut: future }),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it("throws NotFoundException for a job that doesn't exist", async () => {
+    const { sessions, jobs, audit, fx } = makeRepos(null);
+    jobs.findById.mockResolvedValue(null);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+
+    await expect(
+      service.createManual("user-1", { jobId: "missing", checkIn: "2026-07-18T09:00:00.000Z", checkOut: "2026-07-18T17:00:00.000Z" }),
+    ).rejects.toThrow(NotFoundException);
   });
 });

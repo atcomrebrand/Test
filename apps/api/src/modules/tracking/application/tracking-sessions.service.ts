@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { TrackingSessionRepository, TrackingSessionWithPauses } from "../domain/tracking-session.repository";
 import { TrackingJobRepository } from "../domain/tracking-job.repository";
 import { computeSessionTime } from "../domain/session-time-calculator";
@@ -6,7 +6,7 @@ import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
 import { convertToBRL } from "../domain/currency-converter";
 import { TrackingAuditService } from "./tracking-audit.service";
 import { TrackingFxService } from "./tracking-fx.service";
-import { ManualEditSessionDto, StartSessionDto } from "./dto/tracking-session.dto";
+import { CreateManualSessionDto, ManualEditSessionDto, StartSessionDto } from "./dto/tracking-session.dto";
 
 /** Sessions running longer than this are flagged as "esqueceu de finalizar" candidates — both to
  *  the user in real time (frontend confirm dialog) and via the notification cron sweep. */
@@ -36,6 +36,22 @@ export class TrackingSessionsService {
     const session = await this.sessions.create({ userId, jobId: job.id, checkIn: new Date(), notes: dto.notes });
     await this.audit.log(userId, "TrackingSession", session.id, "CHECK_IN", null, { checkIn: session.checkIn });
     return await this.present(session);
+  }
+
+  /** "Sessão retroativa" — registra um dia/horário que ficou de fora do cronômetro ao vivo.
+   *  Criada já COMPLETED direto, nunca passa pelo estado RUNNING/PAUSED, então não concorre com a
+   *  regra de sessão única ativa. */
+  async createManual(userId: string, dto: CreateManualSessionDto) {
+    const job = await this.getOwnedJob(userId, dto.jobId);
+    const checkIn = new Date(dto.checkIn);
+    const checkOut = new Date(dto.checkOut);
+
+    if (checkOut <= checkIn) throw new BadRequestException("O horário de saída deve ser depois do horário de entrada.");
+    if (checkOut.getTime() > Date.now()) throw new BadRequestException("Não é possível registrar uma sessão que termina no futuro.");
+
+    const session = await this.sessions.createCompleted({ userId, jobId: job.id, checkIn, checkOut, notes: dto.notes });
+    await this.audit.log(userId, "TrackingSession", session.id, "MANUAL_CREATE", null, this.snapshot(session));
+    return this.present(session);
   }
 
   async pause(userId: string, sessionId: string) {

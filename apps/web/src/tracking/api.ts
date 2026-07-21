@@ -128,6 +128,20 @@ export function useStartSession() {
   });
 }
 
+/** "Sessão retroativa" — registra um dia/horário que ficou de fora do cronômetro ao vivo. */
+export function useCreateManualSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { jobId: string; checkIn: string; checkOut: string; notes?: string }) =>
+      api.post<TrackingSession>("/tracking/sessions/manual", data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Sessão retroativa registrada!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function usePauseSession() {
   const qc = useQueryClient();
   return useMutation({

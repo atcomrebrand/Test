@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } f
 import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../../../common/decorators/current-user.decorator";
 import { TrackingSessionsService } from "../application/tracking-sessions.service";
-import { FinishSessionDto, ManualEditSessionDto, StartSessionDto } from "../application/dto/tracking-session.dto";
+import { CreateManualSessionDto, FinishSessionDto, ManualEditSessionDto, StartSessionDto } from "../application/dto/tracking-session.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("tracking/sessions")
@@ -22,6 +22,11 @@ export class TrackingSessionsController {
   @Post("start")
   start(@CurrentUser() user: AuthUser, @Body() dto: StartSessionDto) {
     return this.service.start(user.userId, dto);
+  }
+
+  @Post("manual")
+  createManual(@CurrentUser() user: AuthUser, @Body() dto: CreateManualSessionDto) {
+    return this.service.createManual(user.userId, dto);
   }
 
   @Post(":id/pause")

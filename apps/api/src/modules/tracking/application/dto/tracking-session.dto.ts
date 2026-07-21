@@ -20,3 +20,19 @@ export class ManualEditSessionDto {
   @IsOptional() @IsDateString() checkOut?: string;
   @IsOptional() @IsString() notes?: string;
 }
+
+/** "Sessão retroativa" — registra um dia/horário que ficou de fora do cronômetro ao vivo. */
+export class CreateManualSessionDto {
+  @IsString()
+  jobId!: string;
+
+  @IsDateString()
+  checkIn!: string;
+
+  @IsDateString()
+  checkOut!: string;
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}

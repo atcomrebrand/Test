@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Play, Pause, Square, Check, Timer } from "lucide-react";
+import { Play, Pause, Square, Check, Timer, CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input, Select, Textarea } from "@/components/ui/Input";
@@ -22,6 +22,7 @@ import { useLiveElapsed } from "../hooks/useLiveElapsed";
 import { formatHMS, isSameLocalDay, isSameLocalMonth } from "../lib/sessionTime";
 import { TrackingSession } from "../types";
 import { PendingPaymentBanner } from "../components/PendingPaymentBanner";
+import { AddPastSessionModal } from "../components/AddPastSessionModal";
 
 function toLocalInputValue(date: Date): string {
   const pad = (n: number) => n.toString().padStart(2, "0");
@@ -40,6 +41,7 @@ export default function FocusMode() {
   const [editingCheckIn, setEditingCheckIn] = useState(false);
   const [manualCheckIn, setManualCheckIn] = useState("");
   const [reconcileOpen, setReconcileOpen] = useState(false);
+  const [addPastOpen, setAddPastOpen] = useState(false);
   const reconciledSessionIds = useRef<Set<string>>(new Set());
 
   const start = useStartSession();
@@ -178,6 +180,15 @@ export default function FocusMode() {
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-6">
       <PendingPaymentBanner />
+
+      <button
+        type="button"
+        onClick={() => setAddPastOpen(true)}
+        className="flex items-center justify-center gap-1.5 self-center text-xs font-medium text-muted transition-colors hover:text-violet-500"
+      >
+        <CalendarPlus className="h-3.5 w-3.5" />
+        Adicionar sessão retroativa
+      </button>
 
       {selectedJob && (
         <Card>
@@ -410,6 +421,8 @@ export default function FocusMode() {
           </div>
         )}
       </Modal>
+
+      <AddPastSessionModal open={addPastOpen} onClose={() => setAddPastOpen(false)} />
     </div>
   );
 }
