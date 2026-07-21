@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { ForbiddenException, NotFoundException } from "@nestjs/common";
 import { TrackingJobPaymentsService } from "./tracking-job-payments.service";
 import { TrackingJobRepository } from "../domain/tracking-job.repository";
 import { TrackingJobPaymentRepository } from "../domain/tracking-job-payment.repository";
@@ -46,7 +46,7 @@ describe("TrackingJobPaymentsService.pending", () => {
     const pending = await service.pending("user-1");
 
     expect(pending).toEqual([
-      expect.objectContaining({ jobId: "j1", jobName: "Dev Backend", referenceYear: YEAR, referenceMonth: MONTH }),
+      expect.objectContaining({ jobId: "j1", jobName: "Dev Backend", referenceYear: YEAR, referenceMonth: MONTH, suggestedAmountBRL: 6000 }),
     ]);
   });
 
@@ -71,10 +71,28 @@ describe("TrackingJobPaymentsService.pending", () => {
 
     expect(pending).toEqual([]);
   });
+
+  it("converts a USD job's monthlyValue to a suggested BRL amount using the live rate", async () => {
+    const jobs = [{ id: "j1", name: "Freela EUA", company: "Acme Inc", currency: "USD", monthlyValue: 1000, active: true, paymentDay: TODAY }];
+    const service = new TrackingJobPaymentsService(makeJobs(jobs), makePayments(), makeFx(5), makeAudit());
+
+    const pending = await service.pending("user-1");
+
+    expect(pending[0].suggestedAmountBRL).toBe(5000);
+  });
+
+  it("returns a null suggestedAmountBRL for a USD job when no exchange rate is available", async () => {
+    const jobs = [{ id: "j1", name: "Freela EUA", company: "Acme Inc", currency: "USD", monthlyValue: 1000, active: true, paymentDay: TODAY }];
+    const service = new TrackingJobPaymentsService(makeJobs(jobs), makePayments(), makeFx(null), makeAudit());
+
+    const pending = await service.pending("user-1");
+
+    expect(pending[0].suggestedAmountBRL).toBeNull();
+  });
 });
 
 describe("TrackingJobPaymentsService.confirm", () => {
-  it("stores the BRL amount directly for a BRL job, with no exchange rate", async () => {
+  it("stores the amount as BRL directly, with no exchange rate, for a BRL job", async () => {
     const job = { id: "j1", userId: "user-1", currency: "BRL", name: "Dev Backend" };
     const payments = makePayments();
     const fx = makeFx(null);
@@ -87,21 +105,16 @@ describe("TrackingJobPaymentsService.confirm", () => {
     expect(fx.getUsdToBrlRate).not.toHaveBeenCalled();
   });
 
-  it("converts using the live USD/BRL rate for a USD job", async () => {
+  it("also stores the amount as BRL directly for a USD job — the amount received is already in reais, no re-conversion", async () => {
     const job = { id: "j1", userId: "user-1", currency: "USD", name: "Freela EUA" };
     const payments = makePayments();
-    const service = new TrackingJobPaymentsService(makeJobs([], { j1: job }), payments, makeFx(5), makeAudit());
+    const fx = makeFx(5);
+    const service = new TrackingJobPaymentsService(makeJobs([], { j1: job }), payments, fx, makeAudit());
 
-    await service.confirm("user-1", "j1", { amount: 1000 });
+    await service.confirm("user-1", "j1", { amount: 5000 });
 
-    expect(payments.upsert).toHaveBeenCalledWith(expect.objectContaining({ amount: 1000, currency: "USD", exchangeRate: 5, amountBRL: 5000 }));
-  });
-
-  it("throws ServiceUnavailableException for a USD job when no exchange rate is available", async () => {
-    const job = { id: "j1", userId: "user-1", currency: "USD", name: "Freela EUA" };
-    const service = new TrackingJobPaymentsService(makeJobs([], { j1: job }), makePayments(), makeFx(null), makeAudit());
-
-    await expect(service.confirm("user-1", "j1", { amount: 1000 })).rejects.toThrow(ServiceUnavailableException);
+    expect(payments.upsert).toHaveBeenCalledWith(expect.objectContaining({ amount: 5000, currency: "BRL", exchangeRate: null, amountBRL: 5000 }));
+    expect(fx.getUsdToBrlRate).not.toHaveBeenCalled();
   });
 
   it("throws NotFoundException for a job that doesn't exist", async () => {

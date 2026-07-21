@@ -33,7 +33,8 @@ export interface TrackingPendingJobPayment {
   jobName: string;
   company: string;
   currency: TrackingCurrency;
-  monthlyValue: number;
+  /** Só um ponto de partida pro campo (sempre editável) — o valor confirmado é sempre em reais. */
+  suggestedAmountBRL: number | null;
   referenceYear: number;
   referenceMonth: number;
 }

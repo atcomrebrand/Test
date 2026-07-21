@@ -6,7 +6,10 @@ import { usePendingJobPayments, useConfirmJobPayment } from "../api";
 import { TrackingPendingJobPayment } from "../types";
 
 function PendingPaymentRow({ payment }: { payment: TrackingPendingJobPayment }) {
-  const [amount, setAmount] = useState(String(payment.monthlyValue));
+  // Só um chute inicial (o usuário sempre pode ajustar) — nunca o valor final, que é sempre em
+  // reais: o que realmente cai na conta já vem convertido por quem paga, então pedir de novo em
+  // USD e reconverter por cima só divergiria do que chegou de verdade.
+  const [amount, setAmount] = useState(payment.suggestedAmountBRL !== null ? String(payment.suggestedAmountBRL) : "");
   const confirm = useConfirmJobPayment();
 
   function onSubmit(e: FormEvent) {
@@ -18,9 +21,10 @@ function PendingPaymentRow({ payment }: { payment: TrackingPendingJobPayment }) 
     <form onSubmit={onSubmit} className="flex flex-wrap items-end gap-3">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium">
-          Hoje é dia de pagamento de <span className="font-semibold">{payment.jobName}</span> ({payment.company}).
+          Hoje é dia de pagamento de <span className="font-semibold">{payment.jobName}</span> ({payment.company}
+          {payment.currency === "USD" ? ", contrato em US$" : ""}).
         </p>
-        <p className="text-xs text-muted">Quanto você recebeu esse mês?</p>
+        <p className="text-xs text-muted">Quanto caiu na sua conta esse mês, em reais?</p>
       </div>
       <Input
         type="number"
@@ -29,7 +33,8 @@ function PendingPaymentRow({ payment }: { payment: TrackingPendingJobPayment }) 
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
         className="w-32"
-        aria-label={`Valor recebido de ${payment.jobName}`}
+        aria-label={`Valor recebido de ${payment.jobName}, em reais`}
+        placeholder="R$"
       />
       <Button type="submit" size="sm" loading={confirm.isPending}>
         Confirmar

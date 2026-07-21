@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { TrackingJobRepository } from "../domain/tracking-job.repository";
 import { TrackingJobPaymentRepository } from "../domain/tracking-job-payment.repository";
 import { convertToBRL } from "../domain/currency-converter";
@@ -16,6 +16,11 @@ function round2(n: number): number {
  * worked), so this manual monthly confirmation is the only trustworthy source for "quanto recebi de
  * verdade" — it then overrides the estimate everywhere the dashboard/relatórios show fixed-job
  * revenue for that job/month (see computeFixedJobRevenue).
+ *
+ * Sempre em BRL: mesmo pra um trabalho cotado em USD, o valor que efetivamente cai na conta já foi
+ * convertido por quem pagou (banco, Wise, etc.) — pedir de novo em USD e reconverter por cima com a
+ * NOSSA cotação do dia só divergiria do que realmente chegou. A moeda do trabalho só entra na
+ * estimativa "ao vivo" (card do trabalho, valor/hora antes da confirmação existir).
  */
 @Injectable()
 export class TrackingJobPaymentsService {
@@ -41,20 +46,25 @@ export class TrackingJobPaymentsService {
       referenceYear,
       referenceMonth,
     );
+    const pendingJobs = jobs.filter((j) => !confirmed.has(j.id));
+    if (pendingJobs.length === 0) return [];
 
-    return jobs
-      .filter((j) => !confirmed.has(j.id))
-      .map((j) => ({
-        jobId: j.id,
-        jobName: j.name,
-        company: j.company,
-        currency: j.currency,
-        monthlyValue: Number(j.monthlyValue),
-        referenceYear,
-        referenceMonth,
-      }));
+    // Só serve de ponto de partida pro campo (o usuário sempre pode editar) — nunca é o valor
+    // usado de verdade, que só existe depois da confirmação manual em BRL.
+    const usdToBrlRate = pendingJobs.some((j) => j.currency === "USD") ? await this.fx.getUsdToBrlRate() : null;
+
+    return pendingJobs.map((j) => ({
+      jobId: j.id,
+      jobName: j.name,
+      company: j.company,
+      currency: j.currency,
+      suggestedAmountBRL: convertToBRL(Number(j.monthlyValue), j.currency, usdToBrlRate),
+      referenceYear,
+      referenceMonth,
+    }));
   }
 
+  /** `dto.amount` é sempre em reais — o valor que de fato caiu na conta. */
   async confirm(userId: string, jobId: string, dto: ConfirmTrackingJobPaymentDto) {
     const job = await this.jobs.findById(jobId);
     if (!job) throw new NotFoundException("Trabalho fixo não encontrado.");
@@ -63,20 +73,7 @@ export class TrackingJobPaymentsService {
     const now = new Date();
     const referenceYear = now.getFullYear();
     const referenceMonth = now.getMonth() + 1;
-
-    let exchangeRate: number | null = null;
-    let amountBRL: number;
-    if (job.currency === "USD") {
-      const rate = await this.fx.getUsdToBrlRate();
-      if (rate === null) {
-        throw new ServiceUnavailableException("Não foi possível obter a cotação do dólar agora. Tente novamente em instantes.");
-      }
-      exchangeRate = rate;
-      const converted = convertToBRL(dto.amount, "USD", rate);
-      amountBRL = converted ?? dto.amount;
-    } else {
-      amountBRL = round2(dto.amount);
-    }
+    const amountBRL = round2(dto.amount);
 
     const before = await this.payments.findByJobAndMonth(jobId, referenceYear, referenceMonth);
     const saved = await this.payments.upsert({
@@ -84,9 +81,9 @@ export class TrackingJobPaymentsService {
       jobId,
       referenceYear,
       referenceMonth,
-      amount: dto.amount,
-      currency: job.currency,
-      exchangeRate,
+      amount: amountBRL,
+      currency: "BRL",
+      exchangeRate: null,
       amountBRL,
     });
 
@@ -96,7 +93,7 @@ export class TrackingJobPaymentsService {
       saved.id,
       before ? "UPDATE" : "CREATE",
       before ? { amount: Number(before.amount), amountBRL: Number(before.amountBRL) } : null,
-      { amount: dto.amount, amountBRL },
+      { amount: amountBRL, amountBRL },
     );
 
     return { ...saved, jobName: job.name };
