@@ -8,14 +8,16 @@ import {
   CalendarClock,
   ArrowUpRight,
   Landmark,
+  RefreshCw,
 } from "lucide-react";
 import { StatTile } from "@/components/ui/StatTile";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CategoryChart } from "@/components/charts/CategoryChart";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { useInvestmentsDashboard } from "../api";
+import { useInvestmentsDashboard, useRefreshInvestmentsDashboard } from "../api";
 import { PatrimonyEvolutionChart } from "../components/PatrimonyEvolutionChart";
 import { ResetPortfolioButton } from "../components/ResetPortfolioButton";
 
@@ -50,6 +52,7 @@ const ACTION_LABEL: Record<string, string> = {
 
 export default function InvestmentsDashboard() {
   const { data, isLoading } = useInvestmentsDashboard();
+  const refresh = useRefreshInvestmentsDashboard();
 
   if (isLoading) {
     return (
@@ -90,7 +93,11 @@ export default function InvestmentsDashboard() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => refresh.mutate()} loading={refresh.isPending}>
+          <RefreshCw className="h-4 w-4" />
+          Atualizar
+        </Button>
         <ResetPortfolioButton />
       </div>
 

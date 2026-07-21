@@ -54,3 +54,23 @@ describe("InvestmentsDashboardService.summary — dividendosRecebidos card", () 
     expect(result.cards.jurosRecebidos).toBe(42);
   });
 });
+
+describe("InvestmentsDashboardService.summary — refresh button forces fresh prices", () => {
+  it("defaults to forceRefresh=false when not passed", async () => {
+    const assets = makeAssets();
+    const service = new InvestmentsDashboardService(makePrisma(jest.fn().mockResolvedValue({ _sum: { amount: 0 } })), assets, makeFixedIncomes(), makeCashAccounts());
+
+    await service.summary("user-1");
+
+    expect(assets.findAll).toHaveBeenCalledWith("user-1", undefined, false);
+  });
+
+  it("threads forceRefresh=true through to AssetsService.findAll, bypassing the price cache TTL", async () => {
+    const assets = makeAssets();
+    const service = new InvestmentsDashboardService(makePrisma(jest.fn().mockResolvedValue({ _sum: { amount: 0 } })), assets, makeFixedIncomes(), makeCashAccounts());
+
+    await service.summary("user-1", true);
+
+    expect(assets.findAll).toHaveBeenCalledWith("user-1", undefined, true);
+  });
+});

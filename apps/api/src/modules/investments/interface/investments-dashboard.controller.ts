@@ -9,8 +9,8 @@ export class InvestmentsDashboardController {
   constructor(private readonly service: InvestmentsDashboardService) {}
 
   @Get("summary")
-  summary(@CurrentUser() user: AuthUser) {
-    return this.service.summary(user.userId);
+  summary(@CurrentUser() user: AuthUser, @Query("refresh") refresh?: string) {
+    return this.service.summary(user.userId, refresh === "true");
   }
 
   @Get("history")

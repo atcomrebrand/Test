@@ -25,9 +25,9 @@ export class InvestmentsDashboardService {
     private readonly cashAccounts: CashAccountRepository,
   ) {}
 
-  async summary(userId: string) {
+  async summary(userId: string, forceRefresh = false) {
     const [enrichedAssets, enrichedFixedIncomes, cashBalance] = await Promise.all([
-      this.assets.findAll(userId),
+      this.assets.findAll(userId, undefined, forceRefresh),
       this.fixedIncomes.findAll(userId),
       this.cashAccounts.sumBalancesByUser(userId),
     ]);

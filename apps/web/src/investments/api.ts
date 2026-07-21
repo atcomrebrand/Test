@@ -36,6 +36,20 @@ export function useInvestmentsDashboard() {
   });
 }
 
+/** Forces fresh prices (bypassing the backend's cache TTL) before recomputing every card on the
+ *  dashboard — patrimônio, distribuição, maiores ganhos/perdas etc all derive from asset prices. */
+export function useRefreshInvestmentsDashboard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.get<DashboardSummary>("/investments/dashboard/summary", { params: { refresh: "true" } }),
+    onSuccess: (data) => {
+      qc.setQueryData(["investments", "dashboard"], data);
+      toast.success("Dashboard atualizado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export interface InvestmentHistoryPage {
   items: { id: string; entity: string; action: string; changes: unknown; createdAt: string }[];
   pagination: { page: number; pageSize: number; total: number; totalPages: number };

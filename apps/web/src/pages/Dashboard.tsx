@@ -1,6 +1,10 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Wallet, CalendarClock, ListChecks, TrendingUp, ReceiptText, AlertTriangle, Landmark, ArrowRight, SlidersHorizontal, Repeat } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
+import { Wallet, CalendarClock, ListChecks, TrendingUp, ReceiptText, AlertTriangle, Landmark, ArrowRight, SlidersHorizontal, Repeat, RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
+import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { StatTile } from "@/components/ui/StatTile";
@@ -20,6 +24,23 @@ export default function Dashboard() {
   const { data: byCategory } = useSpendingByCategory();
   const { data: financingSummary } = useFinancingSummary();
   const { data: subscriptionsData } = usePurchases({ kind: "RECURRING", pageSize: 100 });
+
+  const queryClient = useQueryClient();
+  const [refreshing, setRefreshing] = useState(false);
+
+  async function onRefresh() {
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["dashboard"] }),
+        queryClient.invalidateQueries({ queryKey: ["financings"] }),
+        queryClient.invalidateQueries({ queryKey: ["purchases"] }),
+      ]);
+      toast.success("Dashboard atualizado!");
+    } finally {
+      setRefreshing(false);
+    }
+  }
 
   const activeSubscriptions = (subscriptionsData?.items ?? []).filter(
     (p) => !(p.recurrenceEndDate && new Date(p.recurrenceEndDate) <= new Date()),
@@ -51,7 +72,16 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" description="Sua visão geral financeira, em tempo real." />
+      <PageHeader
+        title="Dashboard"
+        description="Sua visão geral financeira, em tempo real."
+        actions={
+          <Button variant="outline" onClick={onRefresh} loading={refreshing}>
+            <RefreshCw className="h-4 w-4" />
+            Atualizar
+          </Button>
+        }
+      />
 
       <OnboardingChecklist hasCards={Boolean(summary.nextClosing)} hasPurchases={summary.recentPurchases.length > 0} />
 
