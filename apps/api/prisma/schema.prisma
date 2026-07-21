@@ -40,6 +40,8 @@ enum NotificationType {
   SPENDING_INCREASE
   CLOSING_SOON
   DIVIDEND_PAYMENT
+  TRACKING_FORGOT_CHECKOUT
+  TRACKING_LONG_SESSION
 }
 
 enum Theme {
@@ -150,6 +152,12 @@ model User {
 
   pushSubscriptions   PushSubscription[]
   webauthnCredentials WebAuthnCredential[]
+
+  trackingJobs      TrackingJob[]
+  trackingSessions  TrackingSession[]
+  trackingProjects  TrackingProject[]
+  trackingIncomes   TrackingIncome[]
+  trackingAuditLogs TrackingAuditLog[]
 
   @@map("users")
 }
@@ -630,4 +638,156 @@ model InvestmentSetting {
   updatedAt              DateTime @updatedAt
 
   @@map("investment_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Tracking module ("/horas") — hours/billing/productivity tracking, fully
+// isolated from the domains above. Only relation back to User is shared.
+// ---------------------------------------------------------------------------
+
+enum TrackingSessionStatus {
+  RUNNING
+  PAUSED
+  COMPLETED
+}
+
+enum TrackingProjectStatus {
+  EM_ANDAMENTO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum TrackingIncomeCategory {
+  DIVIDENDO
+  VENDA
+  BONIFICACAO
+  CASHBACK
+  REEMBOLSO
+  PRESENTE
+  OUTRO
+}
+
+/// A "trabalho fixo" (recurring job/contract). `expectedHoursPerDay` + `weekdays` let us estimate
+/// an hourly rate from `monthlyValue` before any session history exists — once sessions pile up,
+/// the real hourly rate comes from actual worked time instead of this estimate.
+model TrackingJob {
+  id                  String    @id @default(cuid())
+  userId              String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  company             String
+  client              String?
+  monthlyValue        Decimal   @db.Decimal(12, 2)
+  expectedHoursPerDay Float     @default(8)
+  startDate           DateTime
+  endDate             DateTime?
+  paymentMethod       String?
+  color               String    @default("#7C3AED")
+  /// 0=domingo..6=sábado
+  weekdays            Int[]     @default([1, 2, 3, 4, 5])
+  notes               String?
+  active              Boolean   @default(true)
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  sessions TrackingSession[]
+
+  @@index([userId, active])
+  @@index([userId, deletedAt])
+  @@map("tracking_jobs")
+}
+
+/// One check-in→check-out timer session against a TrackingJob. Only one RUNNING/PAUSED session
+/// may exist per user at a time — enforced in TrackingSessionsService, not a DB constraint (same
+/// convention as ownership checks elsewhere in this codebase).
+model TrackingSession {
+  id        String                @id @default(cuid())
+  userId    String
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       TrackingJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  checkIn   DateTime
+  checkOut  DateTime?
+  status    TrackingSessionStatus @default(RUNNING)
+  notes     String?
+  createdAt DateTime              @default(now())
+  updatedAt DateTime              @updatedAt
+
+  pauses TrackingSessionPause[]
+
+  @@index([userId, status])
+  @@index([userId, checkIn])
+  @@index([jobId])
+  @@map("tracking_sessions")
+}
+
+/// Each pause/resume cycle is its own row (never an accumulated counter) so the net worked time
+/// can always be recomputed from real timestamps alone, even after a reload/crash/device switch.
+model TrackingSessionPause {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   TrackingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  pausedAt  DateTime
+  resumedAt DateTime?
+
+  @@index([sessionId])
+  @@map("tracking_session_pauses")
+}
+
+/// Freela/projeto avulso — hours are entered manually (no live timer), unlike TrackingJob sessions.
+model TrackingProject {
+  id             String                @id @default(cuid())
+  userId         String
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name           String
+  client         String?
+  amountReceived Decimal               @db.Decimal(12, 2)
+  date           DateTime
+  hoursSpent     Decimal               @db.Decimal(8, 2)
+  status         TrackingProjectStatus @default(CONCLUIDO)
+  notes          String?
+  deletedAt      DateTime?
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([userId, date])
+  @@index([userId, deletedAt])
+  @@map("tracking_projects")
+}
+
+/// Outras entradas (dividendos, vendas, cashback, etc.) — counts toward total revenue but not
+/// toward hours worked.
+model TrackingIncome {
+  id        String                 @id @default(cuid())
+  userId    String
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  category  TrackingIncomeCategory @default(OUTRO)
+  amount    Decimal                @db.Decimal(12, 2)
+  date      DateTime
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime               @default(now())
+
+  @@index([userId, date])
+  @@index([userId, deletedAt])
+  @@map("tracking_incomes")
+}
+
+/// Unlike InvestmentAuditLog (which only ever stores the new value), this keeps both `before` and
+/// `after` so edits to check-in/check-out times and values show a real diff in the Histórico page.
+model TrackingAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@map("tracking_audit_logs")
 }

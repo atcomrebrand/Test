@@ -22,6 +22,7 @@ import { FinancingsModule } from "./modules/financings/financings.module";
 import { InvestmentsModule } from "./modules/investments/investments.module";
 import { PushModule } from "./modules/push/push.module";
 import { WebAuthnModule } from "./modules/webauthn/webauthn.module";
+import { TrackingModule } from "./modules/tracking/tracking.module";
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { WebAuthnModule } from "./modules/webauthn/webauthn.module";
     InvestmentsModule,
     PushModule,
     WebAuthnModule,
+    TrackingModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
