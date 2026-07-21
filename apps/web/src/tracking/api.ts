@@ -1,7 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
-import { TrackingDashboardSummary, TrackingIncome, TrackingJob, TrackingProject, TrackingSession } from "./types";
+import {
+  ReportPeriod,
+  TrackingCalendarDay,
+  TrackingDashboardSummary,
+  TrackingHistoryResponse,
+  TrackingIncome,
+  TrackingJob,
+  TrackingProject,
+  TrackingReportSummary,
+  TrackingSearchResult,
+  TrackingSession,
+  TrackingStatsSummary,
+} from "./types";
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["tracking"] });
@@ -229,5 +241,61 @@ export function useDeleteTrackingIncome() {
       toast.success("Entrada removida.");
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Calendário
+// ---------------------------------------------------------------------------
+
+export function useTrackingCalendar(year: number, month: number) {
+  return useQuery({
+    queryKey: ["tracking", "calendar", year, month],
+    queryFn: () => api.get<TrackingCalendarDay[]>("/tracking/calendar", { params: { year, month } }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Relatórios
+// ---------------------------------------------------------------------------
+
+export function useTrackingReports(period: ReportPeriod, from?: string, to?: string) {
+  return useQuery({
+    queryKey: ["tracking", "reports", period, from ?? null, to ?? null],
+    queryFn: () => api.get<TrackingReportSummary>("/tracking/reports", { params: { period, from, to } }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Estatísticas
+// ---------------------------------------------------------------------------
+
+export function useTrackingStats() {
+  return useQuery({
+    queryKey: ["tracking", "stats"],
+    queryFn: () => api.get<TrackingStatsSummary>("/tracking/stats"),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Histórico
+// ---------------------------------------------------------------------------
+
+export function useTrackingHistory(page: number) {
+  return useQuery({
+    queryKey: ["tracking", "history", page],
+    queryFn: () => api.get<TrackingHistoryResponse>("/tracking/history", { params: { page } }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Busca
+// ---------------------------------------------------------------------------
+
+export function useTrackingSearch(query: string) {
+  return useQuery({
+    queryKey: ["tracking", "search", query],
+    queryFn: () => api.get<TrackingSearchResult[]>("/tracking/search", { params: { q: query } }),
+    enabled: query.trim().length > 0,
   });
 }

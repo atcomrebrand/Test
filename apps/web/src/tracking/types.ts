@@ -95,3 +95,80 @@ export interface TrackingDashboardSummary {
   revenueByClient: { client: string; amount: number }[];
   insights: string[];
 }
+
+export interface TrackingCalendarDaySession {
+  jobName: string;
+  company: string;
+  checkIn: string;
+  checkOut: string | null;
+  netSeconds: number;
+  value: number;
+  notes: string | null;
+}
+
+export interface TrackingCalendarDay {
+  date: string;
+  hours: number;
+  revenue: number;
+  sessions: TrackingCalendarDaySession[];
+}
+
+export type ReportPeriod = "hoje" | "semana" | "mes" | "ano" | "personalizado";
+
+export interface TrackingReportSummary {
+  totalRevenue: number;
+  hoursWorked: number;
+  averageHourlyRate: number | null;
+  projectsCount: number;
+  otherIncomeTotal: number;
+  daysWorked: number;
+  maxDailyRevenue: number;
+  maxDailyHours: number;
+  averageDailyHours: number | null;
+  revenueByCategory: { category: string; label: string; amount: number }[];
+  revenueByClient: { client: string; amount: number }[];
+  revenueByCompany: { company: string; amount: number }[];
+}
+
+export interface TrackingStatsSummary {
+  totalHoursAllTime: number;
+  totalRevenueAllTime: number;
+  averageHourlyRateAllTime: number | null;
+  bestMonth: { month: string; amount: number } | null;
+  worstMonth: { month: string; amount: number } | null;
+  biggestProject: { name: string; amount: number } | null;
+  biggestOtherIncome: { name: string; amount: number } | null;
+  checkInsCount: number;
+  averageDailyHours: number | null;
+  longestStreak: number;
+  clientRanking: { name: string; amount: number }[];
+  companyRanking: { name: string; amount: number }[];
+  projectRanking: { name: string; amount: number }[];
+  averageStartHour: number | null;
+  averageEndHour: number | null;
+  productivityByWeek: { period: string; hours: number }[];
+  productivityByMonth: { period: string; hours: number }[];
+}
+
+export interface TrackingHistoryItem {
+  id: string;
+  entity: string;
+  action: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface TrackingHistoryResponse {
+  items: TrackingHistoryItem[];
+  pagination: { page: number; pageSize: number; total: number; totalPages: number };
+}
+
+export interface TrackingSearchResult {
+  type: "SESSION" | "PROJECT" | "INCOME";
+  id: string;
+  label: string;
+  sublabel: string;
+  amount: number;
+  date: string;
+}

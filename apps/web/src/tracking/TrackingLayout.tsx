@@ -1,15 +1,32 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { ArrowLeft, Clock, Timer, Briefcase, LayoutDashboard, FolderKanban, Wallet } from "lucide-react";
+import {
+  ArrowLeft,
+  Clock,
+  Timer,
+  Briefcase,
+  LayoutDashboard,
+  FolderKanban,
+  Wallet,
+  CalendarDays,
+  FileBarChart,
+  TrendingUp,
+  History,
+  Search,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TrackingMobileNav } from "./TrackingMobileNav";
 
-/** Grows as each phase lands a new page — mirrors InvestmentsLayout's INVESTMENT_NAV pattern. */
 export const TRACKING_NAV = [
   { to: "/horas", label: "Modo Foco", icon: Timer, end: true },
   { to: "/horas/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/horas/trabalhos", label: "Trabalhos", icon: Briefcase },
   { to: "/horas/projetos", label: "Projetos", icon: FolderKanban },
   { to: "/horas/entradas", label: "Entradas", icon: Wallet },
+  { to: "/horas/calendario", label: "Calendário", icon: CalendarDays },
+  { to: "/horas/relatorios", label: "Relatórios", icon: FileBarChart },
+  { to: "/horas/estatisticas", label: "Estatísticas", icon: TrendingUp },
+  { to: "/horas/historico", label: "Histórico", icon: History },
+  { to: "/horas/busca", label: "Busca", icon: Search },
 ];
 
 export function TrackingLayout() {

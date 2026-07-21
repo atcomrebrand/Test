@@ -1,6 +1,18 @@
 import { useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { MoreHorizontal, Timer, LayoutDashboard, Briefcase, FolderKanban, Wallet } from "lucide-react";
+import {
+  MoreHorizontal,
+  Timer,
+  LayoutDashboard,
+  Briefcase,
+  FolderKanban,
+  Wallet,
+  CalendarDays,
+  FileBarChart,
+  TrendingUp,
+  History,
+  Search,
+} from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Modal } from "@/components/ui/Modal";
 
@@ -10,10 +22,14 @@ const PRIMARY_ITEMS = [
   { to: "/horas/trabalhos", label: "Trabalhos", icon: Briefcase },
 ];
 
-/** Grows as later phases add Calendário/Relatórios/Estatísticas/Histórico. */
 const MORE_ITEMS: { to: string; label: string; icon: typeof Timer }[] = [
   { to: "/horas/projetos", label: "Projetos", icon: FolderKanban },
   { to: "/horas/entradas", label: "Entradas", icon: Wallet },
+  { to: "/horas/calendario", label: "Calendário", icon: CalendarDays },
+  { to: "/horas/relatorios", label: "Relatórios", icon: FileBarChart },
+  { to: "/horas/estatisticas", label: "Estatísticas", icon: TrendingUp },
+  { to: "/horas/historico", label: "Histórico", icon: History },
+  { to: "/horas/busca", label: "Busca", icon: Search },
 ];
 
 /** Same primary-items + "Mais" pattern as InvestmentsMobileNav, so Horas feels like part of the

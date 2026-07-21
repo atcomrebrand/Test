@@ -34,6 +34,11 @@ import Jobs from "./tracking/pages/Jobs";
 import TrackingDashboard from "./tracking/pages/Dashboard";
 import Projects from "./tracking/pages/Projects";
 import Incomes from "./tracking/pages/Incomes";
+import CalendarView from "./tracking/pages/CalendarView";
+import Reports from "./tracking/pages/Reports";
+import Stats from "./tracking/pages/Stats";
+import TrackingHistory from "./tracking/pages/HistoryPage";
+import TrackingSearch from "./tracking/pages/Search";
 
 export default function App() {
   return (
@@ -79,6 +84,11 @@ export default function App() {
           <Route path="/horas/trabalhos" element={<Jobs />} />
           <Route path="/horas/projetos" element={<Projects />} />
           <Route path="/horas/entradas" element={<Incomes />} />
+          <Route path="/horas/calendario" element={<CalendarView />} />
+          <Route path="/horas/relatorios" element={<Reports />} />
+          <Route path="/horas/estatisticas" element={<Stats />} />
+          <Route path="/horas/historico" element={<TrackingHistory />} />
+          <Route path="/horas/busca" element={<TrackingSearch />} />
         </Route>
       </Route>
 
