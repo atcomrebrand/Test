@@ -3,6 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Input, Textarea } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useUpdateSessionManual } from "../api";
+import { buildSessionTimestamps } from "../lib/sessionTime";
 import { TrackingSession } from "../types";
 
 interface Props {
@@ -45,11 +46,12 @@ export function EditSessionModal({ open, onClose, session }: Props) {
     setNotes(session.notes ?? "");
   }, [open, session]);
 
+  const { overnight } = buildSessionTimestamps(date, startTime, endTime);
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!session) return;
-    const checkIn = new Date(`${date}T${startTime}:00`).toISOString();
-    const checkOut = new Date(`${date}T${endTime}:00`).toISOString();
+    const { checkIn, checkOut } = buildSessionTimestamps(date, startTime, endTime);
     update.mutate({ id: session.id, data: { checkIn, checkOut, notes: notes || undefined } }, { onSuccess: onClose });
   }
 
@@ -68,6 +70,9 @@ export function EditSessionModal({ open, onClose, session }: Props) {
           <Input label="Entrada" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
           <Input label="Saída" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
         </div>
+        {overnight && (
+          <p className="-mt-2 text-xs text-muted">Saída antes da entrada — registrada automaticamente no dia seguinte (turno que passa da meia-noite).</p>
+        )}
 
         <Textarea label="Observações (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
 

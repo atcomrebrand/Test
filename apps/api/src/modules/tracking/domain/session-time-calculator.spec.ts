@@ -73,11 +73,15 @@ describe("computeSessionTime", () => {
     expect(result.netSeconds).toBe(30 * 60);
   });
 
-  it("throws if checkOut is before checkIn", () => {
+  it("clamps to zero instead of throwing when checkOut is before checkIn", () => {
     const checkIn = new Date("2026-07-21T09:00:00Z");
     const checkOut = new Date("2026-07-21T08:00:00Z");
 
-    expect(() => computeSessionTime({ checkIn, checkOut, pauses: [] })).toThrow();
+    const result = computeSessionTime({ checkIn, checkOut, pauses: [] });
+
+    expect(result.grossSeconds).toBe(0);
+    expect(result.pauseSeconds).toBe(0);
+    expect(result.netSeconds).toBe(0);
   });
 
   it("never returns a negative netSeconds even if pauses somehow exceed gross time", () => {

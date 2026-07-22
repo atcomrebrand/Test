@@ -53,3 +53,24 @@ export function isSameLocalDay(a: Date, b: Date): boolean {
 export function isSameLocalMonth(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth();
 }
+
+function addDays(dateStr: string, days: number): string {
+  const d = new Date(`${dateStr}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+/**
+ * Turns a single date + start/end time pair into checkIn/checkOut ISO timestamps, automatically
+ * rolling the checkout onto the next calendar day when the end time is earlier than the start time
+ * — the only sane reading of "entrada 16:30, saída 00:00" (a shift that crosses midnight), since the
+ * form only has one date field. Without this, that same-looking input silently produced a checkOut
+ * before checkIn, which the backend now rejects outright instead of persisting.
+ */
+export function buildSessionTimestamps(date: string, startTime: string, endTime: string) {
+  const overnight = endTime < startTime;
+  const checkIn = new Date(`${date}T${startTime}:00`).toISOString();
+  const checkOut = new Date(`${overnight ? addDays(date, 1) : date}T${endTime}:00`).toISOString();
+  return { checkIn, checkOut, overnight };
+}

@@ -93,6 +93,15 @@ export class TrackingSessionsService {
     if (dto.checkOut) data.checkOut = new Date(dto.checkOut);
     if (dto.notes !== undefined) data.notes = dto.notes;
 
+    // Same invariant createManual already enforces — mesclado com o valor atual pra validar mesmo
+    // quando o PATCH só manda um dos dois lados (ex: FocusMode só reedita o checkIn da sessão ativa).
+    const resultCheckIn = data.checkIn ?? before.checkIn;
+    const resultCheckOut = data.checkOut ?? before.checkOut;
+    if (resultCheckOut) {
+      if (resultCheckOut <= resultCheckIn) throw new BadRequestException("O horário de saída deve ser depois do horário de entrada.");
+      if (resultCheckOut.getTime() > Date.now()) throw new BadRequestException("Não é possível registrar uma sessão que termina no futuro.");
+    }
+
     const after = await this.sessions.updateManual(sessionId, data);
     await this.audit.log(userId, "TrackingSession", sessionId, "MANUAL_EDIT", this.snapshot(before), this.snapshot(after));
     return this.present(after);

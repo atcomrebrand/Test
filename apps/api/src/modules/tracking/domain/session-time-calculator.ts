@@ -22,16 +22,18 @@ export interface SessionTimeResult {
  * ticker and the persisted session totals at finish-time, so a running session and its saved
  * summary never disagree. Never an accumulated counter: always derived from real timestamps
  * (checkIn/checkOut/pauses), which survive reloads, browser closes and device switches untouched.
+ *
+ * Never throws: an end before checkIn clamps to zero instead. Validating "checkOut must be after
+ * checkIn" belongs to the write path (TrackingSessionsService), not here — every read path
+ * (dashboard/calendar/stats/relatórios/exportação/sessões) computes this per-session inside a
+ * plain loop with no per-item error isolation, so one bad legacy row throwing here would take
+ * down the whole batch instead of just that session.
  */
 export function computeSessionTime(input: SessionTimeInput): SessionTimeResult {
   const { checkIn, checkOut, pauses, asOf = new Date() } = input;
   const end = checkOut ?? asOf;
 
-  if (end.getTime() < checkIn.getTime()) {
-    throw new Error("Check-out não pode ser antes do check-in.");
-  }
-
-  const grossSeconds = Math.round((end.getTime() - checkIn.getTime()) / 1000);
+  const grossSeconds = Math.max(0, Math.round((end.getTime() - checkIn.getTime()) / 1000));
 
   const pauseSeconds = pauses.reduce((total, pause) => {
     const pauseEnd = pause.resumedAt ?? end;

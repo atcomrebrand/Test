@@ -272,6 +272,63 @@ describe("TrackingSessionsService.createManual", () => {
   });
 });
 
+describe("TrackingSessionsService.updateManual", () => {
+  it("updates checkIn and checkOut on an already-COMPLETED session", async () => {
+    const existing = makeSession({ status: "COMPLETED", checkIn: new Date("2026-07-20T13:00:00Z"), checkOut: new Date("2026-07-20T15:00:00Z") });
+    const { sessions, jobs, audit, fx } = makeRepos(existing);
+    sessions.updateManual.mockResolvedValue({ ...existing, checkOut: new Date("2026-07-20T18:00:00Z") });
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+
+    const result = await service.updateManual("user-1", "session-1", { checkOut: "2026-07-20T18:00:00.000Z" });
+
+    expect(sessions.updateManual).toHaveBeenCalledWith("session-1", { checkOut: new Date("2026-07-20T18:00:00Z") });
+    expect(result.netSeconds).toBeCloseTo(5 * 3600, 0);
+  });
+
+  it("throws BadRequestException instead of persisting when the new checkOut would be before checkIn", async () => {
+    const existing = makeSession({ status: "COMPLETED", checkIn: new Date("2026-07-20T16:30:00Z"), checkOut: new Date("2026-07-20T20:00:00Z") });
+    const { sessions, jobs, audit, fx } = makeRepos(existing);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+
+    // Regression: an overnight shift (16:30 -> 00:00 next day) entered against the same calendar
+    // date used to slip past validation here (createManual already checked this, updateManual
+    // didn't), writing checkOut < checkIn straight to the DB — which then crashed every batch read
+    // (dashboard/calendar/stats/relatórios/exportação/sessões) the moment it tried to present() it.
+    await expect(service.updateManual("user-1", "session-1", { checkOut: "2026-07-20T00:00:00.000Z" })).rejects.toThrow(BadRequestException);
+    expect(sessions.updateManual).not.toHaveBeenCalled();
+  });
+
+  it("throws BadRequestException when only checkIn is edited past the session's existing checkOut", async () => {
+    const existing = makeSession({ status: "COMPLETED", checkIn: new Date("2026-07-20T09:00:00Z"), checkOut: new Date("2026-07-20T17:00:00Z") });
+    const { sessions, jobs, audit, fx } = makeRepos(existing);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+
+    await expect(service.updateManual("user-1", "session-1", { checkIn: "2026-07-20T18:00:00.000Z" })).rejects.toThrow(BadRequestException);
+    expect(sessions.updateManual).not.toHaveBeenCalled();
+  });
+
+  it("throws BadRequestException when the resulting checkOut would be in the future", async () => {
+    const existing = makeSession({ status: "COMPLETED", checkIn: new Date("2026-07-20T09:00:00Z"), checkOut: new Date("2026-07-20T17:00:00Z") });
+    const { sessions, jobs, audit, fx } = makeRepos(existing);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+    const future = new Date(Date.now() + 3600_000).toISOString();
+
+    await expect(service.updateManual("user-1", "session-1", { checkOut: future })).rejects.toThrow(BadRequestException);
+    expect(sessions.updateManual).not.toHaveBeenCalled();
+  });
+
+  it("allows editing only checkIn on a still-active (checkOut null) session, without checkOut validation", async () => {
+    const existing = makeSession({ status: "RUNNING", checkIn: new Date("2026-07-20T09:00:00Z"), checkOut: null });
+    const { sessions, jobs, audit, fx } = makeRepos(existing);
+    sessions.updateManual.mockResolvedValue({ ...existing, checkIn: new Date("2026-07-20T08:30:00Z") });
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+
+    await service.updateManual("user-1", "session-1", { checkIn: "2026-07-20T08:30:00.000Z" });
+
+    expect(sessions.updateManual).toHaveBeenCalledWith("session-1", { checkIn: new Date("2026-07-20T08:30:00Z") });
+  });
+});
+
 describe("TrackingSessionsService.present (FREELANCE jobs)", () => {
   it("computes the hourly rate as totalAgreedValue ÷ this session's own live hours, when it's the only one so far", async () => {
     // 4h in, R$800 combinado -> R$200/h so far

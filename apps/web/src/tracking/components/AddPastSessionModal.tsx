@@ -3,6 +3,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Input, Select, Textarea } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { useCreateManualSession, useTrackingJobs } from "../api";
+import { buildSessionTimestamps } from "../lib/sessionTime";
 
 interface Props {
   open: boolean;
@@ -39,11 +40,12 @@ export function AddPastSessionModal({ open, onClose, initialDate }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, initialDate]);
 
+  const { overnight } = buildSessionTimestamps(date, startTime, endTime);
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (!jobId) return;
-    const checkIn = new Date(`${date}T${startTime}:00`).toISOString();
-    const checkOut = new Date(`${date}T${endTime}:00`).toISOString();
+    const { checkIn, checkOut } = buildSessionTimestamps(date, startTime, endTime);
     create.mutate({ jobId, checkIn, checkOut, notes: notes || undefined }, { onSuccess: onClose });
   }
 
@@ -66,6 +68,9 @@ export function AddPastSessionModal({ open, onClose, initialDate }: Props) {
           <Input label="Entrada" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
           <Input label="Saída" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
         </div>
+        {overnight && (
+          <p className="-mt-2 text-xs text-muted">Saída antes da entrada — registrada automaticamente no dia seguinte (turno que passa da meia-noite).</p>
+        )}
 
         <Textarea label="Observações (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
 
