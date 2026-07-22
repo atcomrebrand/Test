@@ -17,15 +17,15 @@ import { cn } from "@/lib/cn";
 import { Modal } from "@/components/ui/Modal";
 
 const PRIMARY_ITEMS = [
-  { to: "/horas", label: "Modo Foco", icon: Timer, end: true },
   { to: "/horas/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { to: "/horas", label: "Modo Foco", icon: Timer, end: true },
   { to: "/horas/trabalhos", label: "Trabalhos", icon: Briefcase },
+  { to: "/horas/calendario", label: "Calendário", icon: CalendarDays },
 ];
 
 const MORE_ITEMS: { to: string; label: string; icon: typeof Timer }[] = [
   { to: "/horas/sessoes", label: "Sessões", icon: ListChecks },
   { to: "/horas/entradas", label: "Entradas", icon: Wallet },
-  { to: "/horas/calendario", label: "Calendário", icon: CalendarDays },
   { to: "/horas/relatorios", label: "Relatórios", icon: FileBarChart },
   { to: "/horas/estatisticas", label: "Estatísticas", icon: TrendingUp },
   { to: "/horas/historico", label: "Histórico", icon: History },
