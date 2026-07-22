@@ -5,10 +5,9 @@ import { useLiveElapsed } from "../hooks/useLiveElapsed";
 import { formatHMS } from "../lib/sessionTime";
 
 /**
- * Mounted once at the top of the authenticated route tree (ProtectedRoute/AppLockGate), not inside
- * TrackingLayout, so it shows up on every screen of the app — Parcelas, Investimentos, anywhere —
- * whenever a work session is active, matching the spec's "o usuário nunca perde o controle do
- * tempo" requirement. Hidden on the Modo Foco screen itself, which already shows the full controls.
+ * Mounted inside TrackingLayout so it shows on every screen of the Horas module — Dashboard,
+ * Sessões, Calendário, etc. — whenever a work session is active, but never leaks into Parcelas or
+ * Investimentos. Hidden on the Modo Foco screen itself, which already shows the full controls.
  */
 export function FloatingTimerBar() {
   const location = useLocation();

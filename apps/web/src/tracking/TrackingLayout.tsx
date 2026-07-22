@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { TrackingMobileNav } from "./TrackingMobileNav";
+import { FloatingTimerBar } from "./components/FloatingTimerBar";
 
 export const TRACKING_NAV = [
   { to: "/horas", label: "Modo Foco", icon: Timer, end: true },
@@ -77,6 +78,7 @@ export function TrackingLayout() {
       </main>
 
       <TrackingMobileNav />
+      <FloatingTimerBar />
     </div>
   );
 }
