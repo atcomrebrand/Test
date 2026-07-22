@@ -4,7 +4,17 @@ import { browserSupportsWebAuthn } from "@simplewebauthn/browser";
 import { BellRing, Lock, ScanFace, Smartphone, Trash2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { isIos, isPushSupported, isStandalone, usePushStatus, useSendTestPush, useSubscribePush, useUnsubscribePush } from "@/features/usePush";
+import {
+  getNotificationPermission,
+  isIos,
+  isPushSupported,
+  isStandalone,
+  usePushStatus,
+  useResubscribePush,
+  useSendTestPush,
+  useSubscribePush,
+  useUnsubscribePush,
+} from "@/features/usePush";
 import { useRegisterFaceId, useRemoveWebAuthnCredential, useWebAuthnCredentials } from "@/features/useWebAuthn";
 import { useSettings, useUpdateSettings } from "@/features/useSettings";
 
@@ -19,6 +29,14 @@ export function SecuritySettingsCard() {
   const subscribePush = useSubscribePush();
   const unsubscribePush = useUnsubscribePush();
   const sendTestPush = useSendTestPush();
+  const resubscribePush = useResubscribePush();
+  const permission = pushSupported ? getNotificationPermission() : "unsupported";
+
+  const PERMISSION_LABEL: Record<string, string> = {
+    granted: "concedida",
+    denied: "negada — só reativa nos Ajustes de Notificações do aparelho",
+    default: "ainda não perguntada",
+  };
 
   const { data: credentials } = useWebAuthnCredentials();
   const registerFaceId = useRegisterFaceId();
@@ -40,6 +58,13 @@ export function SecuritySettingsCard() {
         onError: (e: Error) => toast.error(e.message),
       });
     }
+  }
+
+  function onResubscribePush() {
+    resubscribePush.mutate(undefined, {
+      onSuccess: () => toast.success("Notificações reinstaladas! Tente enviar um teste agora."),
+      onError: (e: Error) => toast.error(e.message),
+    });
   }
 
   function onRegisterFaceId() {
@@ -87,7 +112,16 @@ export function SecuritySettingsCard() {
                   Enviar teste
                 </Button>
               )}
+              <Button variant="ghost" size="sm" loading={resubscribePush.isPending} onClick={onResubscribePush}>
+                Reinstalar notificações
+              </Button>
             </div>
+          )}
+          {pushSupported && !iosNotInstalled && (
+            <p className="mt-2 text-xs text-muted">
+              Permissão do navegador: {PERMISSION_LABEL[permission] ?? permission}. Se o teste não chegar, use
+              "Reinstalar notificações" — ela apaga a inscrição antiga e cria uma nova do zero.
+            </p>
           )}
         </div>
 

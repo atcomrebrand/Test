@@ -75,4 +75,14 @@ describe("PushService", () => {
     expect(webpush.sendNotification).toHaveBeenCalledTimes(2);
     expect(prisma.pushSubscription.delete).toHaveBeenCalledWith({ where: { id: "s1" } });
   });
+
+  it("unsubscribeAll deletes every subscription for the user, not just one endpoint", async () => {
+    const prisma = makePrisma();
+    const service = new PushService(prisma);
+
+    const result = await service.unsubscribeAll("user-1");
+
+    expect(prisma.pushSubscription.deleteMany).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+    expect(result).toEqual({ subscribed: false });
+  });
 });

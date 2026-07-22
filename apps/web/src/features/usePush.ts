@@ -26,6 +26,15 @@ export function isStandalone() {
   return window.matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true;
 }
 
+/** Raw browser permission state — "denied" here means the OS/browser already decided and
+ *  Notification.requestPermission() will never show a prompt again; only the user going into their
+ *  device's own notification settings can undo that. Surfacing this directly helps tell apart
+ *  "never asked", "asked and refused", and "granted but something else is wrong". */
+export function getNotificationPermission(): NotificationPermission | "unsupported" {
+  if (!("Notification" in window)) return "unsupported";
+  return Notification.permission;
+}
+
 export function usePushStatus() {
   return useQuery({
     queryKey: ["push", "status"],
@@ -34,33 +43,33 @@ export function usePushStatus() {
   });
 }
 
+async function subscribeFresh() {
+  const permission = await Notification.requestPermission();
+  if (permission !== "granted") {
+    throw new Error(
+      permission === "denied"
+        ? "Notificações negadas nas configurações do aparelho. Vá em Ajustes > Notificações e ative manualmente."
+        : "Permissão de notificação negada.",
+    );
+  }
+
+  const { publicKey } = await api.get<{ publicKey: string | null }>("/push/vapid-public-key");
+  if (!publicKey) throw new Error("Servidor ainda não configurou as chaves de notificação (VAPID).");
+
+  const registration = await navigator.serviceWorker.ready;
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey),
+  });
+
+  const json = subscription.toJSON();
+  await api.post("/push/subscribe", { endpoint: json.endpoint, keys: json.keys, userAgent: navigator.userAgent });
+}
+
 export function useSubscribePush() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async () => {
-      const permission = await Notification.requestPermission();
-      if (permission !== "granted") {
-        throw new Error("Permissão de notificação negada.");
-      }
-
-      const { publicKey } = await api.get<{ publicKey: string | null }>("/push/vapid-public-key");
-      if (!publicKey) {
-        throw new Error("Servidor ainda não configurou as chaves de notificação (VAPID).");
-      }
-
-      const registration = await navigator.serviceWorker.ready;
-      const subscription = await registration.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(publicKey),
-      });
-
-      const json = subscription.toJSON();
-      await api.post("/push/subscribe", {
-        endpoint: json.endpoint,
-        keys: json.keys,
-        userAgent: navigator.userAgent,
-      });
-    },
+    mutationFn: subscribeFresh,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["push", "status"] }),
   });
 }
@@ -74,6 +83,11 @@ export function useUnsubscribePush() {
       if (subscription) {
         await api.post("/push/unsubscribe", { endpoint: subscription.endpoint });
         await subscription.unsubscribe();
+      } else {
+        // The browser lost track of its own subscription (PWA reinstalled, site data cleared,
+        // etc) — nothing local to unsubscribe from, so clear server state directly instead of
+        // leaving the "Desativar" button stuck forever showing "subscribed".
+        await api.post("/push/reset");
       }
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["push", "status"] }),
@@ -82,4 +96,24 @@ export function useUnsubscribePush() {
 
 export function useSendTestPush() {
   return useMutation({ mutationFn: () => api.post("/push/test") });
+}
+
+/** Hard reset: clears any existing subscription (server + local) and subscribes fresh from
+ *  scratch. This is the fix for a subscription that the server happily sends to (200/201, no
+ *  errors) but that never actually shows up on the device — a stale registration left over from
+ *  before the PWA was reinstalled, for instance. Also doubles as a way to surface the real
+ *  Notification.requestPermission() result when things aren't working: "denied" here means the OS
+ *  already decided and only the device's own settings can undo it, not this button. */
+export function useResubscribePush() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) await existing.unsubscribe();
+      await api.post("/push/reset");
+      await subscribeFresh();
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["push", "status"] }),
+  });
 }

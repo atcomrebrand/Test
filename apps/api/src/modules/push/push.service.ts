@@ -55,6 +55,15 @@ export class PushService {
     return { subscribed: false };
   }
 
+  /** Clears every subscription this user has, not just one endpoint — the recovery path for when
+   *  the browser's local subscription object is gone (e.g. after reinstalling the PWA) but the
+   *  server still thinks the user is subscribed, leaving the "desativar" toggle stuck with nothing
+   *  to unsubscribe from client-side. */
+  async unsubscribeAll(userId: string) {
+    await this.prisma.pushSubscription.deleteMany({ where: { userId } });
+    return { subscribed: false };
+  }
+
   async isSubscribed(userId: string): Promise<boolean> {
     const count = await this.prisma.pushSubscription.count({ where: { userId } });
     return count > 0;
