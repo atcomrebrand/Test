@@ -15,10 +15,9 @@ function formatHM(totalSeconds: number): string {
 }
 
 /**
- * Minute-by-minute "hora de iniciar" / "hora de encerrar" reminders — the iOS-friendly companion
- * to the live ticker (a real Live Activity isn't available to web apps on iOS, but a plain push at
- * the right moment covers the same "don't forget to start/stop" need on any platform). Independent
- * from TrackingNotificationsService's 6h sweep, which is far too coarse for a schedule check.
+ * Minute-by-minute "hora de iniciar" / "hora de encerrar" reminders — a plain push at the right
+ * moment covers the "don't forget to start/stop the timer" need on any platform. Independent from
+ * TrackingNotificationsService's 6h sweep, which is far too coarse for a schedule check.
  */
 @Injectable()
 export class TrackingScheduleRemindersService {

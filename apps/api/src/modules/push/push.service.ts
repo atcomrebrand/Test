@@ -8,9 +8,6 @@ export interface PushPayload {
   body: string;
   /** In-app path to open when the notification is tapped, e.g. "/notificacoes". */
   url?: string;
-  /** When set, the OS replaces any existing notification with the same tag instead of stacking a
-   *  new one — used by the Horas live ticker so the session's elapsed time updates in place. */
-  tag?: string;
 }
 
 /**

@@ -27,10 +27,6 @@ self.addEventListener("push", (event) => {
       icon: "/icons/icon-192.png",
       badge: "/icons/icon-192.png",
       data: { url: payload.url || "/" },
-      // Same tag replaces the previous notification in place instead of stacking a new one —
-      // what makes the Horas live ticker feel like it's updating rather than spamming.
-      tag: payload.tag,
-      renotify: false,
     }),
   );
 });
