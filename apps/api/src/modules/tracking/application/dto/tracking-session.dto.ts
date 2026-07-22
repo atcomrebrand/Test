@@ -4,6 +4,11 @@ export class StartSessionDto {
   @IsString()
   jobId!: string;
 
+  /** Opcional — "esqueci de dar play" — inicia a sessão já com esse check-in em vez de agora. */
+  @IsOptional()
+  @IsDateString()
+  checkIn?: string;
+
   @IsOptional()
   @IsString()
   notes?: string;

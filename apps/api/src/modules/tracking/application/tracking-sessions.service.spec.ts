@@ -131,6 +131,27 @@ describe("TrackingSessionsService.start", () => {
     expect(audit.log).toHaveBeenCalledWith("user-1", "TrackingSession", "session-1", "CHECK_IN", null, expect.anything());
     expect(result.status).toBe("RUNNING");
   });
+
+  it("uses a past checkIn when provided — 'esqueci de dar play' retroactive start", async () => {
+    const checkIn = new Date(Date.now() - 30 * 60_000);
+    const created = makeSession({ checkIn });
+    const { sessions, jobs, audit, fx } = makeRepos(null);
+    sessions.create.mockResolvedValue(created);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+
+    await service.start("user-1", { jobId: "job-1", checkIn: checkIn.toISOString() });
+
+    expect(sessions.create).toHaveBeenCalledWith(expect.objectContaining({ userId: "user-1", jobId: "job-1", checkIn }));
+  });
+
+  it("throws BadRequestException when the provided checkIn is in the future", async () => {
+    const { sessions, jobs, audit, fx } = makeRepos(null);
+    const service = new TrackingSessionsService(sessions, jobs, audit, fx);
+    const future = new Date(Date.now() + 3600_000).toISOString();
+
+    await expect(service.start("user-1", { jobId: "job-1", checkIn: future })).rejects.toThrow(BadRequestException);
+    expect(sessions.create).not.toHaveBeenCalled();
+  });
 });
 
 describe("TrackingSessionsService.pause/resume", () => {

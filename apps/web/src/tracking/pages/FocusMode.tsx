@@ -42,6 +42,8 @@ export default function FocusMode() {
   const [manualCheckIn, setManualCheckIn] = useState("");
   const [reconcileOpen, setReconcileOpen] = useState(false);
   const [addPastOpen, setAddPastOpen] = useState(false);
+  const [showRetroStart, setShowRetroStart] = useState(false);
+  const [retroStartAt, setRetroStartAt] = useState("");
   const reconciledSessionIds = useRef<Set<string>>(new Set());
 
   const start = useStartSession();
@@ -98,7 +100,7 @@ export default function FocusMode() {
       if (e.code === "Space") {
         e.preventDefault();
         if (!activeSession) {
-          if (selectedJobId) start.mutate({ jobId: selectedJobId });
+          if (selectedJobId) handleStart();
         } else if (activeSession.status === "RUNNING") {
           pause.mutate(activeSession.id);
         } else if (activeSession.status === "PAUSED") {
@@ -115,7 +117,7 @@ export default function FocusMode() {
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anyModalOpen, activeSession, selectedJobId]);
+  }, [anyModalOpen, activeSession, selectedJobId, retroStartAt]);
 
   const activeJobs = useMemo(() => (jobs ?? []).filter((j) => j.active), [jobs]);
   const selectedJob = activeSession?.job ?? activeJobs.find((j) => j.id === selectedJobId) ?? null;
@@ -140,7 +142,16 @@ export default function FocusMode() {
 
   const handleStart = () => {
     if (!selectedJobId) return;
-    start.mutate({ jobId: selectedJobId });
+    const checkIn = retroStartAt ? new Date(retroStartAt).toISOString() : undefined;
+    start.mutate(
+      { jobId: selectedJobId, checkIn },
+      {
+        onSuccess: () => {
+          setRetroStartAt("");
+          setShowRetroStart(false);
+        },
+      },
+    );
   };
 
   const handleFinish = () => {
@@ -236,12 +247,57 @@ export default function FocusMode() {
       )}
 
       {!activeSession && (
-        <Select
-          label="Selecione um trabalho"
-          value={selectedJobId}
-          onChange={(e) => setSelectedJobId(e.target.value)}
-          options={[{ value: "", label: "Selecione..." }, ...activeJobs.map((j) => ({ value: j.id, label: `${j.name} — ${j.company}` }))]}
-        />
+        <div className="flex flex-col gap-2">
+          <Select
+            label="Selecione um trabalho"
+            value={selectedJobId}
+            onChange={(e) => setSelectedJobId(e.target.value)}
+            options={[{ value: "", label: "Selecione..." }, ...activeJobs.map((j) => ({ value: j.id, label: `${j.name} — ${j.company}` }))]}
+          />
+
+          {!showRetroStart ? (
+            <button
+              type="button"
+              onClick={() => setShowRetroStart(true)}
+              className="self-start text-xs font-medium text-muted transition-colors hover:text-violet-500"
+            >
+              Já comecei há um tempo?
+            </button>
+          ) : (
+            <div className="flex flex-col gap-2 rounded-xl surface-2 p-3">
+              <p className="text-xs font-medium text-muted">Comecei há...</p>
+              <div className="flex flex-wrap gap-1.5">
+                {[15, 30, 60].map((min) => (
+                  <button
+                    key={min}
+                    type="button"
+                    onClick={() => setRetroStartAt(toLocalInputValue(new Date(Date.now() - min * 60_000)))}
+                    className="rounded-lg border border-[rgb(var(--border))] px-2.5 py-1 text-xs font-medium transition-colors hover:surface"
+                  >
+                    {min === 60 ? "1h atrás" : `${min} min atrás`}
+                  </button>
+                ))}
+              </div>
+              <Input
+                type="datetime-local"
+                label="Ou escolha o horário exato"
+                value={retroStartAt}
+                onChange={(e) => setRetroStartAt(e.target.value)}
+                max={toLocalInputValue(new Date())}
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setRetroStartAt("");
+                  setShowRetroStart(false);
+                }}
+                className="self-start text-xs text-muted transition-colors hover:text-red-500"
+              >
+                Cancelar, começar agora
+              </button>
+            </div>
+          )}
+        </div>
       )}
 
       <Card>
@@ -264,10 +320,15 @@ export default function FocusMode() {
           )}
 
           {!activeSession && (
-            <Button size="lg" onClick={handleStart} disabled={!selectedJobId} loading={start.isPending}>
-              <Play className="h-5 w-5" />
-              Iniciar Trabalho
-            </Button>
+            <div className="flex flex-col items-center gap-1.5">
+              <Button size="lg" onClick={handleStart} disabled={!selectedJobId} loading={start.isPending}>
+                <Play className="h-5 w-5" />
+                Iniciar Trabalho
+              </Button>
+              {retroStartAt && (
+                <p className="text-xs text-muted">Início será registrado às {new Date(retroStartAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</p>
+              )}
+            </div>
           )}
 
           {(!activeSession || activeSession.status !== "COMPLETED") && (

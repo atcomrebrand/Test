@@ -121,7 +121,7 @@ export function useTrackingSessions(from?: string, to?: string) {
 export function useStartSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: { jobId: string; notes?: string }) => api.post<TrackingSession>("/tracking/sessions/start", data),
+    mutationFn: (data: { jobId: string; checkIn?: string; notes?: string }) => api.post<TrackingSession>("/tracking/sessions/start", data),
     onSuccess: () => invalidateAll(qc),
     onError: (e: Error) => toast.error(e.message),
   });

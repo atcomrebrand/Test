@@ -33,8 +33,11 @@ export class TrackingSessionsService {
     const active = await this.sessions.findActiveByUser(userId);
     if (active) throw new ConflictException("Já existe uma sessão em andamento. Finalize-a antes de iniciar outra.");
 
+    const checkIn = dto.checkIn ? new Date(dto.checkIn) : new Date();
+    if (checkIn.getTime() > Date.now()) throw new BadRequestException("O horário de início não pode ser no futuro.");
+
     const job = await this.getOwnedJob(userId, dto.jobId);
-    const session = await this.sessions.create({ userId, jobId: job.id, checkIn: new Date(), notes: dto.notes });
+    const session = await this.sessions.create({ userId, jobId: job.id, checkIn, notes: dto.notes });
     await this.audit.log(userId, "TrackingSession", session.id, "CHECK_IN", null, { checkIn: session.checkIn });
     return await this.present(session);
   }
