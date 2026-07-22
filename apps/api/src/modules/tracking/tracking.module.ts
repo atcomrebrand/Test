@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { PushModule } from "../push/push.module";
 import { TrackingJobsController } from "./interface/tracking-jobs.controller";
 import { TrackingSessionsController } from "./interface/tracking-sessions.controller";
 import { TrackingIncomesController } from "./interface/tracking-incomes.controller";
@@ -23,6 +24,8 @@ import { TrackingSearchService } from "./application/tracking-search.service";
 import { TrackingExportService } from "./application/tracking-export.service";
 import { TrackingAuditService } from "./application/tracking-audit.service";
 import { TrackingNotificationsService } from "./application/tracking-notifications.service";
+import { TrackingLiveTickerService } from "./application/tracking-live-ticker.service";
+import { TrackingScheduleRemindersService } from "./application/tracking-schedule-reminders.service";
 import { TrackingFxService } from "./application/tracking-fx.service";
 import { TrackingJobPaymentsService } from "./application/tracking-job-payments.service";
 import { TrackingJobRepository } from "./domain/tracking-job.repository";
@@ -38,7 +41,7 @@ import { AwesomeApiFxProvider } from "./infrastructure/providers/awesomeapi-fx.p
 import { ExchangerateFxProvider } from "./infrastructure/providers/exchangerate-fx.provider";
 
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, PushModule],
   controllers: [
     TrackingJobsController,
     TrackingSessionsController,
@@ -65,6 +68,8 @@ import { ExchangerateFxProvider } from "./infrastructure/providers/exchangerate-
     TrackingExportService,
     TrackingAuditService,
     TrackingNotificationsService,
+    TrackingLiveTickerService,
+    TrackingScheduleRemindersService,
     TrackingFxService,
     ExchangerateFxProvider,
     TrackingJobPaymentsService,

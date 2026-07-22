@@ -21,6 +21,11 @@ export interface TrackingJob {
   paymentDay: number | null;
   color: string;
   weekdays: number[];
+  /** "HH:mm", opcional — dispara o lembrete "hora de iniciar" nesse horário, nos weekdays. */
+  expectedStartTime: string | null;
+  /** "HH:mm", opcional — dispara o lembrete "hora de encerrar" nesse horário exato; quando null,
+   *  o lembrete usa expectedHoursPerDay em vez de um horário fixo. */
+  expectedEndTime: string | null;
   notes: string | null;
   active: boolean;
   estimatedHourlyRate?: number | null;

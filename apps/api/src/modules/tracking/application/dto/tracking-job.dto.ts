@@ -1,5 +1,7 @@
 import { Type } from "class-transformer";
-import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsPositive, IsString, Max, Min, MinLength, ValidateIf } from "class-validator";
+import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsPositive, IsString, Matches, Max, Min, MinLength, ValidateIf } from "class-validator";
+
+const HHMM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 export class CreateTrackingJobDto {
   @IsOptional()
@@ -73,6 +75,17 @@ export class CreateTrackingJobDto {
   @Max(6, { each: true })
   weekdays?: number[];
 
+  /** "HH:mm" — dispara o lembrete "hora de iniciar" nesse horário, nos weekdays configurados. */
+  @IsOptional()
+  @Matches(HHMM_REGEX, { message: "expectedStartTime deve estar no formato HH:mm." })
+  expectedStartTime?: string;
+
+  /** "HH:mm" — dispara o lembrete "hora de encerrar" nesse horário exato pra sessão em andamento;
+   *  quando ausente, o lembrete usa expectedHoursPerDay em vez de um horário fixo. */
+  @IsOptional()
+  @Matches(HHMM_REGEX, { message: "expectedEndTime deve estar no formato HH:mm." })
+  expectedEndTime?: string;
+
   @IsOptional()
   @IsString()
   notes?: string;
@@ -100,6 +113,9 @@ export class UpdateTrackingJobDto {
   @Min(0, { each: true })
   @Max(6, { each: true })
   weekdays?: number[];
+
+  @IsOptional() @Matches(HHMM_REGEX, { message: "expectedStartTime deve estar no formato HH:mm." }) expectedStartTime?: string;
+  @IsOptional() @Matches(HHMM_REGEX, { message: "expectedEndTime deve estar no formato HH:mm." }) expectedEndTime?: string;
 
   @IsOptional() @IsString() notes?: string;
   @IsOptional() @IsBoolean() active?: boolean;

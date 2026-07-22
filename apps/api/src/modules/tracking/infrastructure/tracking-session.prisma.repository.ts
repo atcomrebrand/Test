@@ -80,6 +80,13 @@ export class TrackingSessionPrismaRepository extends TrackingSessionRepository {
     });
   }
 
+  findAllActive() {
+    return this.prisma.trackingSession.findMany({
+      where: { status: { in: ["RUNNING", "PAUSED"] } },
+      include: INCLUDE,
+    });
+  }
+
   findCompletedByJobIds(jobIds: string[]) {
     if (jobIds.length === 0) return Promise.resolve([]);
     return this.prisma.trackingSession.findMany({

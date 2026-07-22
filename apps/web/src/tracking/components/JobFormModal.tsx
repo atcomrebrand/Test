@@ -50,6 +50,8 @@ export function JobFormModal({ open, onClose, job }: Props) {
   const [paymentDay, setPaymentDay] = useState("");
   const [color, setColor] = useState("#7C3AED");
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [expectedStartTime, setExpectedStartTime] = useState("");
+  const [expectedEndTime, setExpectedEndTime] = useState("");
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
@@ -69,6 +71,8 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setPaymentDay(job.paymentDay ? String(job.paymentDay) : "");
       setColor(job.color);
       setWeekdays(job.weekdays);
+      setExpectedStartTime(job.expectedStartTime ?? "");
+      setExpectedEndTime(job.expectedEndTime ?? "");
       setNotes(job.notes ?? "");
     } else {
       setType("FIXO");
@@ -85,6 +89,8 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setPaymentDay("");
       setColor("#7C3AED");
       setWeekdays([1, 2, 3, 4, 5]);
+      setExpectedStartTime("");
+      setExpectedEndTime("");
       setNotes("");
     }
   }, [open, job]);
@@ -110,6 +116,8 @@ export function JobFormModal({ open, onClose, job }: Props) {
       paymentDay: type === "FIXO" && paymentDay ? Number(paymentDay) : undefined,
       color,
       weekdays,
+      expectedStartTime: type === "FIXO" ? expectedStartTime || null : null,
+      expectedEndTime: type === "FIXO" ? expectedEndTime || null : null,
       notes: notes || undefined,
     };
 
@@ -233,6 +241,25 @@ export function JobFormModal({ open, onClose, job }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {type === "FIXO" && (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <Input
+              label="Horário de início (opcional)"
+              type="time"
+              value={expectedStartTime}
+              onChange={(e) => setExpectedStartTime(e.target.value)}
+              hint="Manda um lembrete pra iniciar o timer nesse horário, se ainda não tiver começado."
+            />
+            <Input
+              label="Horário de término (opcional)"
+              type="time"
+              value={expectedEndTime}
+              onChange={(e) => setExpectedEndTime(e.target.value)}
+              hint="Sem isso, o lembrete de encerrar usa as horas esperadas por dia."
+            />
           </div>
         )}
 

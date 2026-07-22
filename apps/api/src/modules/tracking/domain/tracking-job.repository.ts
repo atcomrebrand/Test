@@ -16,6 +16,8 @@ export interface CreateTrackingJobData {
   paymentDay?: number;
   color?: string;
   weekdays?: number[];
+  expectedStartTime?: string;
+  expectedEndTime?: string;
   notes?: string;
 }
 

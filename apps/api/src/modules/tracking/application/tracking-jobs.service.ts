@@ -54,6 +54,8 @@ export class TrackingJobsService {
       paymentDay: type === "FIXO" ? dto.paymentDay : undefined,
       color: dto.color,
       weekdays: dto.weekdays,
+      expectedStartTime: dto.expectedStartTime,
+      expectedEndTime: dto.expectedEndTime,
       notes: dto.notes,
     });
     await this.audit.log(userId, "TrackingJob", job.id, "CREATE", null, job);

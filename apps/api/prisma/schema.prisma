@@ -43,6 +43,8 @@ enum NotificationType {
   TRACKING_FORGOT_CHECKOUT
   TRACKING_LONG_SESSION
   TRACKING_PAYMENT_REMINDER
+  TRACKING_START_REMINDER
+  TRACKING_END_REMINDER
 }
 
 enum Theme {
@@ -706,6 +708,13 @@ model TrackingJob {
   color               String           @default("#7C3AED")
   /// 0=domingo..6=sábado — só relevante pra FIXO.
   weekdays            Int[]            @default([1, 2, 3, 4, 5])
+  /// "HH:mm", opcional — quando definido, dispara o lembrete "hora de iniciar" nesse horário, nos
+  /// weekdays configurados, se não houver sessão ativa pro trabalho naquele momento.
+  expectedStartTime   String?
+  /// "HH:mm", opcional — quando definido, dispara o lembrete "hora de encerrar" nesse horário
+  /// exato pra sessão em andamento; se não definido, o lembrete usa expectedHoursPerDay em vez
+  /// de um horário fixo (dispara quando a sessão atinge essa carga horária).
+  expectedEndTime     String?
   notes               String?
   active              Boolean          @default(true)
   deletedAt           DateTime?
@@ -774,6 +783,9 @@ model TrackingSession {
   checkOut  DateTime?
   status    TrackingSessionStatus @default(RUNNING)
   notes     String?
+  /// Marca que o lembrete "hora de encerrar" já foi enviado pra essa sessão específica, pra não
+  /// repetir a cada tick do cron depois que o limite (horário fixo ou expectedHoursPerDay) é cruzado.
+  endReminderSentAt DateTime?
   createdAt DateTime              @default(now())
   updatedAt DateTime              @updatedAt
 
