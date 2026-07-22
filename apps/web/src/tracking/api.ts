@@ -183,6 +183,18 @@ export function useUpdateSessionManual() {
   });
 }
 
+export function useDeleteSession() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/tracking/sessions/${id}`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Sessão removida.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Dashboard
 // ---------------------------------------------------------------------------

@@ -5,6 +5,7 @@ import {
   Timer,
   LayoutDashboard,
   Briefcase,
+  ListChecks,
   Wallet,
   CalendarDays,
   FileBarChart,
@@ -22,6 +23,7 @@ const PRIMARY_ITEMS = [
 ];
 
 const MORE_ITEMS: { to: string; label: string; icon: typeof Timer }[] = [
+  { to: "/horas/sessoes", label: "Sessões", icon: ListChecks },
   { to: "/horas/entradas", label: "Entradas", icon: Wallet },
   { to: "/horas/calendario", label: "Calendário", icon: CalendarDays },
   { to: "/horas/relatorios", label: "Relatórios", icon: FileBarChart },
