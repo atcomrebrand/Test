@@ -4,16 +4,13 @@ import toast from "react-hot-toast";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { Tabs } from "@/components/ui/Tabs";
 import { Select, Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { DangerConfirmModal } from "@/components/DangerConfirmModal";
 import { useSettings, useUpdateSettings } from "@/features/useSettings";
-import { useDeleteAccount, useResetAccountData } from "@/features/useAccount";
-import { useThemeStore } from "@/store/theme";
-import { Download, RotateCcw, UserX } from "lucide-react";
+import { useResetAccountData } from "@/features/useAccount";
+import { Download, RotateCcw } from "lucide-react";
 import { getToken } from "@/lib/api";
-import { SecuritySettingsCard } from "@/components/SecuritySettingsCard";
 
 const ALERT_ITEMS: { key: keyof import("@/types").Settings; label: string; description: string }[] = [
   { key: "alertLimitWarning", label: "Limite quase no fim", description: "Avisa ao ultrapassar o percentual configurado." },
@@ -23,18 +20,15 @@ const ALERT_ITEMS: { key: keyof import("@/types").Settings; label: string; descr
 export default function SettingsPage() {
   const { data: settings, isLoading } = useSettings();
   const update = useUpdateSettings();
-  const { mode, setMode } = useThemeStore();
   const queryClient = useQueryClient();
 
   const resetData = useResetAccountData();
-  const deleteAccount = useDeleteAccount();
   const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
 
   if (isLoading || !settings) {
     return (
       <div>
-        <PageHeader title="Configurações" />
+        <PageHeader title="Configurações do Parcelas" />
         <Skeleton className="h-64" />
       </div>
     );
@@ -46,39 +40,16 @@ export default function SettingsPage() {
     resetData.mutate(undefined, {
       onSuccess: () => {
         queryClient.invalidateQueries();
-        toast.success("Sua conta foi zerada. Comece do zero quando quiser!");
+        toast.success("Seus dados do Parcelas foram zerados. Comece do zero quando quiser!");
         setResetModalOpen(false);
       },
       onError: (e: Error) => toast.error(e.message),
     });
   }
 
-  function handleDelete(password?: string) {
-    deleteAccount.mutate(password ?? "", {
-      onSuccess: () => toast.success("Conta excluída. Até mais!"),
-      onError: (e: Error) => toast.error(e.message),
-    });
-  }
-
   return (
     <div className="max-w-2xl space-y-4">
-      <PageHeader title="Configurações" description="Personalize sua experiência." />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Aparência</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs
-            value={mode}
-            onChange={(v) => setMode(v as any)}
-            options={[
-              { value: "light", label: "Claro" },
-              { value: "dark", label: "Escuro" },
-            ]}
-          />
-        </CardContent>
-      </Card>
+      <PageHeader title="Configurações do Parcelas" description="Preferências específicas de cartões, compras e parcelas." />
 
       <Card>
         <CardHeader>
@@ -139,8 +110,6 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
 
-      <SecuritySettingsCard />
-
       <Card>
         <CardHeader>
           <CardTitle>Exportar dados</CardTitle>
@@ -172,27 +141,17 @@ export default function SettingsPage() {
         <CardHeader>
           <CardTitle className="text-red-500">Zona de perigo</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium">Zerar todos os dados</p>
+              <p className="text-sm font-medium">Zerar dados do Parcelas</p>
               <p className="text-xs text-muted">
-                Apaga cartões, compras, parcelas e notificações. Seu login e preferências continuam. Ótimo para
-                recomeçar um teste do zero.
+                Apaga cartões, compras, parcelas e notificações. Seu login e as demais ferramentas continuam
+                intactos. Ótimo para recomeçar um teste do zero.
               </p>
             </div>
             <Button variant="outline" onClick={() => setResetModalOpen(true)}>
               <RotateCcw className="h-4 w-4" /> Zerar dados
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[rgb(var(--border))] pt-4">
-            <div>
-              <p className="text-sm font-medium">Excluir minha conta</p>
-              <p className="text-xs text-muted">Remove permanentemente sua conta e todos os dados. Não pode ser desfeito.</p>
-            </div>
-            <Button variant="danger" onClick={() => setDeleteModalOpen(true)}>
-              <UserX className="h-4 w-4" /> Excluir conta
             </Button>
           </div>
         </CardContent>
@@ -201,24 +160,12 @@ export default function SettingsPage() {
       <DangerConfirmModal
         open={resetModalOpen}
         onClose={() => setResetModalOpen(false)}
-        title="Zerar todos os dados"
-        description="Isso vai apagar permanentemente todos os seus cartões, compras, parcelas e notificações. Seu login, tema e categorias padrão continuam intactos. Essa ação não pode ser desfeita."
+        title="Zerar dados do Parcelas"
+        description="Isso vai apagar permanentemente todos os seus cartões, compras, parcelas e notificações. Seu login, tema, categorias padrão e as demais ferramentas (Investimentos, Horas) continuam intactos. Essa ação não pode ser desfeita."
         confirmWord="ZERAR"
         confirmLabel="Zerar meus dados"
         loading={resetData.isPending}
         onConfirm={handleReset}
-      />
-
-      <DangerConfirmModal
-        open={deleteModalOpen}
-        onClose={() => setDeleteModalOpen(false)}
-        title="Excluir minha conta"
-        description="Isso vai excluir sua conta e todos os dados permanentemente, sem possibilidade de recuperação. Você será desconectado imediatamente."
-        confirmWord="EXCLUIR"
-        confirmLabel="Excluir minha conta"
-        requirePassword
-        loading={deleteAccount.isPending}
-        onConfirm={handleDelete}
       />
     </div>
   );

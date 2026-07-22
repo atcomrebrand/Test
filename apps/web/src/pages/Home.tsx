@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LogOut, Moon, Sun, Wrench, CreditCard, LineChart, Clock, type LucideIcon } from "lucide-react";
+import { LogOut, Moon, Settings, Sun, Wrench, CreditCard, LineChart, Clock, type LucideIcon } from "lucide-react";
 import { useThemeStore } from "@/store/theme";
 import { useAuthStore } from "@/store/auth";
 import { QuotesTicker } from "@/app/QuotesTicker";
@@ -59,6 +59,14 @@ export default function Home() {
           >
             {mode === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
           </button>
+          <Link
+            to="/configuracoes"
+            className="flex h-10 w-10 items-center justify-center rounded-xl text-muted transition-colors hover:surface-2"
+            aria-label="Configurações gerais"
+            title="Configurações gerais"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
           <button
             onClick={logout}
             className="flex h-10 w-10 items-center justify-center rounded-xl text-muted transition-colors hover:surface-2"

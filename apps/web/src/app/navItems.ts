@@ -35,7 +35,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: "/categories", label: "Categorias", icon: Tags },
   { to: "/statistics", label: "Estatísticas", icon: BarChart3 },
   { to: "/trash", label: "Lixeira", icon: Trash2 },
-  { to: "/settings", label: "Configurações", icon: Settings },
+  { to: "/settings", label: "Config. Parcelas", icon: Settings },
 ];
 
 /** Primary destinations pinned to the mobile bottom bar; everything else lives behind "Mais". */
