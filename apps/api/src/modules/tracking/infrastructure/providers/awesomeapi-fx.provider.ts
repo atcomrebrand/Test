@@ -8,7 +8,9 @@ const URL = "https://economia.awesomeapi.com.br/json/last/USD-BRL";
 @Injectable()
 export class AwesomeApiFxProvider extends TrackingFxRateProvider {
   async fetchUsdToBrl(): Promise<number> {
-    const res = await fetch(URL);
+    // Sem um User-Agent de navegador, alguns free-tier providers (inclusive esse) bloqueiam a
+    // requisição com 403 por parecer tráfego de bot/datacenter.
+    const res = await fetch(URL, { headers: { "User-Agent": "Mozilla/5.0 (compatible; FerramentasDoMauro/1.0)" } });
     if (!res.ok) throw new Error(`AwesomeAPI USD-BRL request failed: ${res.status}`);
 
     const body = (await res.json()) as { USDBRL?: { bid?: string } };

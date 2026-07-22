@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { LogOut, Moon, Sun, Wrench, CreditCard, LineChart, Clock, type LucideIcon } from "lucide-react";
 import { useThemeStore } from "@/store/theme";
 import { useAuthStore } from "@/store/auth";
+import { QuotesTicker } from "@/app/QuotesTicker";
 
 interface AppCard {
   to: string;
@@ -68,6 +69,8 @@ export default function Home() {
           </button>
         </div>
       </header>
+
+      <QuotesTicker />
 
       <main className="flex flex-1 flex-col items-center px-4 py-12 md:py-20">
         <div className="w-full max-w-3xl">

@@ -35,6 +35,7 @@ import { TrackingJobPaymentRepository } from "./domain/tracking-job-payment.repo
 import { TrackingJobPaymentPrismaRepository } from "./infrastructure/tracking-job-payment.prisma.repository";
 import { TrackingFxRateProvider } from "./domain/tracking-fx.provider";
 import { AwesomeApiFxProvider } from "./infrastructure/providers/awesomeapi-fx.provider";
+import { ExchangerateFxProvider } from "./infrastructure/providers/exchangerate-fx.provider";
 
 @Module({
   imports: [NotificationsModule],
@@ -65,6 +66,7 @@ import { AwesomeApiFxProvider } from "./infrastructure/providers/awesomeapi-fx.p
     TrackingAuditService,
     TrackingNotificationsService,
     TrackingFxService,
+    ExchangerateFxProvider,
     TrackingJobPaymentsService,
     { provide: TrackingJobRepository, useClass: TrackingJobPrismaRepository },
     { provide: TrackingSessionRepository, useClass: TrackingSessionPrismaRepository },
@@ -72,6 +74,6 @@ import { AwesomeApiFxProvider } from "./infrastructure/providers/awesomeapi-fx.p
     { provide: TrackingJobPaymentRepository, useClass: TrackingJobPaymentPrismaRepository },
     { provide: TrackingFxRateProvider, useClass: AwesomeApiFxProvider },
   ],
-  exports: [TrackingJobRepository, TrackingSessionRepository, TrackingIncomeRepository],
+  exports: [TrackingJobRepository, TrackingSessionRepository, TrackingIncomeRepository, TrackingFxService],
 })
 export class TrackingModule {}
