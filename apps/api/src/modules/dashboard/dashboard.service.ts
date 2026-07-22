@@ -37,10 +37,10 @@ export class DashboardService {
       this.sumByMonth(userId, thisMonth.year, thisMonth.month),
       this.sumByMonth(userId, nextMonth.year, nextMonth.month),
       this.prisma.installment.aggregate({
-        where: { userId, status: { in: ["PENDING", "LATE"] } },
+        where: { userId, status: { in: ["PENDING", "LATE"] }, purchase: { deletedAt: null } },
         _sum: { amount: true },
       }),
-      this.prisma.installment.count({ where: { userId, status: { in: ["PENDING", "LATE"] } } }),
+      this.prisma.installment.count({ where: { userId, status: { in: ["PENDING", "LATE"] }, purchase: { deletedAt: null } } }),
       this.prisma.purchase.findMany({
         where: { userId, deletedAt: null },
         include: { card: true, category: true },
@@ -66,7 +66,7 @@ export class DashboardService {
 
       totalLimit += Number(card.limitAmount);
       const spentAgg = await this.prisma.installment.aggregate({
-        where: { cardId: card.id, status: { in: ["PENDING", "LATE"] } },
+        where: { cardId: card.id, status: { in: ["PENDING", "LATE"] }, purchase: { deletedAt: null } },
         _sum: { amount: true },
       });
       totalSpent += Number(spentAgg._sum.amount ?? 0);
@@ -169,6 +169,7 @@ export class DashboardService {
         referenceYear: now.getFullYear(),
         referenceMonth: now.getMonth() + 1,
         status: { not: "CANCELLED" },
+        purchase: { deletedAt: null },
       },
       include: { purchase: { include: { category: true } } },
     });
@@ -189,7 +190,7 @@ export class DashboardService {
 
   private async sumByMonth(userId: string, year: number, month: number) {
     const result = await this.prisma.installment.aggregate({
-      where: { userId, referenceYear: year, referenceMonth: month, status: { not: "CANCELLED" } },
+      where: { userId, referenceYear: year, referenceMonth: month, status: { not: "CANCELLED" }, purchase: { deletedAt: null } },
       _sum: { amount: true },
     });
     return Number(result._sum.amount ?? 0);

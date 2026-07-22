@@ -12,9 +12,9 @@ export class StatisticsService {
 
     const [paidAgg, remainingAgg, cards, biggestPurchase, categoryAgg, annualAgg, installmentAgg, cashAgg] =
       await Promise.all([
-        this.prisma.installment.aggregate({ where: { userId, status: "PAID" }, _sum: { amount: true } }),
+        this.prisma.installment.aggregate({ where: { userId, status: "PAID", purchase: { deletedAt: null } }, _sum: { amount: true } }),
         this.prisma.installment.aggregate({
-          where: { userId, status: { in: ["PENDING", "LATE"] } },
+          where: { userId, status: { in: ["PENDING", "LATE"] }, purchase: { deletedAt: null } },
           _sum: { amount: true },
         }),
         this.prisma.card.findMany({ where: { userId, active: true } }),
@@ -25,11 +25,11 @@ export class StatisticsService {
         }),
         this.prisma.installment.groupBy({
           by: ["purchaseId"],
-          where: { userId, status: { not: "CANCELLED" } },
+          where: { userId, status: { not: "CANCELLED" }, purchase: { deletedAt: null } },
           _sum: { amount: true },
         }),
         this.prisma.installment.aggregate({
-          where: { userId, status: { not: "CANCELLED" }, dueDate: { gte: yearStart, lt: yearEnd } },
+          where: { userId, status: { not: "CANCELLED" }, dueDate: { gte: yearStart, lt: yearEnd }, purchase: { deletedAt: null } },
           _sum: { amount: true },
         }),
         this.prisma.purchase.aggregate({
@@ -45,7 +45,7 @@ export class StatisticsService {
     const remainingByCard = await Promise.all(
       cards.map(async (card) => {
         const agg = await this.prisma.installment.aggregate({
-          where: { cardId: card.id, status: { in: ["PENDING", "LATE"] } },
+          where: { cardId: card.id, status: { in: ["PENDING", "LATE"] }, purchase: { deletedAt: null } },
           _sum: { amount: true },
         });
         return { cardId: card.id, cardName: card.name, color: card.color, remaining: Number(agg._sum.amount ?? 0) };
@@ -53,7 +53,7 @@ export class StatisticsService {
     );
 
     const topCategoryRows = await this.prisma.installment.findMany({
-      where: { userId, status: { not: "CANCELLED" } },
+      where: { userId, status: { not: "CANCELLED" }, purchase: { deletedAt: null } },
       include: { purchase: { include: { category: true } } },
     });
     const categoryTotals = new Map<string, { name: string; total: number }>();
@@ -68,7 +68,7 @@ export class StatisticsService {
     const monthsWithData = new Set(
       (
         await this.prisma.installment.findMany({
-          where: { userId, status: { not: "CANCELLED" } },
+          where: { userId, status: { not: "CANCELLED" }, purchase: { deletedAt: null } },
           select: { referenceYear: true, referenceMonth: true },
           distinct: ["referenceYear", "referenceMonth"],
         })

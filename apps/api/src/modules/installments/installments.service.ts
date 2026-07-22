@@ -49,19 +49,20 @@ export class InstallmentsService {
         ...(query.maxAmount !== undefined ? { lte: query.maxAmount } : {}),
       };
     }
-    if (query.categoryId || query.search) {
-      where.purchase = {
-        ...(query.categoryId ? { categoryId: query.categoryId } : {}),
-        ...(query.search
-          ? {
-              OR: [
-                { name: { contains: query.search, mode: "insensitive" } },
-                { merchant: { contains: query.search, mode: "insensitive" } },
-              ],
-            }
-          : {}),
-      };
-    }
+    // A compra excluída (lixeira) some da lista de Compras, mas suas parcelas continuam no banco —
+    // sem esse filtro elas voltavam a aparecer aqui como se a compra ainda existisse.
+    where.purchase = {
+      deletedAt: null,
+      ...(query.categoryId ? { categoryId: query.categoryId } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: "insensitive" } },
+              { merchant: { contains: query.search, mode: "insensitive" } },
+            ],
+          }
+        : {}),
+    };
 
     const [items, total] = await this.prisma.$transaction([
       this.prisma.installment.findMany({

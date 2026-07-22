@@ -8,13 +8,13 @@ export class CalendarService {
   async year(userId: string, year: number) {
     const rows = await this.prisma.installment.groupBy({
       by: ["referenceMonth"],
-      where: { userId, referenceYear: year, status: { not: "CANCELLED" } },
+      where: { userId, referenceYear: year, status: { not: "CANCELLED" }, purchase: { deletedAt: null } },
       _sum: { amount: true },
       _count: { _all: true },
     });
 
     const purchaseCounts = await this.prisma.installment.findMany({
-      where: { userId, referenceYear: year, status: { not: "CANCELLED" } },
+      where: { userId, referenceYear: year, status: { not: "CANCELLED" }, purchase: { deletedAt: null } },
       select: { referenceMonth: true, purchaseId: true },
       distinct: ["referenceMonth", "purchaseId"],
     });
@@ -42,7 +42,7 @@ export class CalendarService {
 
   month(userId: string, year: number, month: number) {
     return this.prisma.installment.findMany({
-      where: { userId, referenceYear: year, referenceMonth: month },
+      where: { userId, referenceYear: year, referenceMonth: month, purchase: { deletedAt: null } },
       include: { purchase: { include: { category: true } }, card: true, payment: true },
       orderBy: { dueDate: "asc" },
     });

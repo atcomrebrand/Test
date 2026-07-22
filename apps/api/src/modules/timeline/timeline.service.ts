@@ -14,6 +14,7 @@ export class TimelineService {
       where: {
         userId,
         status: { not: "CANCELLED" },
+        purchase: { deletedAt: null },
         OR: buildMonthRangeOr(start, end),
       },
       include: { purchase: { include: { category: true, card: true } } },

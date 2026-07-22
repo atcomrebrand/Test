@@ -110,7 +110,7 @@ export class NotificationsService {
 
   private async sumSpent(cardId: string) {
     const result = await this.prisma.installment.aggregate({
-      where: { cardId, status: { in: ["PENDING", "LATE"] } },
+      where: { cardId, status: { in: ["PENDING", "LATE"] }, purchase: { deletedAt: null } },
       _sum: { amount: true },
     });
     return Number(result._sum.amount ?? 0);
@@ -118,7 +118,7 @@ export class NotificationsService {
 
   private async sumByReferenceMonth(userId: string, year: number, month: number) {
     const result = await this.prisma.installment.aggregate({
-      where: { userId, referenceYear: year, referenceMonth: month, status: { not: "CANCELLED" } },
+      where: { userId, referenceYear: year, referenceMonth: month, status: { not: "CANCELLED" }, purchase: { deletedAt: null } },
       _sum: { amount: true },
     });
     return Number(result._sum.amount ?? 0);

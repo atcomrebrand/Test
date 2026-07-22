@@ -7,7 +7,7 @@ export class ExportService {
 
   async installmentsCsv(userId: string): Promise<string> {
     const installments = await this.prisma.installment.findMany({
-      where: { userId },
+      where: { userId, purchase: { deletedAt: null } },
       include: { purchase: { include: { category: true } }, card: true },
       orderBy: [{ referenceYear: "asc" }, { referenceMonth: "asc" }],
     });
