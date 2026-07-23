@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LogOut, Moon, Settings, Sun, Wrench, CreditCard, LineChart, Clock, type LucideIcon } from "lucide-react";
+import { LogOut, Moon, Settings, Sun, Wrench, CreditCard, LineChart, Clock, Home as HomeIcon, type LucideIcon } from "lucide-react";
 import { useThemeStore } from "@/store/theme";
 import { useAuthStore } from "@/store/auth";
 import { QuotesTicker } from "@/app/QuotesTicker";
@@ -34,6 +34,13 @@ const APPS: AppCard[] = [
     description: "Controle de horas, faturamento e valor real da sua hora.",
     icon: Clock,
     color: "bg-violet-500",
+  },
+  {
+    to: "/casa",
+    title: "Contas da Casa",
+    description: "Contas, cartões, entradas e quanto realmente sobra no mês.",
+    icon: HomeIcon,
+    color: "bg-amber-500",
   },
 ];
 

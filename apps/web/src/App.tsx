@@ -40,6 +40,12 @@ import Reports from "./tracking/pages/Reports";
 import Stats from "./tracking/pages/Stats";
 import TrackingHistory from "./tracking/pages/HistoryPage";
 import TrackingSearch from "./tracking/pages/Search";
+import { HouseholdLayout } from "./household/HouseholdLayout";
+import HouseholdDashboard from "./household/pages/Dashboard";
+import HouseholdContas from "./household/pages/Contas";
+import HouseholdCartoes from "./household/pages/Cartoes";
+import HouseholdEntradas from "./household/pages/Entradas";
+import HouseholdConfiguracoes from "./household/pages/Configuracoes";
 
 export default function App() {
   return (
@@ -91,6 +97,14 @@ export default function App() {
           <Route path="/horas/estatisticas" element={<Stats />} />
           <Route path="/horas/historico" element={<TrackingHistory />} />
           <Route path="/horas/busca" element={<TrackingSearch />} />
+        </Route>
+
+        <Route element={<HouseholdLayout />}>
+          <Route path="/casa" element={<HouseholdDashboard />} />
+          <Route path="/casa/contas" element={<HouseholdContas />} />
+          <Route path="/casa/cartoes" element={<HouseholdCartoes />} />
+          <Route path="/casa/entradas" element={<HouseholdEntradas />} />
+          <Route path="/casa/configuracoes" element={<HouseholdConfiguracoes />} />
         </Route>
       </Route>
 

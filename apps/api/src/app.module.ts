@@ -24,6 +24,7 @@ import { PushModule } from "./modules/push/push.module";
 import { WebAuthnModule } from "./modules/webauthn/webauthn.module";
 import { TrackingModule } from "./modules/tracking/tracking.module";
 import { QuotesModule } from "./modules/quotes/quotes.module";
+import { HouseholdModule } from "./modules/household/household.module";
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { QuotesModule } from "./modules/quotes/quotes.module";
     WebAuthnModule,
     TrackingModule,
     QuotesModule,
+    HouseholdModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

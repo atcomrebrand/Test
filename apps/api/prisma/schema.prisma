@@ -162,6 +162,15 @@ model User {
   trackingAuditLogs   TrackingAuditLog[]
   trackingJobPayments TrackingJobPayment[]
 
+  householdBillCategories   HouseholdBillCategory[]
+  householdIncomeCategories HouseholdIncomeCategory[]
+  householdBills            HouseholdBill[]
+  householdBillEntries      HouseholdBillEntry[]
+  householdCards            HouseholdCard[]
+  householdCardEntries      HouseholdCardEntry[]
+  householdIncomes          HouseholdIncome[]
+  householdAuditLogs        HouseholdAuditLog[]
+
   @@map("users")
 }
 
@@ -844,4 +853,186 @@ model TrackingAuditLog {
 
   @@index([userId, entity, entityId])
   @@map("tracking_audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Contas da Casa — módulo independente de fluxo financeiro mensal da casa.
+// Não reaproveita Card/Category/Purchase/Installment de Parcelas: a filosofia aqui é lançamento
+// manual de fatura/reserva por mês, não parcela por parcela.
+// ---------------------------------------------------------------------------
+
+/// Nunca escolhido manualmente pelo usuário — sempre recalculado a partir de amount/reservedAmount/
+/// paidAmount/dueDate (ver domain/bill-entry-status.ts). Persistido só pra permitir filtrar/agrupar
+/// sem recalcular tudo em toda leitura.
+enum HouseholdBillStatus {
+  PENDING
+  PARTIALLY_RESERVED
+  RESERVED
+  PAID
+  LATE
+}
+
+model HouseholdBillCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String   @default("tag")
+  color     String   @default("#8B8B8B")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  bills HouseholdBill[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("household_bill_categories")
+}
+
+model HouseholdIncomeCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String   @default("wallet")
+  color     String   @default("#8B8B8B")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  incomes HouseholdIncome[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("household_income_categories")
+}
+
+/// Cadastro permanente da conta (ex: Energia). As competências mensais (HouseholdBillEntry) são
+/// geradas automaticamente a partir daqui, sob demanda, ao abrir a tela de um mês — sem precisar de
+/// um botão "iniciar mês" nem de cron (mesmo padrão do rolling horizon de assinaturas recorrentes
+/// em Parcelas).
+model HouseholdBill {
+  id                String                 @id @default(cuid())
+  userId            String
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId        String?
+  category          HouseholdBillCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name              String
+  dueDay            Int
+  defaultAmount     Decimal                @db.Decimal(12, 2)
+  /// Quando false, a competência mensal sempre usa defaultAmount e não pode ser editada.
+  allowAmountChange Boolean                @default(true)
+  mandatory         Boolean                @default(true)
+  active            Boolean                @default(true)
+  notes             String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  entries HouseholdBillEntry[]
+
+  @@index([userId, active])
+  @@map("household_bills")
+}
+
+/// Uma linha por (conta, mês) — a "competência mensal". reservedAmount e paidAmount são
+/// independentes: reservar não significa pagar, pagar não exige ter reservado antes.
+model HouseholdBillEntry {
+  id             String              @id @default(cuid())
+  userId         String
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billId         String
+  bill           HouseholdBill       @relation(fields: [billId], references: [id], onDelete: Cascade)
+  referenceYear  Int
+  referenceMonth Int
+  /// dueDay do HouseholdBill resolvido pra essa competência (clampado ao último dia do mês quando
+  /// o mês tem menos dias que o dueDay, ex: dueDay=31 em fevereiro).
+  dueDate        DateTime
+  amount         Decimal             @db.Decimal(12, 2)
+  reservedAmount Decimal             @default(0) @db.Decimal(12, 2)
+  paidAmount     Decimal             @default(0) @db.Decimal(12, 2)
+  paidAt         DateTime?
+  status         HouseholdBillStatus @default(PENDING)
+  notes          String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([billId, referenceYear, referenceMonth])
+  @@index([userId, referenceYear, referenceMonth])
+  @@index([userId, status])
+  @@map("household_bill_entries")
+}
+
+model HouseholdCard {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  closingDay Int
+  dueDay     Int
+  color      String   @default("#6D5BFF")
+  icon       String   @default("credit-card")
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  entries HouseholdCardEntry[]
+
+  @@index([userId, active])
+  @@map("household_cards")
+}
+
+/// Lançamento manual, um por (cartão, mês). totalInvoice é o valor total da fatura, que não
+/// necessariamente é quanto sai do bolso esse mês — parte já foi provisionada antes. O valor real a
+/// pagar (totalInvoice - provisioned) é sempre calculado, nunca guardado, pra nunca dessincronizar.
+model HouseholdCardEntry {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId         String
+  card           HouseholdCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  referenceYear  Int
+  referenceMonth Int
+  totalInvoice   Decimal       @db.Decimal(12, 2)
+  provisioned    Decimal       @default(0) @db.Decimal(12, 2)
+  paid           Boolean       @default(false)
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([cardId, referenceYear, referenceMonth])
+  @@index([userId, referenceYear, referenceMonth])
+  @@map("household_card_entries")
+}
+
+model HouseholdIncome {
+  id          String                   @id @default(cuid())
+  userId      String
+  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    HouseholdIncomeCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  date        DateTime
+  description String?
+  amount      Decimal                  @db.Decimal(12, 2)
+  notes       String?
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+
+  @@index([userId, date])
+  @@index([categoryId])
+  @@map("household_incomes")
+}
+
+model HouseholdAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@map("household_audit_logs")
 }
