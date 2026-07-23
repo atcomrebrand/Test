@@ -43,10 +43,10 @@ export function HouseholdCardFormModal({ open, onClose, card }: Props) {
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const payload = { name, closingDay: Number(closingDay), dueDay: Number(dueDay), color, active };
+    const payload = { name, closingDay: Number(closingDay), dueDay: Number(dueDay), color };
 
     if (isEditing && card) {
-      update.mutate({ id: card.id, data: payload }, { onSuccess: onClose });
+      update.mutate({ id: card.id, data: { ...payload, active } }, { onSuccess: onClose });
     } else {
       create.mutate(payload, { onSuccess: onClose });
     }

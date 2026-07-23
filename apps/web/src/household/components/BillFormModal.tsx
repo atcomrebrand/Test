@@ -58,12 +58,11 @@ export function BillFormModal({ open, onClose, bill }: Props) {
       defaultAmount: Number(defaultAmount),
       allowAmountChange,
       mandatory,
-      active,
       notes: notes || undefined,
     };
 
     if (isEditing && bill) {
-      update.mutate({ id: bill.id, data: payload }, { onSuccess: onClose });
+      update.mutate({ id: bill.id, data: { ...payload, active } }, { onSuccess: onClose });
     } else {
       create.mutate(payload, { onSuccess: onClose });
     }
