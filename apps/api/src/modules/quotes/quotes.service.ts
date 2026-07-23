@@ -20,6 +20,6 @@ export class QuotesService {
 
   async ticker(): Promise<QuoteTickerItem[]> {
     const quote = await this.fx.getUsdToBrlQuote();
-    return [{ symbol: "USD", label: "Dólar Americano", flag: "🇺🇸", rate: quote?.rate ?? null, previousClose: quote?.previousClose ?? null }];
+    return [{ symbol: "USD", label: "USD", flag: "🇺🇸", rate: quote?.rate ?? null, previousClose: quote?.previousClose ?? null }];
   }
 }
