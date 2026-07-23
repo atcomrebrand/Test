@@ -198,7 +198,10 @@ echo 'VITE_API_URL=/api/v1' > "$APP_DIR/apps/web/.env"
 chown "$APP_USER":"$APP_USER" "$APP_DIR/apps/web/.env"
 
 log "8/10 — Instalando dependências, gerando client do Prisma, rodando migrations, build e seed"
-sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && pnpm install --no-frozen-lockfile"
+# CI=true evita o prompt interativo do pnpm quando ele decide que precisa recriar node_modules
+# (por exemplo depois de mudanças no lockfile/workspace) — sem TTY (rodando via curl | bash),
+# esse prompt trava o script inteiro com ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY.
+sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && CI=true pnpm install --no-frozen-lockfile"
 sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/api' && pnpm prisma:generate && pnpm prisma:deploy"
 
 SEED_MARKER="$APP_DIR/.seeded"
