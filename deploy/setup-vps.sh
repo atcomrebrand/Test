@@ -198,10 +198,12 @@ echo 'VITE_API_URL=/api/v1' > "$APP_DIR/apps/web/.env"
 chown "$APP_USER":"$APP_USER" "$APP_DIR/apps/web/.env"
 
 log "8/10 — Instalando dependências, gerando client do Prisma, rodando migrations, build e seed"
-# O .npmrc do repo já traz confirm-modules-purge=false, que evita o prompt interativo do pnpm
-# quando ele decide que precisa recriar node_modules (por exemplo depois de mudanças no
-# lockfile/workspace) — sem TTY (rodando via curl | bash), esse prompt travaria o script inteiro
-# com ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY. CI=true cobre outros pontos não-interativos.
+# Remove node_modules antes de instalar: numa reexecução, se o pnpm decidir que a pasta existente
+# está desalinhada com o lockfile/workspace atual (mudança de dependências, de hoist pattern etc.),
+# ele pede confirmação interativa antes de recriá-la — sem TTY (rodando via curl | bash) isso trava
+# o script com ERR_PNPM_ABORTED_REMOVE_MODULES_DIR_NO_TTY. Sem pasta nenhuma pra "purgar", esse
+# prompt nunca é disparado; o custo é só reinstalar do zero (o store do pnpm já fica em cache).
+find "$APP_DIR" -maxdepth 3 -type d -name node_modules -prune -exec rm -rf {} +
 sudo -u "$APP_USER" bash -c "cd '$APP_DIR' && CI=true pnpm install --no-frozen-lockfile"
 sudo -u "$APP_USER" bash -c "cd '$APP_DIR/apps/api' && pnpm prisma:generate && pnpm prisma:deploy"
 
