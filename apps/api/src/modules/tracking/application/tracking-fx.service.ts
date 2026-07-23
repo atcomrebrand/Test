@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { TrackingFxRateProvider } from "../domain/tracking-fx.provider";
 import { ExchangerateFxProvider } from "../infrastructure/providers/exchangerate-fx.provider";
+import { CurrencyApiFxProvider } from "../infrastructure/providers/currency-api-fx.provider";
 
 const PAIR = "USDBRL";
 /** Exchange rates don't need to feel second-by-second live — a 30min TTL keeps the "cotação de
@@ -14,10 +15,12 @@ const FX_TTL_MS = 30 * 60 * 1000;
  * blocks a page load. Returns null (never throws) when there's truly no rate to fall back to, so
  * callers can degrade gracefully (skip the conversion) instead of crashing.
  *
- * Also the resilience layer, not just a cache: free-tier FX APIs like AwesomeAPI sometimes block
- * requests from cloud/datacenter IP ranges with a 403 — when that happens this retries via a
- * second, independent provider before giving up, same pattern as DividendsCacheService's Yahoo
- * Finance fallback in investments.
+ * Also the resilience layer, not just a cache: free-tier FX APIs like AwesomeAPI and open.er-api.com
+ * sometimes block requests from cloud/datacenter IP ranges with a 403 — exactly the kind of network
+ * a production VPS runs on, so both failing at once (and the ticker freezing on the last cached
+ * value until they recover) is a real, observed failure mode, not just theoretical. When that
+ * happens this retries via a third tier: a static JSON file served off a CDN (no bot-detection to
+ * trip), before finally giving up and returning whatever's cached, however old.
  */
 @Injectable()
 export class TrackingFxService {
@@ -27,6 +30,7 @@ export class TrackingFxService {
     private readonly prisma: PrismaService,
     private readonly provider: TrackingFxRateProvider,
     private readonly fallbackProvider: ExchangerateFxProvider,
+    private readonly secondFallbackProvider: CurrencyApiFxProvider,
   ) {}
 
   async getUsdToBrlRate(): Promise<number | null> {
@@ -41,8 +45,13 @@ export class TrackingFxService {
       try {
         return await this.fetchAndCache(this.fallbackProvider);
       } catch (fallbackErr) {
-        this.logger.warn(`Falha ao buscar cotação USD/BRL na fonte alternativa: ${(fallbackErr as Error).message}`);
-        return cached ? Number(cached.rate) : null;
+        this.logger.warn(`Falha ao buscar cotação USD/BRL na fonte alternativa, tentando a última: ${(fallbackErr as Error).message}`);
+        try {
+          return await this.fetchAndCache(this.secondFallbackProvider);
+        } catch (secondFallbackErr) {
+          this.logger.warn(`Falha ao buscar cotação USD/BRL em todas as fontes: ${(secondFallbackErr as Error).message}`);
+          return cached ? Number(cached.rate) : null;
+        }
       }
     }
   }

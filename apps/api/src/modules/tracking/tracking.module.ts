@@ -37,6 +37,7 @@ import { TrackingJobPaymentPrismaRepository } from "./infrastructure/tracking-jo
 import { TrackingFxRateProvider } from "./domain/tracking-fx.provider";
 import { AwesomeApiFxProvider } from "./infrastructure/providers/awesomeapi-fx.provider";
 import { ExchangerateFxProvider } from "./infrastructure/providers/exchangerate-fx.provider";
+import { CurrencyApiFxProvider } from "./infrastructure/providers/currency-api-fx.provider";
 
 @Module({
   imports: [NotificationsModule],
@@ -69,6 +70,7 @@ import { ExchangerateFxProvider } from "./infrastructure/providers/exchangerate-
     TrackingScheduleRemindersService,
     TrackingFxService,
     ExchangerateFxProvider,
+    CurrencyApiFxProvider,
     TrackingJobPaymentsService,
     { provide: TrackingJobRepository, useClass: TrackingJobPrismaRepository },
     { provide: TrackingSessionRepository, useClass: TrackingSessionPrismaRepository },
