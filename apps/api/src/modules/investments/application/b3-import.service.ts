@@ -144,7 +144,9 @@ export class B3ImportService {
         assetId: asset.id,
         type: i.type,
         amount: i.amount,
-        paymentDate: new Date(i.paymentDate),
+        // Noon, not midnight: i.paymentDate is a bare "YYYY-MM-DD" from the B3 statement, which
+        // parses as UTC midnight and rolls back a day once rendered in Brazil's timezone.
+        paymentDate: new Date(`${i.paymentDate}T12:00:00`),
         notes: i.sourceLabel ? `Importado da B3: ${i.sourceLabel}` : "Importado da B3",
       });
     }

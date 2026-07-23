@@ -19,6 +19,15 @@ function monthKey(iso: string) {
   return iso.slice(0, 7);
 }
 
+/** These calendar dates are bare "YYYY-MM-DD" strings (BRAPI/Yahoo data, never round-tripped
+ *  through the noon-anchored inputs the rest of the app uses) — passed straight to `new Date(...)`
+ *  they parse as UTC midnight, which formatDate then renders in the browser's local timezone and
+ *  rolls back to the previous day (or even the previous month, for a "day 1" label) for anyone in
+ *  Brazil's UTC-3. Anchoring to noon keeps the calendar date stable across any reasonable offset. */
+function formatIsoDate(iso: string, options?: Intl.DateTimeFormatOptions) {
+  return formatDate(`${iso}T12:00:00`, options);
+}
+
 function DividendRow({ entry, showPosition }: { entry: DividendCalendarEntry; showPosition: boolean }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl surface-2 px-3 py-2.5 text-sm">
@@ -33,9 +42,9 @@ function DividendRow({ entry, showPosition }: { entry: DividendCalendarEntry; sh
       <div className="text-right">
         <p className="font-semibold">{formatCurrency(entry.rate)} / cota</p>
         <p className="text-xs text-muted">
-          {entry.exDate && `Data-com: ${formatDate(entry.exDate, { day: "2-digit", month: "2-digit", year: "numeric" })}`}
+          {entry.exDate && `Data-com: ${formatIsoDate(entry.exDate, { day: "2-digit", month: "2-digit", year: "numeric" })}`}
           {entry.exDate && entry.paymentDate && " · "}
-          {entry.paymentDate && `Pagamento: ${formatDate(entry.paymentDate, { day: "2-digit", month: "2-digit", year: "numeric" })}`}
+          {entry.paymentDate && `Pagamento: ${formatIsoDate(entry.paymentDate, { day: "2-digit", month: "2-digit", year: "numeric" })}`}
         </p>
         {showPosition && entry.quantityHeld !== null && entry.estimatedAmount !== null && (
           <p className="mt-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
@@ -60,7 +69,7 @@ function DividendCalendarList({ entries, showPosition }: { entries: DividendCale
       {Array.from(groups.entries()).map(([month, monthEntries]) => (
         <div key={month} className="flex flex-col gap-2">
           <p className="text-xs font-semibold uppercase text-muted">
-            {month === "0000-00" ? "Sem data" : formatDate(`${month}-01`, { month: "long", year: "numeric" })}
+            {month === "0000-00" ? "Sem data" : formatIsoDate(`${month}-01`, { month: "long", year: "numeric" })}
           </p>
           {monthEntries.map((entry, i) => (
             <DividendRow key={`${entry.ticker}-${entry.paymentDate}-${entry.relatedTo}-${i}`} entry={entry} showPosition={showPosition} />

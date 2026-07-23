@@ -59,7 +59,10 @@ export class DividendAutoSyncService {
           assetId,
           type: event.type,
           amount: estimatedAmount,
-          paymentDate: new Date(comparisonDate),
+          // Noon, not midnight: a bare "YYYY-MM-DD" parses as UTC midnight, which rolls back to
+          // the previous day once rendered in any negative-UTC timezone (all of Brazil) — same
+          // anchor convention every manual date input in this app already uses.
+          paymentDate: new Date(`${comparisonDate}T12:00:00`),
           notes: event.relatedTo ? `Calculado automaticamente (histórico BRAPI): ${event.relatedTo}` : "Calculado automaticamente (histórico BRAPI)",
         });
         known.push({ amount: estimatedAmount, paymentDate: comparisonDate });

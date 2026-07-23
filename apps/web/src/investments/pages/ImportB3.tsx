@@ -16,6 +16,13 @@ type ImportMethod = "b3" | "csv";
 
 const INCOME_TYPE_LABEL: Record<string, string> = { DIVIDENDO: "Dividendo", JCP: "JCP", RENDIMENTO: "Rendimento", OUTRO: "Outro" };
 
+/** Preview rows carry bare "YYYY-MM-DD" strings (parsed straight from the B3/CSV file, not yet
+ *  saved through the noon-anchored write path real records use) — passed straight to formatDate
+ *  they parse as UTC midnight and render a day earlier in Brazil's timezone. Anchor to noon first. */
+function formatIsoDate(iso: string) {
+  return formatDate(`${iso}T12:00:00`);
+}
+
 function FilePicker({
   label,
   file,
@@ -269,7 +276,7 @@ export default function ImportB3() {
                           </td>
                           <td className="px-3 py-2 text-right">{t.quantity}</td>
                           <td className="px-3 py-2 text-right">{formatCurrency(t.unitPrice)}</td>
-                          <td className="px-3 py-2 text-muted">{formatDate(t.transactionDate)}</td>
+                          <td className="px-3 py-2 text-muted">{formatIsoDate(t.transactionDate)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -321,7 +328,7 @@ export default function ImportB3() {
                             <Badge tone="accent">{INCOME_TYPE_LABEL[inc.type]}</Badge>
                           </td>
                           <td className="px-3 py-2 text-right">{formatCurrency(inc.amount)}</td>
-                          <td className="px-3 py-2 text-muted">{formatDate(inc.paymentDate)}</td>
+                          <td className="px-3 py-2 text-muted">{formatIsoDate(inc.paymentDate)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -360,7 +367,7 @@ export default function ImportB3() {
                             <Badge tone="warning">{INCOME_TYPE_LABEL[s.type]}</Badge>
                           </td>
                           <td className="px-3 py-2 text-right">{formatCurrency(s.amount)}</td>
-                          <td className="px-3 py-2 text-muted">{formatDate(s.paymentDate)}</td>
+                          <td className="px-3 py-2 text-muted">{formatIsoDate(s.paymentDate)}</td>
                         </tr>
                       ))}
                     </tbody>

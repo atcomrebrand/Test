@@ -33,7 +33,7 @@ describe("DividendAutoSyncService.syncAsset", () => {
 
     expect(created).toBe(1);
     expect(assets.addIncome).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: "user-1", assetId: "a1", type: "DIVIDENDO", amount: 15, paymentDate: new Date("2026-03-15") }),
+      expect.objectContaining({ userId: "user-1", assetId: "a1", type: "DIVIDENDO", amount: 15, paymentDate: new Date("2026-03-15T12:00:00") }),
     );
   });
 
