@@ -1,5 +1,5 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { TrackingFxRateProvider } from "../../domain/tracking-fx.provider";
+import { Injectable } from "@nestjs/common";
+import { FxQuote, TrackingFxRateProvider } from "../../domain/tracking-fx.provider";
 
 /** Chrome's UA string — Yahoo's unofficial chart endpoint returns empty/blocked responses for
  *  obviously non-browser clients (bare curl, default fetch UA). Same trick already proven to work
@@ -11,7 +11,7 @@ const URL = "https://query1.finance.yahoo.com/v8/finance/chart/USDBRL=X?interval
 
 interface YahooChartResponse {
   chart: {
-    result?: { meta?: { regularMarketPrice?: number } }[];
+    result?: { meta?: { regularMarketPrice?: number; previousClose?: number; chartPreviousClose?: number } }[];
     error?: { code?: string; description?: string } | null;
   };
 }
@@ -27,9 +27,7 @@ interface YahooChartResponse {
  */
 @Injectable()
 export class YahooFxProvider extends TrackingFxRateProvider {
-  private readonly logger = new Logger(YahooFxProvider.name);
-
-  async fetchUsdToBrl(): Promise<number> {
+  async fetchUsdToBrl(): Promise<FxQuote> {
     const res = await fetch(URL, {
       signal: AbortSignal.timeout(8000),
       headers: { "User-Agent": YAHOO_USER_AGENT },
@@ -39,8 +37,12 @@ export class YahooFxProvider extends TrackingFxRateProvider {
     const body = (await res.json()) as YahooChartResponse;
     if (body.chart.error) throw new Error(`Yahoo Finance error for USDBRL=X: ${body.chart.error.description ?? body.chart.error.code}`);
 
-    const rate = body.chart.result?.[0]?.meta?.regularMarketPrice;
+    const meta = body.chart.result?.[0]?.meta;
+    const rate = meta?.regularMarketPrice;
     if (!rate || Number.isNaN(rate) || rate <= 0) throw new Error("Yahoo Finance retornou uma cotação USD/BRL inválida.");
-    return rate;
+
+    // chartPreviousClose is the one reliably present on FX tickers (previousClose sometimes isn't).
+    const previousClose = meta?.previousClose ?? meta?.chartPreviousClose ?? null;
+    return { rate, previousClose };
   }
 }

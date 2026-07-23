@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { TrackingFxRateProvider } from "../../domain/tracking-fx.provider";
+import { FxQuote, TrackingFxRateProvider } from "../../domain/tracking-fx.provider";
 
 /** Third-tier FX fallback: static JSON served straight off a CDN (jsdelivr), with the project's own
  *  Cloudflare Pages mirror as a second try if jsdelivr itself is having a bad day. Unlike AwesomeAPI
@@ -16,7 +16,7 @@ interface CurrencyApiResponse {
 
 @Injectable()
 export class CurrencyApiFxProvider extends TrackingFxRateProvider {
-  async fetchUsdToBrl(): Promise<number> {
+  async fetchUsdToBrl(): Promise<FxQuote> {
     try {
       return await this.fetchFrom(PRIMARY_URL);
     } catch (err) {
@@ -26,13 +26,13 @@ export class CurrencyApiFxProvider extends TrackingFxRateProvider {
     }
   }
 
-  private async fetchFrom(url: string): Promise<number> {
+  private async fetchFrom(url: string): Promise<FxQuote> {
     const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
     if (!res.ok) throw new Error(`currency-api request failed (${url}): ${res.status}`);
 
     const body = (await res.json()) as CurrencyApiResponse;
     const rate = body.usd?.brl;
     if (!rate || Number.isNaN(rate) || rate <= 0) throw new Error(`currency-api retornou uma cotação inválida (${url}).`);
-    return rate;
+    return { rate, previousClose: null };
   }
 }

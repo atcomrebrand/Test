@@ -771,10 +771,11 @@ model TrackingJobPayment {
 /// Cache simples da cotação de câmbio (hoje só USD→BRL), com TTL controlado em TrackingFxService —
 /// evita bater na API externa a cada requisição e mantém um valor conhecido caso ela esteja fora.
 model TrackingFxRateCache {
-  id        String   @id @default(cuid())
-  pair      String   @unique
-  rate      Decimal  @db.Decimal(12, 6)
-  fetchedAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  pair          String   @unique
+  rate          Decimal  @db.Decimal(12, 6)
+  previousClose Decimal? @db.Decimal(12, 6)
+  fetchedAt     DateTime @default(now())
 
   @@map("tracking_fx_rate_cache")
 }

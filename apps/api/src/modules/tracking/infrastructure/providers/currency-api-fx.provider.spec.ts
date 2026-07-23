@@ -14,7 +14,7 @@ describe("CurrencyApiFxProvider.fetchUsdToBrl", () => {
     }) as any;
 
     const provider = new CurrencyApiFxProvider();
-    await expect(provider.fetchUsdToBrl()).resolves.toBe(5.43);
+    await expect(provider.fetchUsdToBrl()).resolves.toEqual({ rate: 5.43, previousClose: null });
   });
 
   it("falls back to the Cloudflare Pages mirror when jsdelivr fails", async () => {
@@ -25,7 +25,7 @@ describe("CurrencyApiFxProvider.fetchUsdToBrl", () => {
     }) as any;
 
     const provider = new CurrencyApiFxProvider();
-    await expect(provider.fetchUsdToBrl()).resolves.toBe(5.6);
+    await expect(provider.fetchUsdToBrl()).resolves.toEqual({ rate: 5.6, previousClose: null });
   });
 
   it("throws the original error when both the CDN and its mirror fail", async () => {
