@@ -6,9 +6,12 @@ import { ExchangerateFxProvider } from "../infrastructure/providers/exchangerate
 import { CurrencyApiFxProvider } from "../infrastructure/providers/currency-api-fx.provider";
 
 const PAIR = "USDBRL";
-/** Exchange rates don't need to feel second-by-second live — a 30min TTL keeps the "cotação de
- *  hoje" numbers fresh enough without hammering the free-tier AwesomeAPI on every dashboard load. */
-const FX_TTL_MS = 30 * 60 * 1000;
+/** Short TTL on purpose: this is a single-user app, so there's no real risk of hammering these
+ *  free sources — the point of caching at all is just to survive a rapid double-reload/multiple
+ *  tabs without firing two outbound requests for the same instant, not to hide genuine movement.
+ *  2 minutes means opening the app (or the frontend's own 5min poll) almost always gets a fetch
+ *  that reflects the actual current rate, not a half-hour-old snapshot. */
+const FX_TTL_MS = 2 * 60 * 1000;
 
 /**
  * The only thing allowed to call TrackingFxRateProvider directly — wraps it in a DB-backed TTL
