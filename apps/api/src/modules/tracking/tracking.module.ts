@@ -36,6 +36,7 @@ import { TrackingJobPaymentRepository } from "./domain/tracking-job-payment.repo
 import { TrackingJobPaymentPrismaRepository } from "./infrastructure/tracking-job-payment.prisma.repository";
 import { TrackingFxRateProvider } from "./domain/tracking-fx.provider";
 import { AwesomeApiFxProvider } from "./infrastructure/providers/awesomeapi-fx.provider";
+import { YahooFxProvider } from "./infrastructure/providers/yahoo-fx.provider";
 import { ExchangerateFxProvider } from "./infrastructure/providers/exchangerate-fx.provider";
 import { CurrencyApiFxProvider } from "./infrastructure/providers/currency-api-fx.provider";
 
@@ -69,6 +70,7 @@ import { CurrencyApiFxProvider } from "./infrastructure/providers/currency-api-f
     TrackingNotificationsService,
     TrackingScheduleRemindersService,
     TrackingFxService,
+    YahooFxProvider,
     ExchangerateFxProvider,
     CurrencyApiFxProvider,
     TrackingJobPaymentsService,

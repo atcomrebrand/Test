@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { TrackingFxRateProvider } from "../domain/tracking-fx.provider";
+import { YahooFxProvider } from "../infrastructure/providers/yahoo-fx.provider";
 import { ExchangerateFxProvider } from "../infrastructure/providers/exchangerate-fx.provider";
 import { CurrencyApiFxProvider } from "../infrastructure/providers/currency-api-fx.provider";
 
@@ -15,12 +16,20 @@ const FX_TTL_MS = 30 * 60 * 1000;
  * blocks a page load. Returns null (never throws) when there's truly no rate to fall back to, so
  * callers can degrade gracefully (skip the conversion) instead of crashing.
  *
- * Also the resilience layer, not just a cache: free-tier FX APIs like AwesomeAPI and open.er-api.com
- * sometimes block requests from cloud/datacenter IP ranges with a 403 — exactly the kind of network
- * a production VPS runs on, so both failing at once (and the ticker freezing on the last cached
- * value until they recover) is a real, observed failure mode, not just theoretical. When that
- * happens this retries via a third tier: a static JSON file served off a CDN (no bot-detection to
- * trip), before finally giving up and returning whatever's cached, however old.
+ * Also the resilience layer, not just a cache, with four tiers tried in order:
+ * 1. AwesomeAPI (primary) — intraday-ish updates, but its free tier sometimes rate-limits a VPS's
+ *    IP with a 403/429 (confirmed 2026-07-23: happened on two separate fetches ~18min apart on the
+ *    production VPS).
+ * 2. Yahoo Finance's USDBRL=X chart ticker — genuinely live (the same number Yahoo's own site
+ *    shows), same unofficial endpoint YahooDividendsProvider already uses successfully in
+ *    investments. Tried before the daily-snapshot fallbacks below specifically so an AwesomeAPI
+ *    rate-limit doesn't sacrifice freshness — without this tier, that 403/429 made the ticker fall
+ *    straight to a once-a-day-updated source and look "stuck" a full day behind, which is exactly
+ *    the bug this tier fixes.
+ * 3 & 4. open.er-api.com and a CDN-hosted static JSON (currency-api) — both only refresh once a
+ *    day, so they're last-resort "at least it's a real number" fallbacks, not sources of live data.
+ *
+ * Only after all four fail does this return whatever's cached, however old.
  */
 @Injectable()
 export class TrackingFxService {
@@ -29,8 +38,9 @@ export class TrackingFxService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly provider: TrackingFxRateProvider,
-    private readonly fallbackProvider: ExchangerateFxProvider,
-    private readonly secondFallbackProvider: CurrencyApiFxProvider,
+    private readonly yahooFallback: YahooFxProvider,
+    private readonly exchangerateFallback: ExchangerateFxProvider,
+    private readonly cdnFallback: CurrencyApiFxProvider,
   ) {}
 
   async getUsdToBrlRate(): Promise<number | null> {
@@ -38,22 +48,25 @@ export class TrackingFxService {
     const isFresh = cached && Date.now() - cached.fetchedAt.getTime() < FX_TTL_MS;
     if (isFresh) return Number(cached.rate);
 
-    try {
-      return await this.fetchAndCache(this.provider);
-    } catch (err) {
-      this.logger.warn(`Falha ao buscar cotação USD/BRL na fonte principal, tentando alternativa: ${(err as Error).message}`);
+    const tiers: { name: string; provider: TrackingFxRateProvider }[] = [
+      { name: "principal (AwesomeAPI)", provider: this.provider },
+      { name: "Yahoo Finance", provider: this.yahooFallback },
+      { name: "open.er-api.com", provider: this.exchangerateFallback },
+      { name: "CDN (currency-api)", provider: this.cdnFallback },
+    ];
+
+    for (const [index, tier] of tiers.entries()) {
       try {
-        return await this.fetchAndCache(this.fallbackProvider);
-      } catch (fallbackErr) {
-        this.logger.warn(`Falha ao buscar cotação USD/BRL na fonte alternativa, tentando a última: ${(fallbackErr as Error).message}`);
-        try {
-          return await this.fetchAndCache(this.secondFallbackProvider);
-        } catch (secondFallbackErr) {
-          this.logger.warn(`Falha ao buscar cotação USD/BRL em todas as fontes: ${(secondFallbackErr as Error).message}`);
-          return cached ? Number(cached.rate) : null;
-        }
+        return await this.fetchAndCache(tier.provider);
+      } catch (err) {
+        const isLast = index === tiers.length - 1;
+        this.logger.warn(
+          `Falha ao buscar cotação USD/BRL na fonte ${tier.name}${isLast ? "" : ", tentando a próxima"}: ${(err as Error).message}`,
+        );
       }
     }
+
+    return cached ? Number(cached.rate) : null;
   }
 
   private async fetchAndCache(provider: TrackingFxRateProvider): Promise<number> {
