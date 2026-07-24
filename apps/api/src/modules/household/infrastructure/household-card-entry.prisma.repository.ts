@@ -33,18 +33,25 @@ export class HouseholdCardEntryPrismaRepository extends HouseholdCardEntryReposi
     });
   }
 
-  create(data: CreateHouseholdCardEntryData) {
-    return this.prisma.householdCardEntry.create({
-      data: {
-        userId: data.userId,
-        cardId: data.cardId,
-        referenceYear: data.referenceYear,
-        referenceMonth: data.referenceMonth,
-        totalInvoice: data.totalInvoice,
-        provisioned: data.provisioned ?? 0,
-        notes: data.notes,
-      },
-      include: INCLUDE,
+  async findExistingCardIdsForMonth(userId: string, referenceYear: number, referenceMonth: number) {
+    const rows = await this.prisma.householdCardEntry.findMany({
+      where: { userId, referenceYear, referenceMonth },
+      select: { cardId: true },
+    });
+    return new Set(rows.map((r) => r.cardId));
+  }
+
+  async createMany(entries: CreateHouseholdCardEntryData[]) {
+    if (entries.length === 0) return;
+    await this.prisma.householdCardEntry.createMany({
+      data: entries.map((e) => ({
+        userId: e.userId,
+        cardId: e.cardId,
+        referenceYear: e.referenceYear,
+        referenceMonth: e.referenceMonth,
+        totalInvoice: e.totalInvoice,
+        provisioned: e.provisioned ?? 0,
+      })),
     });
   }
 

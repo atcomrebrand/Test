@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Receipt, Pencil, Power, MessageSquare } from "lucide-react";
+import { Plus, Receipt, Pencil, Power, MessageSquare, CheckCircle2, Circle, CreditCard as CreditCardIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Modal } from "@/components/ui/Modal";
@@ -7,10 +7,18 @@ import { Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { formatDate } from "@/lib/format";
-import { useHouseholdBills, useHouseholdBillsMonth, useUpdateHouseholdBill, useUpdateHouseholdBillEntry } from "../api";
-import { HouseholdBill, HouseholdBillEntry, HouseholdBillStatus } from "../types";
+import {
+  useHouseholdBills,
+  useHouseholdBillsMonth,
+  useUpdateHouseholdBill,
+  useUpdateHouseholdBillEntry,
+  useHouseholdCardsMonth,
+  useUpdateHouseholdCardEntry,
+} from "../api";
+import { HouseholdBill, HouseholdBillEntry, HouseholdBillStatus, HouseholdCard, HouseholdCardEntry } from "../types";
 import { MonthSwitcher } from "../components/MonthSwitcher";
 import { BillFormModal } from "../components/BillFormModal";
+import { HouseholdCardFormModal } from "../components/HouseholdCardFormModal";
 import { InlineAmountCell } from "../components/InlineAmountCell";
 
 const STATUS_TONE: Record<HouseholdBillStatus, "neutral" | "success" | "warning" | "danger" | "accent"> = {
@@ -29,20 +37,43 @@ const STATUS_LABEL: Record<HouseholdBillStatus, string> = {
   LATE: "Atrasado",
 };
 
+/** Unifies bills (contas fixas) and card invoices (faturas) into one payables list — a fatura
+ *  lançada num cartão é, pro usuário, só mais uma conta a pagar do mês. Sorted by day-of-month so
+ *  both kinds interleave chronologically instead of showing as two separate blocks. */
+type PayableRow = { kind: "BILL"; id: string; sortDay: number; entry: HouseholdBillEntry } | { kind: "CARD"; id: string; sortDay: number; entry: HouseholdCardEntry };
+
+function buildRows(billEntries: HouseholdBillEntry[], cardEntries: HouseholdCardEntry[]): PayableRow[] {
+  const billRows: PayableRow[] = billEntries.map((entry) => ({ kind: "BILL", id: entry.id, sortDay: new Date(entry.dueDate).getDate(), entry }));
+  const cardRows: PayableRow[] = cardEntries.map((entry) => ({ kind: "CARD", id: entry.id, sortDay: entry.card.dueDay, entry }));
+  return [...billRows, ...cardRows].sort((a, b) => a.sortDay - b.sortDay);
+}
+
+interface NotesTarget {
+  kind: "BILL" | "CARD";
+  id: string;
+  notes: string | null;
+}
+
 export default function Contas() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
 
-  const { data: entries, isLoading } = useHouseholdBillsMonth(year, month);
+  const { data: billEntries, isLoading: loadingBills } = useHouseholdBillsMonth(year, month);
+  const { data: cardEntries, isLoading: loadingCards } = useHouseholdCardsMonth(year, month);
   const { data: allBills } = useHouseholdBills();
-  const updateEntry = useUpdateHouseholdBillEntry();
+  const updateBillEntry = useUpdateHouseholdBillEntry();
+  const updateCardEntry = useUpdateHouseholdCardEntry();
   const updateBill = useUpdateHouseholdBill();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<HouseholdBill | null>(null);
-  const [notesEntry, setNotesEntry] = useState<HouseholdBillEntry | null>(null);
+  const [editingCard, setEditingCard] = useState<HouseholdCard | null>(null);
+  const [notesTarget, setNotesTarget] = useState<NotesTarget | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
+
+  const isLoading = loadingBills || loadingCards;
+  const rows = buildRows(billEntries ?? [], cardEntries ?? []);
 
   function openCreate() {
     setEditingBill(null);
@@ -58,14 +89,15 @@ export default function Contas() {
     updateBill.mutate({ id: bill.id, data: { active: !bill.active } });
   }
 
-  function openNotes(entry: HouseholdBillEntry) {
-    setNotesEntry(entry);
-    setNotesDraft(entry.notes ?? "");
+  function openNotes(target: NotesTarget) {
+    setNotesTarget(target);
+    setNotesDraft(target.notes ?? "");
   }
 
   function saveNotes() {
-    if (!notesEntry) return;
-    updateEntry.mutate({ id: notesEntry.id, data: { notes: notesDraft } }, { onSuccess: () => setNotesEntry(null) });
+    if (!notesTarget) return;
+    const mutate = notesTarget.kind === "BILL" ? updateBillEntry.mutate : updateCardEntry.mutate;
+    mutate({ id: notesTarget.id, data: { notes: notesDraft } }, { onSuccess: () => setNotesTarget(null) });
   }
 
   const inactiveBills = (allBills ?? []).filter((b) => !b.active);
@@ -75,7 +107,7 @@ export default function Contas() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">Contas</h1>
-          <p className="text-sm text-muted">Quanto precisa ser pago, quanto já foi reservado, quanto já foi pago.</p>
+          <p className="text-sm text-muted">Quanto precisa ser pago, quanto já foi reservado, quanto já foi pago — contas fixas e faturas de cartão juntas.</p>
         </div>
         <div className="flex items-center gap-3">
           <MonthSwitcher year={year} month={month} onChange={(y, m) => (setYear(y), setMonth(m))} />
@@ -94,7 +126,7 @@ export default function Contas() {
         </div>
       )}
 
-      {!isLoading && (!entries || entries.length === 0) && (
+      {!isLoading && rows.length === 0 && (
         <EmptyState
           icon={<Receipt className="h-7 w-7" />}
           title="Nenhuma conta cadastrada"
@@ -108,47 +140,82 @@ export default function Contas() {
         />
       )}
 
-      {!isLoading && entries && entries.length > 0 && (
+      {!isLoading && rows.length > 0 && (
         <>
           {/* Mobile: card list */}
           <div className="flex flex-col gap-2 sm:hidden">
-            {entries.map((entry) => (
-              <div key={entry.id} className="rounded-2xl surface border border-[rgb(var(--border))] p-4 shadow-soft">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{entry.bill.name}</p>
-                    <p className="text-xs text-muted">Vence dia {formatDate(entry.dueDate, { day: "2-digit", month: "2-digit" })}</p>
+            {rows.map((row) => {
+              const isBill = row.kind === "BILL";
+              const name = isBill ? row.entry.bill.name : row.entry.card.name;
+              const dueLabel = isBill ? `Vence dia ${formatDate(row.entry.dueDate, { day: "2-digit", month: "2-digit" })}` : `Vence dia ${row.entry.card.dueDay}`;
+              const isPaid = isBill ? row.entry.status === "PAID" : row.entry.paid;
+              return (
+                <div key={row.id} className="rounded-2xl surface border border-[rgb(var(--border))] p-4 shadow-soft">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="flex items-center gap-1.5 truncate font-medium">
+                        {!isBill && <CreditCardIcon className="h-3.5 w-3.5 shrink-0 text-muted" />}
+                        {name}
+                      </p>
+                      <p className="text-xs text-muted">{dueLabel}</p>
+                    </div>
+                    {isBill ? <Badge tone={STATUS_TONE[row.entry.status]}>{STATUS_LABEL[row.entry.status]}</Badge> : <Badge tone={isPaid ? "success" : "neutral"}>{isPaid ? "Pago" : "Pendente"}</Badge>}
                   </div>
-                  <Badge tone={STATUS_TONE[entry.status]}>{STATUS_LABEL[entry.status]}</Badge>
+                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <p className="text-muted">Valor</p>
+                      {isBill ? (
+                        <InlineAmountCell
+                          value={Number(row.entry.amount)}
+                          disabled={!row.entry.bill.allowAmountChange}
+                          onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { amount: v } })}
+                        />
+                      ) : (
+                        <InlineAmountCell value={Number(row.entry.totalInvoice)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { totalInvoice: v } })} />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-muted">Reservado</p>
+                      {isBill ? (
+                        <InlineAmountCell value={Number(row.entry.reservedAmount)} onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { reservedAmount: v } })} />
+                      ) : (
+                        <InlineAmountCell value={Number(row.entry.provisioned)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { provisioned: v } })} />
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-muted">Pago</p>
+                      <button
+                        onClick={() =>
+                          isBill
+                            ? updateBillEntry.mutate({ id: row.entry.id, data: { paidAmount: isPaid ? 0 : Number(row.entry.amount) } })
+                            : updateCardEntry.mutate({ id: row.entry.id, data: { paid: !isPaid } })
+                        }
+                        className={`flex items-center gap-1 font-semibold ${isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-muted"}`}
+                      >
+                        {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
+                        {isPaid ? "Sim" : "Não"}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="mt-3 flex items-center justify-end gap-1 border-t border-[rgb(var(--border))] pt-2">
+                    <button
+                      onClick={() => openNotes({ kind: row.kind, id: row.entry.id, notes: row.entry.notes })}
+                      className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
+                      aria-label="Observações"
+                    >
+                      <MessageSquare className="h-4 w-4" />
+                    </button>
+                    <button
+                      onClick={() => (isBill ? openEdit(row.entry.bill) : setEditingCard(row.entry.card))}
+                      className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
+                      aria-label="Editar"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  <div>
-                    <p className="text-muted">Valor</p>
-                    <InlineAmountCell
-                      value={Number(entry.amount)}
-                      disabled={!entry.bill.allowAmountChange}
-                      onSave={(v) => updateEntry.mutate({ id: entry.id, data: { amount: v } })}
-                    />
-                  </div>
-                  <div>
-                    <p className="text-muted">Reservado</p>
-                    <InlineAmountCell value={Number(entry.reservedAmount)} onSave={(v) => updateEntry.mutate({ id: entry.id, data: { reservedAmount: v } })} />
-                  </div>
-                  <div>
-                    <p className="text-muted">Pago</p>
-                    <InlineAmountCell value={Number(entry.paidAmount)} onSave={(v) => updateEntry.mutate({ id: entry.id, data: { paidAmount: v } })} />
-                  </div>
-                </div>
-                <div className="mt-3 flex items-center justify-end gap-1 border-t border-[rgb(var(--border))] pt-2">
-                  <button onClick={() => openNotes(entry)} className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2" aria-label="Observações">
-                    <MessageSquare className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => openEdit(entry.bill)} className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2" aria-label="Editar">
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Desktop: inline-editable table */}
@@ -160,47 +227,90 @@ export default function Contas() {
                   <th className="px-4 py-3 font-medium">Vencimento</th>
                   <th className="px-4 py-3 text-right font-medium">Valor</th>
                   <th className="px-4 py-3 text-right font-medium">Reservado</th>
-                  <th className="px-4 py-3 text-right font-medium">Pago</th>
+                  <th className="px-4 py-3 text-center font-medium">Pago</th>
                   <th className="px-4 py-3 font-medium">Status</th>
                   <th className="px-4 py-3 font-medium">Ações</th>
                 </tr>
               </thead>
               <tbody className="surface divide-y divide-[rgb(var(--border))]">
-                {entries.map((entry) => (
-                  <tr key={entry.id} className="transition-colors hover:surface-2">
-                    <td className="px-4 py-3">
-                      <p className="font-medium">{entry.bill.name}</p>
-                      {entry.bill.category && <p className="text-xs text-muted">{entry.bill.category.name}</p>}
-                    </td>
-                    <td className="px-4 py-3 text-muted">{formatDate(entry.dueDate, { day: "2-digit", month: "2-digit" })}</td>
-                    <td className="px-4 py-3 text-right">
-                      <InlineAmountCell
-                        value={Number(entry.amount)}
-                        disabled={!entry.bill.allowAmountChange}
-                        onSave={(v) => updateEntry.mutate({ id: entry.id, data: { amount: v } })}
-                      />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <InlineAmountCell value={Number(entry.reservedAmount)} onSave={(v) => updateEntry.mutate({ id: entry.id, data: { reservedAmount: v } })} />
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <InlineAmountCell value={Number(entry.paidAmount)} onSave={(v) => updateEntry.mutate({ id: entry.id, data: { paidAmount: v } })} />
-                    </td>
-                    <td className="px-4 py-3">
-                      <Badge tone={STATUS_TONE[entry.status]}>{STATUS_LABEL[entry.status]}</Badge>
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => openNotes(entry)} className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2" aria-label="Observações">
-                          <MessageSquare className="h-4 w-4" />
+                {rows.map((row) => {
+                  const isBill = row.kind === "BILL";
+                  const name = isBill ? row.entry.bill.name : row.entry.card.name;
+                  const subtitle = isBill ? row.entry.bill.category?.name : "Cartão de crédito";
+                  const dueLabel = isBill ? formatDate(row.entry.dueDate, { day: "2-digit", month: "2-digit" }) : `Dia ${row.entry.card.dueDay}`;
+                  const isPaid = isBill ? row.entry.status === "PAID" : row.entry.paid;
+                  return (
+                    <tr key={row.id} className="transition-colors hover:surface-2">
+                      <td className="px-4 py-3">
+                        <p className="flex items-center gap-1.5 font-medium">
+                          {!isBill && <CreditCardIcon className="h-3.5 w-3.5 shrink-0 text-muted" />}
+                          {name}
+                        </p>
+                        {subtitle && <p className="text-xs text-muted">{subtitle}</p>}
+                      </td>
+                      <td className="px-4 py-3 text-muted">{dueLabel}</td>
+                      <td className="px-4 py-3 text-right">
+                        {isBill ? (
+                          <InlineAmountCell
+                            value={Number(row.entry.amount)}
+                            disabled={!row.entry.bill.allowAmountChange}
+                            onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { amount: v } })}
+                          />
+                        ) : (
+                          <InlineAmountCell value={Number(row.entry.totalInvoice)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { totalInvoice: v } })} />
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        {isBill ? (
+                          <InlineAmountCell value={Number(row.entry.reservedAmount)} onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { reservedAmount: v } })} />
+                        ) : (
+                          <InlineAmountCell value={Number(row.entry.provisioned)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { provisioned: v } })} />
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <button
+                          onClick={() =>
+                            isBill
+                              ? updateBillEntry.mutate({ id: row.entry.id, data: { paidAmount: isPaid ? 0 : Number(row.entry.amount) } })
+                              : updateCardEntry.mutate({ id: row.entry.id, data: { paid: !isPaid } })
+                          }
+                          className={`mx-auto flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
+                            isPaid ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "surface-2 text-muted hover:brightness-95"
+                          }`}
+                          aria-label={isPaid ? "Marcar como não paga" : "Marcar como paga"}
+                        >
+                          {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
+                          {isPaid ? "Paga" : "Marcar"}
                         </button>
-                        <button onClick={() => openEdit(entry.bill)} className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2" aria-label="Editar">
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isBill ? (
+                          <Badge tone={STATUS_TONE[row.entry.status]}>{STATUS_LABEL[row.entry.status]}</Badge>
+                        ) : (
+                          <Badge tone={isPaid ? "success" : "neutral"}>{isPaid ? "Pago" : "Pendente"}</Badge>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => openNotes({ kind: row.kind, id: row.entry.id, notes: row.entry.notes })}
+                            className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
+                            aria-label="Observações"
+                          >
+                            <MessageSquare className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => (isBill ? openEdit(row.entry.bill) : setEditingCard(row.entry.card))}
+                            className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
+                            aria-label="Editar"
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -225,19 +335,22 @@ export default function Contas() {
       )}
 
       <BillFormModal open={formOpen} onClose={() => setFormOpen(false)} bill={editingBill} />
+      <HouseholdCardFormModal open={!!editingCard} onClose={() => setEditingCard(null)} card={editingCard} />
 
-      <Modal open={!!notesEntry} onClose={() => setNotesEntry(null)} title="Observações da competência" size="sm">
-        <div className="flex flex-col gap-4">
-          <Textarea value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} rows={4} autoFocus />
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setNotesEntry(null)}>
-              Cancelar
-            </Button>
-            <Button onClick={saveNotes} loading={updateEntry.isPending}>
-              Salvar
-            </Button>
+      <Modal open={!!notesTarget} onClose={() => setNotesTarget(null)} title="Observações da competência" size="sm">
+        {notesTarget && (
+          <div className="flex flex-col gap-4">
+            <Textarea value={notesDraft} onChange={(e) => setNotesDraft(e.target.value)} rows={4} autoFocus />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setNotesTarget(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={saveNotes} loading={updateBillEntry.isPending || updateCardEntry.isPending}>
+                Salvar
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </Modal>
     </div>
   );

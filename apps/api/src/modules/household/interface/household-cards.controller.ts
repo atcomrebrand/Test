@@ -2,12 +2,7 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGua
 import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../../../common/decorators/current-user.decorator";
 import { HouseholdCardsService } from "../application/household-cards.service";
-import {
-  CreateHouseholdCardDto,
-  UpdateHouseholdCardDto,
-  UpdateHouseholdCardEntryDto,
-  UpsertHouseholdCardEntryDto,
-} from "../application/dto/household-card.dto";
+import { CreateHouseholdCardDto, UpdateHouseholdCardDto, UpdateHouseholdCardEntryDto } from "../application/dto/household-card.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("household/cards")
@@ -41,17 +36,6 @@ export class HouseholdCardsController {
     @Param("month", ParseIntPipe) month: number,
   ) {
     return this.service.findMonth(user.userId, year, month);
-  }
-
-  @Post(":cardId/entries/:year/:month")
-  createEntry(
-    @CurrentUser() user: AuthUser,
-    @Param("cardId") cardId: string,
-    @Param("year", ParseIntPipe) year: number,
-    @Param("month", ParseIntPipe) month: number,
-    @Body() dto: UpsertHouseholdCardEntryDto,
-  ) {
-    return this.service.createEntry(user.userId, cardId, year, month, dto);
   }
 
   @Patch("entries/:id")

@@ -36,23 +36,6 @@ export class UpdateHouseholdCardDto {
   @IsOptional() @IsBoolean() active?: boolean;
 }
 
-export class UpsertHouseholdCardEntryDto {
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  totalInvoice!: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  provisioned?: number;
-
-  @IsOptional()
-  @IsString()
-  notes?: string;
-}
-
 export class UpdateHouseholdCardEntryDto {
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) totalInvoice?: number;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) provisioned?: number;

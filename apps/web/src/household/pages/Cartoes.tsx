@@ -9,7 +9,6 @@ import { useHouseholdCards, useHouseholdCardsMonth, useUpdateHouseholdCardEntry 
 import { HouseholdCard, HouseholdCardEntry } from "../types";
 import { MonthSwitcher } from "../components/MonthSwitcher";
 import { HouseholdCardFormModal } from "../components/HouseholdCardFormModal";
-import { CardEntryFormModal } from "../components/CardEntryFormModal";
 import { InlineAmountCell } from "../components/InlineAmountCell";
 
 export default function Cartoes() {
@@ -23,7 +22,6 @@ export default function Cartoes() {
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingCard, setEditingCard] = useState<HouseholdCard | null>(null);
-  const [launchCard, setLaunchCard] = useState<HouseholdCard | null>(null);
 
   const isLoading = loadingCards || loadingEntries;
   const activeCards = (cards ?? []).filter((c) => c.active);
@@ -103,12 +101,7 @@ export default function Cartoes() {
                     </button>
                   </div>
 
-                  {!entry ? (
-                    <Button variant="outline" onClick={() => setLaunchCard(card)}>
-                      <Plus className="h-4 w-4" />
-                      Lançar fatura de {String(month).padStart(2, "0")}/{year}
-                    </Button>
-                  ) : (
+                  {entry && (
                     <div className="flex flex-col gap-3">
                       <div className="flex items-center justify-between text-sm">
                         <span className="text-muted">Fatura total</span>
@@ -147,7 +140,6 @@ export default function Cartoes() {
       )}
 
       <HouseholdCardFormModal open={formOpen} onClose={() => setFormOpen(false)} card={editingCard} />
-      <CardEntryFormModal open={!!launchCard} onClose={() => setLaunchCard(null)} card={launchCard} year={year} month={month} />
     </div>
   );
 }

@@ -9,7 +9,6 @@ export interface CreateHouseholdCardEntryData {
   referenceMonth: number;
   totalInvoice: number;
   provisioned?: number;
-  notes?: string;
 }
 
 export interface UpdateHouseholdCardEntryData {
@@ -22,8 +21,9 @@ export interface UpdateHouseholdCardEntryData {
 
 export abstract class HouseholdCardEntryRepository {
   abstract findByMonth(userId: string, referenceYear: number, referenceMonth: number): Promise<HouseholdCardEntryWithCard[]>;
+  abstract findExistingCardIdsForMonth(userId: string, referenceYear: number, referenceMonth: number): Promise<Set<string>>;
+  abstract createMany(entries: CreateHouseholdCardEntryData[]): Promise<void>;
   abstract findById(id: string): Promise<HouseholdCardEntryWithCard | null>;
   abstract findByCardAndMonth(cardId: string, referenceYear: number, referenceMonth: number): Promise<HouseholdCardEntryWithCard | null>;
-  abstract create(data: CreateHouseholdCardEntryData): Promise<HouseholdCardEntryWithCard>;
   abstract update(id: string, data: UpdateHouseholdCardEntryData): Promise<HouseholdCardEntryWithCard>;
 }

@@ -232,28 +232,6 @@ export function useDeleteHouseholdCard() {
   });
 }
 
-export function useCreateHouseholdCardEntry() {
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      cardId,
-      year,
-      month,
-      data,
-    }: {
-      cardId: string;
-      year: number;
-      month: number;
-      data: { totalInvoice: number; provisioned?: number; notes?: string };
-    }) => api.post<HouseholdCardEntry>(`/household/cards/${cardId}/entries/${year}/${month}`, data),
-    onSuccess: () => {
-      invalidateAll(qc);
-      toast.success("Fatura lançada!");
-    },
-    onError: (e: Error) => toast.error(e.message),
-  });
-}
-
 export function useUpdateHouseholdCardEntry() {
   const qc = useQueryClient();
   return useMutation({
