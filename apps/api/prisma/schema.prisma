@@ -717,6 +717,10 @@ model TrackingJob {
   color               String           @default("#7C3AED")
   /// 0=domingo..6=sábado — só relevante pra FIXO.
   weekdays            Int[]            @default([1, 2, 3, 4, 5])
+  /// Datas específicas de folga ("YYYY-MM-DD"), além do padrão semanal em weekdays — férias,
+  /// feriados, licenças etc. Só relevante pra FIXO; suprime lembretes de início/fim nesses dias e
+  /// aparece marcado no Calendário.
+  daysOff             String[]         @default([])
   /// "HH:mm", opcional — quando definido, dispara o lembrete "hora de iniciar" nesse horário, nos
   /// weekdays configurados, se não houver sessão ativa pro trabalho naquele momento.
   expectedStartTime   String?

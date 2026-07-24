@@ -8,6 +8,10 @@ function currentHHMM(now: Date): string {
   return `${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}`;
 }
 
+function currentDateKey(now: Date): string {
+  return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
+}
+
 function formatHM(totalSeconds: number): string {
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
@@ -38,9 +42,10 @@ export class TrackingScheduleRemindersService {
   async checkStartReminders(now: Date = new Date()) {
     const hhmm = currentHHMM(now);
     const weekday = now.getDay();
+    const dateKey = currentDateKey(now);
 
     const jobs = await this.prisma.trackingJob.findMany({
-      where: { active: true, deletedAt: null, expectedStartTime: hhmm, weekdays: { has: weekday } },
+      where: { active: true, deletedAt: null, expectedStartTime: hhmm, weekdays: { has: weekday }, NOT: { daysOff: { has: dateKey } } },
     });
 
     for (const job of jobs) {

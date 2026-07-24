@@ -21,6 +21,8 @@ export interface TrackingJob {
   paymentDay: number | null;
   color: string;
   weekdays: number[];
+  /** Datas específicas de folga ("YYYY-MM-DD"), além do padrão semanal em weekdays. */
+  daysOff: string[];
   /** "HH:mm", opcional — dispara o lembrete "hora de iniciar" nesse horário, nos weekdays. */
   expectedStartTime: string | null;
   /** "HH:mm", opcional — dispara o lembrete "hora de encerrar" nesse horário exato; quando null,
@@ -139,6 +141,8 @@ export interface TrackingCalendarDay {
   hours: number;
   revenue: number;
   sessions: TrackingCalendarDaySession[];
+  /** Nomes dos trabalhos com folga marcada nesse dia. */
+  daysOff: string[];
 }
 
 export type ReportPeriod = "hoje" | "semana" | "mes" | "ano" | "personalizado";

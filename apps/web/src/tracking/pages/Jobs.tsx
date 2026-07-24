@@ -139,6 +139,11 @@ export default function Jobs() {
                       {label}
                     </span>
                   ))}
+                {job.type === "FIXO" && job.daysOff.length > 0 && (
+                  <Badge tone="neutral">
+                    {job.daysOff.length} {job.daysOff.length === 1 ? "dia de folga" : "dias de folga"}
+                  </Badge>
+                )}
                 {!job.active && <Badge tone="neutral">Inativo</Badge>}
               </div>
             </CardContent>

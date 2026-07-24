@@ -21,6 +21,8 @@ export interface CalendarDay {
   hours: number;
   revenue: number;
   sessions: CalendarDaySession[];
+  /** Nomes dos trabalhos com folga marcada nesse dia (TrackingJob.daysOff) — vazio na maioria dos dias. */
+  daysOff: string[];
 }
 
 function dayKey(date: Date): string {
@@ -77,7 +79,7 @@ export class TrackingCalendarService {
       const value = round2((time.netSeconds / 3600) * hourlyRate);
       const key = dayKey(s.checkIn);
 
-      const entry = byDay.get(key) ?? { date: key, hours: 0, revenue: 0, sessions: [] };
+      const entry = byDay.get(key) ?? { date: key, hours: 0, revenue: 0, sessions: [], daysOff: [] };
       entry.hours = round2(entry.hours + time.netSeconds / 3600);
       entry.revenue = round2(entry.revenue + value);
       entry.sessions.push({
@@ -92,7 +94,32 @@ export class TrackingCalendarService {
       byDay.set(key, entry);
     }
 
+    await this.applyDaysOff(userId, year, month, byDay);
+
     return Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /** Marks TrackingJob.daysOff dates that fall in this month, even when nothing was worked that day
+   *  (the only way a pure day-off shows up at all, since byDay is otherwise seeded from sessions).
+   *  Compares "YYYY-MM-DD" strings directly rather than round-tripping through Date/toISOString,
+   *  which would shift the month boundary by the server's UTC offset (the exact bug already fixed
+   *  elsewhere in this codebase for bare date strings). */
+  private async applyDaysOff(userId: string, year: number, month: number, byDay: Map<string, CalendarDay>) {
+    const jobs = await this.prisma.trackingJob.findMany({
+      where: { userId, deletedAt: null, daysOff: { isEmpty: false } },
+      select: { name: true, daysOff: true },
+    });
+
+    const monthPrefix = `${year}-${String(month).padStart(2, "0")}-`;
+
+    for (const job of jobs) {
+      for (const date of job.daysOff) {
+        if (!date.startsWith(monthPrefix)) continue;
+        const entry = byDay.get(date) ?? { date, hours: 0, revenue: 0, sessions: [], daysOff: [] };
+        entry.daysOff.push(job.name);
+        byDay.set(date, entry);
+      }
+    }
   }
 
   /** Same pattern as TrackingReportsService — freelance's valor/hora needs the true all-time total,

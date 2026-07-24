@@ -113,6 +113,7 @@ export default function CalendarView() {
                 const dateKey = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
                 const entry = byDate.get(dateKey);
                 const hasData = !!entry && entry.hours > 0;
+                const isDayOff = !!entry && entry.daysOff.length > 0;
                 const isFuture = dateKey > today;
                 return (
                   <button
@@ -120,11 +121,18 @@ export default function CalendarView() {
                     onClick={() => setSelectedDateKey(dateKey)}
                     disabled={isFuture}
                     className={`flex flex-col items-center gap-0.5 rounded-lg p-2 text-xs transition-colors ${
-                      hasData ? "cursor-pointer bg-violet-500/10 hover:bg-violet-500/20" : isFuture ? "text-muted" : "cursor-pointer text-muted hover:surface-2"
+                      hasData
+                        ? "cursor-pointer bg-violet-500/10 hover:bg-violet-500/20"
+                        : isDayOff
+                          ? "cursor-pointer bg-amber-500/10 hover:bg-amber-500/20"
+                          : isFuture
+                            ? "text-muted"
+                            : "cursor-pointer text-muted hover:surface-2"
                     }`}
                   >
                     <span className="font-medium">{day}</span>
                     {hasData && <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">{entry!.hours}h</span>}
+                    {!hasData && isDayOff && <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">folga</span>}
                   </button>
                 );
               })}
@@ -148,6 +156,11 @@ export default function CalendarView() {
       >
         {selectedDateKey && (
           <div className="flex flex-col gap-3">
+            {selectedDay && selectedDay.daysOff.length > 0 && (
+              <div className="rounded-xl bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-400">
+                Folga: {selectedDay.daysOff.join(", ")}
+              </div>
+            )}
             {selectedDay ? (
               <>
                 <div className="flex justify-between text-sm">

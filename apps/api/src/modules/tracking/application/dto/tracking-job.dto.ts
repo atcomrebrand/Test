@@ -2,6 +2,7 @@ import { Type } from "class-transformer";
 import { IsArray, IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsPositive, IsString, Matches, Max, Min, MinLength, ValidateIf } from "class-validator";
 
 const HHMM_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 export class CreateTrackingJobDto {
   @IsOptional()
@@ -75,6 +76,12 @@ export class CreateTrackingJobDto {
   @Max(6, { each: true })
   weekdays?: number[];
 
+  /** Datas específicas de folga ("YYYY-MM-DD"), além do padrão semanal em weekdays. */
+  @IsOptional()
+  @IsArray()
+  @Matches(DATE_REGEX, { each: true, message: "daysOff deve conter datas no formato YYYY-MM-DD." })
+  daysOff?: string[];
+
   /** "HH:mm" — dispara o lembrete "hora de iniciar" nesse horário, nos weekdays configurados. */
   @IsOptional()
   @Matches(HHMM_REGEX, { message: "expectedStartTime deve estar no formato HH:mm." })
@@ -113,6 +120,11 @@ export class UpdateTrackingJobDto {
   @Min(0, { each: true })
   @Max(6, { each: true })
   weekdays?: number[];
+
+  @IsOptional()
+  @IsArray()
+  @Matches(DATE_REGEX, { each: true, message: "daysOff deve conter datas no formato YYYY-MM-DD." })
+  daysOff?: string[];
 
   @IsOptional() @Matches(HHMM_REGEX, { message: "expectedStartTime deve estar no formato HH:mm." }) expectedStartTime?: string;
   @IsOptional() @Matches(HHMM_REGEX, { message: "expectedEndTime deve estar no formato HH:mm." }) expectedEndTime?: string;

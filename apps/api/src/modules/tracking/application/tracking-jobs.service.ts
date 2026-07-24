@@ -54,6 +54,7 @@ export class TrackingJobsService {
       paymentDay: type === "FIXO" ? dto.paymentDay : undefined,
       color: dto.color,
       weekdays: dto.weekdays,
+      daysOff: dto.daysOff,
       expectedStartTime: dto.expectedStartTime,
       expectedEndTime: dto.expectedEndTime,
       notes: dto.notes,

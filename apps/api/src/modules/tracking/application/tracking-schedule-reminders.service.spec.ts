@@ -21,6 +21,7 @@ function makeNotifications(): NotificationsService {
 const NOW = new Date();
 const HHMM = `${NOW.getHours().toString().padStart(2, "0")}:${NOW.getMinutes().toString().padStart(2, "0")}`;
 const WEEKDAY = NOW.getDay();
+const DATE_KEY = `${NOW.getFullYear()}-${(NOW.getMonth() + 1).toString().padStart(2, "0")}-${NOW.getDate().toString().padStart(2, "0")}`;
 
 describe("TrackingScheduleRemindersService.checkStartReminders", () => {
   it("notifies when a job's expectedStartTime matches now and there's no active session", async () => {
@@ -62,7 +63,7 @@ describe("TrackingScheduleRemindersService.checkStartReminders", () => {
     await service.checkStartReminders(NOW);
 
     expect(findMany).toHaveBeenCalledWith({
-      where: { active: true, deletedAt: null, expectedStartTime: HHMM, weekdays: { has: WEEKDAY } },
+      where: { active: true, deletedAt: null, expectedStartTime: HHMM, weekdays: { has: WEEKDAY }, NOT: { daysOff: { has: DATE_KEY } } },
     });
     expect(notifications.notifyIfNew).not.toHaveBeenCalled();
   });

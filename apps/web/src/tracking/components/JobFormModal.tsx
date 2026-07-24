@@ -50,6 +50,9 @@ export function JobFormModal({ open, onClose, job }: Props) {
   const [paymentDay, setPaymentDay] = useState("");
   const [color, setColor] = useState("#7C3AED");
   const [weekdays, setWeekdays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [daysOff, setDaysOff] = useState<string[]>([]);
+  const [dayOffFrom, setDayOffFrom] = useState("");
+  const [dayOffTo, setDayOffTo] = useState("");
   const [expectedStartTime, setExpectedStartTime] = useState("");
   const [expectedEndTime, setExpectedEndTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -71,6 +74,9 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setPaymentDay(job.paymentDay ? String(job.paymentDay) : "");
       setColor(job.color);
       setWeekdays(job.weekdays);
+      setDaysOff(job.daysOff);
+      setDayOffFrom("");
+      setDayOffTo("");
       setExpectedStartTime(job.expectedStartTime ?? "");
       setExpectedEndTime(job.expectedEndTime ?? "");
       setNotes(job.notes ?? "");
@@ -89,6 +95,9 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setPaymentDay("");
       setColor("#7C3AED");
       setWeekdays([1, 2, 3, 4, 5]);
+      setDaysOff([]);
+      setDayOffFrom("");
+      setDayOffTo("");
       setExpectedStartTime("");
       setExpectedEndTime("");
       setNotes("");
@@ -97,6 +106,48 @@ export function JobFormModal({ open, onClose, job }: Props) {
 
   function toggleWeekday(day: number) {
     setWeekdays((prev) => (prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day].sort()));
+  }
+
+  function addDaysOffRange() {
+    if (!dayOffFrom) return;
+    const to = dayOffTo || dayOffFrom;
+    if (to < dayOffFrom) return;
+
+    const dates: string[] = [];
+    const cursor = new Date(dayOffFrom + "T12:00:00");
+    const end = new Date(to + "T12:00:00");
+    while (cursor <= end && dates.length < 366) {
+      dates.push(cursor.toISOString().slice(0, 10));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    setDaysOff((prev) => Array.from(new Set([...prev, ...dates])).sort());
+    setDayOffFrom("");
+    setDayOffTo("");
+  }
+
+  function removeDaysOffRange(start: string, end: string) {
+    setDaysOff((prev) => prev.filter((d) => d < start || d > end));
+  }
+
+  /** Collapses consecutive dates into ranges for display, so a 2-week vacation shows as one chip
+   *  instead of 14 — matches how it was most likely added (via the de/até range picker above). */
+  function groupConsecutiveDaysOff(dates: string[]): { start: string; end: string }[] {
+    const sorted = [...dates].sort();
+    const groups: { start: string; end: string }[] = [];
+    for (const d of sorted) {
+      const last = groups[groups.length - 1];
+      if (last) {
+        const nextExpected = new Date(last.end + "T12:00:00");
+        nextExpected.setDate(nextExpected.getDate() + 1);
+        if (nextExpected.toISOString().slice(0, 10) === d) {
+          last.end = d;
+          continue;
+        }
+      }
+      groups.push({ start: d, end: d });
+    }
+    return groups;
   }
 
   function onSubmit(e: FormEvent) {
@@ -116,6 +167,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       paymentDay: type === "FIXO" && paymentDay ? Number(paymentDay) : undefined,
       color,
       weekdays,
+      daysOff: type === "FIXO" ? daysOff : [],
       expectedStartTime: type === "FIXO" ? expectedStartTime || null : null,
       expectedEndTime: type === "FIXO" ? expectedEndTime || null : null,
       notes: notes || undefined,
@@ -241,6 +293,56 @@ export function JobFormModal({ open, onClose, job }: Props) {
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {type === "FIXO" && (
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-[rgb(var(--text))]">Dias de folga (opcional)</label>
+            <p className="mb-2 text-xs text-muted">Sem lembrete de início/fim nessas datas — férias, feriados, licenças etc. Escolha um período (ou o mesmo dia em "de" e "até" pra um dia só).</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="date"
+                value={dayOffFrom}
+                onChange={(e) => setDayOffFrom(e.target.value)}
+                aria-label="De"
+                className="rounded-lg border border-[rgb(var(--border))] bg-transparent px-3 py-1.5 text-sm"
+              />
+              <span className="text-xs text-muted">até</span>
+              <input
+                type="date"
+                value={dayOffTo}
+                min={dayOffFrom || undefined}
+                onChange={(e) => setDayOffTo(e.target.value)}
+                aria-label="Até"
+                className="rounded-lg border border-[rgb(var(--border))] bg-transparent px-3 py-1.5 text-sm"
+              />
+              <Button type="button" variant="secondary" size="sm" onClick={addDaysOffRange} disabled={!dayOffFrom}>
+                Adicionar
+              </Button>
+            </div>
+            {daysOff.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {groupConsecutiveDaysOff(daysOff).map(({ start, end }) => (
+                  <span
+                    key={start}
+                    className="flex items-center gap-1.5 rounded-lg border border-[rgb(var(--border))] px-2.5 py-1 text-xs font-medium text-muted"
+                  >
+                    {start === end
+                      ? new Date(start + "T12:00:00").toLocaleDateString("pt-BR")
+                      : `${new Date(start + "T12:00:00").toLocaleDateString("pt-BR")} – ${new Date(end + "T12:00:00").toLocaleDateString("pt-BR")}`}
+                    <button
+                      type="button"
+                      onClick={() => removeDaysOffRange(start, end)}
+                      aria-label={`Remover folga de ${start} até ${end}`}
+                      className="text-muted hover:text-red-500"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
