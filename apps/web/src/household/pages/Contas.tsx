@@ -2,11 +2,12 @@ import { useState } from "react";
 import { Plus, Receipt, Pencil, Power, MessageSquare, CheckCircle2, Circle, CreditCard as CreditCardIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatDate } from "@/lib/format";
+import { formatDate, formatCurrency } from "@/lib/format";
 import {
   useHouseholdBills,
   useHouseholdBillsMonth,
@@ -119,9 +120,9 @@ export default function Contas() {
       </div>
 
       {isLoading && (
-        <div className="flex flex-col gap-2">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-14" />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-48" />
           ))}
         </div>
       )}
@@ -141,29 +142,55 @@ export default function Contas() {
       )}
 
       {!isLoading && rows.length > 0 && (
-        <>
-          {/* Mobile: card list */}
-          <div className="flex flex-col gap-2 sm:hidden">
-            {rows.map((row) => {
-              const isBill = row.kind === "BILL";
-              const name = isBill ? row.entry.bill.name : row.entry.card.name;
-              const dueLabel = isBill ? `Vence dia ${formatDate(row.entry.dueDate, { day: "2-digit", month: "2-digit" })}` : `Vence dia ${row.entry.card.dueDay}`;
-              const isPaid = isBill ? row.entry.status === "PAID" : row.entry.paid;
-              return (
-                <div key={row.id} className="rounded-2xl surface border border-[rgb(var(--border))] p-4 shadow-soft">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="flex items-center gap-1.5 truncate font-medium">
-                        {!isBill && <CreditCardIcon className="h-3.5 w-3.5 shrink-0 text-muted" />}
-                        {name}
-                      </p>
-                      <p className="text-xs text-muted">{dueLabel}</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {rows.map((row) => {
+            const isBill = row.kind === "BILL";
+            const name = isBill ? row.entry.bill.name : row.entry.card.name;
+            const dueLabel = isBill ? `Vence dia ${formatDate(row.entry.dueDate, { day: "2-digit", month: "2-digit" })}` : `Vence dia ${row.entry.card.dueDay}`;
+            const subtitle = isBill ? row.entry.bill.category?.name : "Cartão de crédito";
+            const iconColor = isBill ? row.entry.bill.category?.color ?? "#8B8B8B" : row.entry.card.color;
+            const isPaid = isBill ? row.entry.status === "PAID" : row.entry.paid;
+            const extraStatus = isBill && row.entry.status !== "PAID" && row.entry.status !== "PENDING" ? row.entry.status : null;
+
+            return (
+              <Card key={row.id}>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ backgroundColor: iconColor }}>
+                        {isBill ? <Receipt className="h-4 w-4" /> : <CreditCardIcon className="h-4 w-4" />}
+                      </span>
+                      <div>
+                        <p className="font-semibold">{name}</p>
+                        <p className="text-xs text-muted">
+                          {dueLabel}
+                          {subtitle ? ` · ${subtitle}` : ""}
+                        </p>
+                      </div>
                     </div>
-                    {isBill ? <Badge tone={STATUS_TONE[row.entry.status]}>{STATUS_LABEL[row.entry.status]}</Badge> : <Badge tone={isPaid ? "success" : "neutral"}>{isPaid ? "Pago" : "Pendente"}</Badge>}
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => openNotes({ kind: row.kind, id: row.entry.id, notes: row.entry.notes })}
+                        className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
+                        aria-label="Observações"
+                      >
+                        <MessageSquare className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => (isBill ? openEdit(row.entry.bill) : setEditingCard(row.entry.card))}
+                        className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
+                        aria-label="Editar"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                    <div>
-                      <p className="text-muted">Valor</p>
+
+                  {extraStatus && <Badge tone={STATUS_TONE[extraStatus]}>{STATUS_LABEL[extraStatus]}</Badge>}
+
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted">Valor</span>
                       {isBill ? (
                         <InlineAmountCell
                           value={Number(row.entry.amount)}
@@ -174,147 +201,39 @@ export default function Contas() {
                         <InlineAmountCell value={Number(row.entry.totalInvoice)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { totalInvoice: v } })} />
                       )}
                     </div>
-                    <div>
-                      <p className="text-muted">Reservado</p>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted">Reservado</span>
                       {isBill ? (
                         <InlineAmountCell value={Number(row.entry.reservedAmount)} onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { reservedAmount: v } })} />
                       ) : (
                         <InlineAmountCell value={Number(row.entry.provisioned)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { provisioned: v } })} />
                       )}
                     </div>
-                    <div>
-                      <p className="text-muted">Pago</p>
-                      <button
-                        onClick={() =>
-                          isBill
-                            ? updateBillEntry.mutate({ id: row.entry.id, data: { paidAmount: isPaid ? 0 : Number(row.entry.amount) } })
-                            : updateCardEntry.mutate({ id: row.entry.id, data: { paid: !isPaid } })
-                        }
-                        className={`flex items-center gap-1 font-semibold ${isPaid ? "text-emerald-600 dark:text-emerald-400" : "text-muted"}`}
-                      >
-                        {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
-                        {isPaid ? "Sim" : "Não"}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center justify-end gap-1 border-t border-[rgb(var(--border))] pt-2">
+                    {!isBill && (
+                      <div className="flex items-center justify-between border-t border-[rgb(var(--border))] pt-3 text-sm font-semibold">
+                        <span>Real a pagar</span>
+                        <span>{formatCurrency(row.entry.realAmount)}</span>
+                      </div>
+                    )}
                     <button
-                      onClick={() => openNotes({ kind: row.kind, id: row.entry.id, notes: row.entry.notes })}
-                      className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
-                      aria-label="Observações"
+                      onClick={() =>
+                        isBill
+                          ? updateBillEntry.mutate({ id: row.entry.id, data: { paidAmount: isPaid ? 0 : Number(row.entry.amount) } })
+                          : updateCardEntry.mutate({ id: row.entry.id, data: { paid: !isPaid } })
+                      }
+                      className={`flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-medium transition-colors ${
+                        isPaid ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "surface-2 text-muted hover:brightness-95"
+                      }`}
                     >
-                      <MessageSquare className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => (isBill ? openEdit(row.entry.bill) : setEditingCard(row.entry.card))}
-                      className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
-                      aria-label="Editar"
-                    >
-                      <Pencil className="h-4 w-4" />
+                      {isPaid ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                      {isPaid ? "Paga" : "Marcar como paga"}
                     </button>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Desktop: inline-editable table */}
-          <div className="hidden overflow-x-auto rounded-2xl border border-[rgb(var(--border))] sm:block">
-            <table className="w-full text-sm">
-              <thead className="surface-2 text-left text-xs uppercase text-muted">
-                <tr>
-                  <th className="px-4 py-3 font-medium">Conta</th>
-                  <th className="px-4 py-3 font-medium">Vencimento</th>
-                  <th className="px-4 py-3 text-right font-medium">Valor</th>
-                  <th className="px-4 py-3 text-right font-medium">Reservado</th>
-                  <th className="px-4 py-3 text-center font-medium">Pago</th>
-                  <th className="px-4 py-3 font-medium">Status</th>
-                  <th className="px-4 py-3 font-medium">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="surface divide-y divide-[rgb(var(--border))]">
-                {rows.map((row) => {
-                  const isBill = row.kind === "BILL";
-                  const name = isBill ? row.entry.bill.name : row.entry.card.name;
-                  const subtitle = isBill ? row.entry.bill.category?.name : "Cartão de crédito";
-                  const dueLabel = isBill ? formatDate(row.entry.dueDate, { day: "2-digit", month: "2-digit" }) : `Dia ${row.entry.card.dueDay}`;
-                  const isPaid = isBill ? row.entry.status === "PAID" : row.entry.paid;
-                  return (
-                    <tr key={row.id} className="transition-colors hover:surface-2">
-                      <td className="px-4 py-3">
-                        <p className="flex items-center gap-1.5 font-medium">
-                          {!isBill && <CreditCardIcon className="h-3.5 w-3.5 shrink-0 text-muted" />}
-                          {name}
-                        </p>
-                        {subtitle && <p className="text-xs text-muted">{subtitle}</p>}
-                      </td>
-                      <td className="px-4 py-3 text-muted">{dueLabel}</td>
-                      <td className="px-4 py-3 text-right">
-                        {isBill ? (
-                          <InlineAmountCell
-                            value={Number(row.entry.amount)}
-                            disabled={!row.entry.bill.allowAmountChange}
-                            onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { amount: v } })}
-                          />
-                        ) : (
-                          <InlineAmountCell value={Number(row.entry.totalInvoice)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { totalInvoice: v } })} />
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        {isBill ? (
-                          <InlineAmountCell value={Number(row.entry.reservedAmount)} onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { reservedAmount: v } })} />
-                        ) : (
-                          <InlineAmountCell value={Number(row.entry.provisioned)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { provisioned: v } })} />
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <button
-                          onClick={() =>
-                            isBill
-                              ? updateBillEntry.mutate({ id: row.entry.id, data: { paidAmount: isPaid ? 0 : Number(row.entry.amount) } })
-                              : updateCardEntry.mutate({ id: row.entry.id, data: { paid: !isPaid } })
-                          }
-                          className={`mx-auto flex items-center justify-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
-                            isPaid ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "surface-2 text-muted hover:brightness-95"
-                          }`}
-                          aria-label={isPaid ? "Marcar como não paga" : "Marcar como paga"}
-                        >
-                          {isPaid ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Circle className="h-3.5 w-3.5" />}
-                          {isPaid ? "Paga" : "Marcar"}
-                        </button>
-                      </td>
-                      <td className="px-4 py-3">
-                        {isBill ? (
-                          <Badge tone={STATUS_TONE[row.entry.status]}>{STATUS_LABEL[row.entry.status]}</Badge>
-                        ) : (
-                          <Badge tone={isPaid ? "success" : "neutral"}>{isPaid ? "Pago" : "Pendente"}</Badge>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => openNotes({ kind: row.kind, id: row.entry.id, notes: row.entry.notes })}
-                            className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
-                            aria-label="Observações"
-                          >
-                            <MessageSquare className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => (isBill ? openEdit(row.entry.bill) : setEditingCard(row.entry.card))}
-                            className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
-                            aria-label="Editar"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
       )}
 
       {inactiveBills.length > 0 && (
