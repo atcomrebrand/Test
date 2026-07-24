@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Receipt, Pencil, Power, MessageSquare, CheckCircle2, Circle, CreditCard as CreditCardIcon } from "lucide-react";
+import { Plus, Receipt, Pencil, Power, Trash2, MessageSquare, CheckCircle2, Circle, CreditCard as CreditCardIcon } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -13,8 +13,12 @@ import {
   useHouseholdBillsMonth,
   useUpdateHouseholdBill,
   useUpdateHouseholdBillEntry,
+  useDeleteHouseholdBill,
+  useHouseholdCards,
   useHouseholdCardsMonth,
+  useUpdateHouseholdCard,
   useUpdateHouseholdCardEntry,
+  useDeleteHouseholdCard,
 } from "../api";
 import { HouseholdBill, HouseholdBillEntry, HouseholdBillStatus, HouseholdCard, HouseholdCardEntry } from "../types";
 import { MonthSwitcher } from "../components/MonthSwitcher";
@@ -63,9 +67,13 @@ export default function Contas() {
   const { data: billEntries, isLoading: loadingBills } = useHouseholdBillsMonth(year, month);
   const { data: cardEntries, isLoading: loadingCards } = useHouseholdCardsMonth(year, month);
   const { data: allBills } = useHouseholdBills();
+  const { data: allCards } = useHouseholdCards();
   const updateBillEntry = useUpdateHouseholdBillEntry();
   const updateCardEntry = useUpdateHouseholdCardEntry();
   const updateBill = useUpdateHouseholdBill();
+  const updateCard = useUpdateHouseholdCard();
+  const deleteBill = useDeleteHouseholdBill();
+  const deleteCard = useDeleteHouseholdCard();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<HouseholdBill | null>(null);
@@ -86,8 +94,17 @@ export default function Contas() {
     setFormOpen(true);
   }
 
-  function toggleActive(bill: HouseholdBill) {
-    updateBill.mutate({ id: bill.id, data: { active: !bill.active } });
+  function toggleActive(target: { kind: "BILL"; item: HouseholdBill } | { kind: "CARD"; item: HouseholdCard }) {
+    if (target.kind === "BILL") updateBill.mutate({ id: target.item.id, data: { active: !target.item.active } });
+    else updateCard.mutate({ id: target.item.id, data: { active: !target.item.active } });
+  }
+
+  function handleDelete(row: PayableRow) {
+    const isBill = row.kind === "BILL";
+    const name = isBill ? row.entry.bill.name : row.entry.card.name;
+    if (!confirm(`Excluir "${name}"?`)) return;
+    if (isBill) deleteBill.mutate(row.entry.bill.id);
+    else deleteCard.mutate(row.entry.card.id);
   }
 
   function openNotes(target: NotesTarget) {
@@ -102,6 +119,7 @@ export default function Contas() {
   }
 
   const inactiveBills = (allBills ?? []).filter((b) => !b.active);
+  const inactiveCards = (allCards ?? []).filter((c) => !c.active);
 
   return (
     <div className="flex flex-col gap-4">
@@ -183,6 +201,9 @@ export default function Contas() {
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
+                      <button onClick={() => handleDelete(row)} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500" aria-label="Excluir">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </div>
                   </div>
 
@@ -236,17 +257,50 @@ export default function Contas() {
         </div>
       )}
 
-      {inactiveBills.length > 0 && (
+      {(inactiveBills.length > 0 || inactiveCards.length > 0) && (
         <div className="mt-2 flex flex-col gap-2">
-          <p className="text-sm font-medium text-muted">Contas inativas</p>
+          <p className="text-sm font-medium text-muted">Contas e cartões inativos</p>
           <div className="flex flex-col gap-2">
             {inactiveBills.map((bill) => (
               <div key={bill.id} className="flex items-center justify-between gap-3 rounded-xl surface border border-[rgb(var(--border))] px-4 py-2.5 opacity-70">
                 <p className="text-sm">{bill.name}</p>
-                <button onClick={() => toggleActive(bill)} className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:surface-2">
-                  <Power className="h-3.5 w-3.5" />
-                  Reativar
-                </button>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => toggleActive({ kind: "BILL", item: bill })}
+                    className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:surface-2"
+                  >
+                    <Power className="h-3.5 w-3.5" />
+                    Reativar
+                  </button>
+                  <button
+                    onClick={() => confirm(`Excluir "${bill.name}"?`) && deleteBill.mutate(bill.id)}
+                    className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                    aria-label="Excluir"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {inactiveCards.map((card) => (
+              <div key={card.id} className="flex items-center justify-between gap-3 rounded-xl surface border border-[rgb(var(--border))] px-4 py-2.5 opacity-70">
+                <p className="text-sm">{card.name}</p>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => toggleActive({ kind: "CARD", item: card })}
+                    className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:surface-2"
+                  >
+                    <Power className="h-3.5 w-3.5" />
+                    Reativar
+                  </button>
+                  <button
+                    onClick={() => confirm(`Excluir "${card.name}"?`) && deleteCard.mutate(card.id)}
+                    className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                    aria-label="Excluir"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
               </div>
             ))}
           </div>
