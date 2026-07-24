@@ -29,6 +29,13 @@ function dayKey(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** TrackingJob.startDate/endDate are stored as an instant anchored to noon local time (see
+ *  JobFormModal), so recovering the intended calendar date means reading local getters — going
+ *  through toISOString/UTC here would shift the date by the server's UTC offset. */
+function localDateKey(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
@@ -99,22 +106,33 @@ export class TrackingCalendarService {
     return Array.from(byDay.values()).sort((a, b) => a.date.localeCompare(b.date));
   }
 
-  /** Marks TrackingJob.daysOff dates that fall in this month, even when nothing was worked that day
-   *  (the only way a pure day-off shows up at all, since byDay is otherwise seeded from sessions).
-   *  Compares "YYYY-MM-DD" strings directly rather than round-tripping through Date/toISOString,
-   *  which would shift the month boundary by the server's UTC offset (the exact bug already fixed
-   *  elsewhere in this codebase for bare date strings). */
+  /** Marks every day off for each active FIXO job in this month, even when nothing was worked that
+   *  day (the only way a pure day-off shows up at all, since byDay is otherwise seeded from
+   *  sessions) — both the explicit TrackingJob.daysOff dates AND any weekday not in
+   *  TrackingJob.weekdays (e.g. Sat/Sun are automatically "folga" for a Mon-Fri job), bounded by
+   *  the job's startDate/endDate so it doesn't mark days before it existed or after it ended. */
   private async applyDaysOff(userId: string, year: number, month: number, byDay: Map<string, CalendarDay>) {
     const jobs = await this.prisma.trackingJob.findMany({
-      where: { userId, deletedAt: null, daysOff: { isEmpty: false } },
-      select: { name: true, daysOff: true },
+      where: { userId, deletedAt: null, active: true, type: "FIXO" },
+      select: { name: true, daysOff: true, weekdays: true, startDate: true, endDate: true },
     });
 
+    const daysInMonth = new Date(year, month, 0).getDate();
     const monthPrefix = `${year}-${String(month).padStart(2, "0")}-`;
 
     for (const job of jobs) {
-      for (const date of job.daysOff) {
-        if (!date.startsWith(monthPrefix)) continue;
+      const startKey = localDateKey(job.startDate);
+      const endKey = job.endDate ? localDateKey(job.endDate) : null;
+      const explicitDaysOff = new Set(job.daysOff);
+
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = `${monthPrefix}${String(day).padStart(2, "0")}`;
+        if (date < startKey || (endKey && date > endKey)) continue;
+
+        const weekday = new Date(year, month - 1, day).getDay();
+        const isOff = explicitDaysOff.has(date) || !job.weekdays.includes(weekday);
+        if (!isOff) continue;
+
         const entry = byDay.get(date) ?? { date, hours: 0, revenue: 0, sessions: [], daysOff: [] };
         entry.daysOff.push(job.name);
         byDay.set(date, entry);

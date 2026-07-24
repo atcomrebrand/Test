@@ -299,7 +299,10 @@ export function JobFormModal({ open, onClose, job }: Props) {
         {type === "FIXO" && (
           <div>
             <label className="mb-1.5 block text-sm font-medium text-[rgb(var(--text))]">Dias de folga (opcional)</label>
-            <p className="mb-2 text-xs text-muted">Sem lembrete de início/fim nessas datas — férias, feriados, licenças etc. Escolha um período (ou o mesmo dia em "de" e "até" pra um dia só).</p>
+            <p className="mb-2 text-xs text-muted">
+              Os dias da semana não marcados acima (ex: fim de semana) já contam como folga automaticamente. Use isto só pra exceções — férias, feriados,
+              licenças etc. Escolha um período (ou o mesmo dia em "de" e "até" pra um dia só).
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <input
                 type="date"
