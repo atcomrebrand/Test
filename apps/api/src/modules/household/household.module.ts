@@ -1,16 +1,19 @@
 import { Module } from "@nestjs/common";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { TrackingModule } from "../tracking/tracking.module";
 import { HouseholdBillCategoriesController } from "./interface/household-bill-categories.controller";
 import { HouseholdIncomeCategoriesController } from "./interface/household-income-categories.controller";
 import { HouseholdBillsController } from "./interface/household-bills.controller";
 import { HouseholdCardsController } from "./interface/household-cards.controller";
 import { HouseholdIncomesController } from "./interface/household-incomes.controller";
+import { HouseholdPresumedSalaryController } from "./interface/household-presumed-salary.controller";
 import { HouseholdDashboardController } from "./interface/household-dashboard.controller";
 import { HouseholdBillCategoriesService } from "./application/household-bill-categories.service";
 import { HouseholdIncomeCategoriesService } from "./application/household-income-categories.service";
 import { HouseholdBillsService } from "./application/household-bills.service";
 import { HouseholdCardsService } from "./application/household-cards.service";
 import { HouseholdIncomesService } from "./application/household-incomes.service";
+import { HouseholdPresumedSalaryService } from "./application/household-presumed-salary.service";
 import { HouseholdDashboardService } from "./application/household-dashboard.service";
 import { HouseholdAuditService } from "./application/household-audit.service";
 import { HouseholdBillRemindersService } from "./application/household-bill-reminders.service";
@@ -27,13 +30,14 @@ import { HouseholdIncomeRepository } from "./domain/household-income.repository"
 import { HouseholdIncomePrismaRepository } from "./infrastructure/household-income.prisma.repository";
 
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, TrackingModule],
   controllers: [
     HouseholdBillCategoriesController,
     HouseholdIncomeCategoriesController,
     HouseholdBillsController,
     HouseholdCardsController,
     HouseholdIncomesController,
+    HouseholdPresumedSalaryController,
     HouseholdDashboardController,
   ],
   providers: [
@@ -42,6 +46,7 @@ import { HouseholdIncomePrismaRepository } from "./infrastructure/household-inco
     HouseholdBillsService,
     HouseholdCardsService,
     HouseholdIncomesService,
+    HouseholdPresumedSalaryService,
     HouseholdDashboardService,
     HouseholdAuditService,
     HouseholdBillRemindersService,

@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { HouseholdBillsService } from "./household-bills.service";
 import { HouseholdCardsService } from "./household-cards.service";
 import { HouseholdIncomesService } from "./household-incomes.service";
+import { HouseholdPresumedSalaryService } from "./household-presumed-salary.service";
 
 const UPCOMING_DAYS = 7;
 
@@ -15,6 +16,7 @@ export class HouseholdDashboardService {
     private readonly bills: HouseholdBillsService,
     private readonly cards: HouseholdCardsService,
     private readonly incomes: HouseholdIncomesService,
+    private readonly presumedSalary: HouseholdPresumedSalaryService,
   ) {}
 
   async month(userId: string, referenceYear: number, referenceMonth: number) {
@@ -29,7 +31,11 @@ export class HouseholdDashboardService {
     // the status breakdown further down, just not in money owed/committed.
     const activeBillEntries = billEntries.filter((e) => e.status !== "SKIPPED");
 
-    const totalIncome = incomeEntries.reduce((sum, i) => sum + Number(i.amount), 0);
+    // The salary just hasn't landed yet this month — fall back to the configured estimate (live
+    // FX-converted if it's set in dólar) instead of showing R$0 income the moment the month rolls
+    // over. The instant a real HouseholdIncome shows up for the month, this stops applying.
+    const presumedSalaryEstimate = incomeEntries.length === 0 ? await this.presumedSalary.estimateBrl(userId) : null;
+    const totalIncome = incomeEntries.length > 0 ? incomeEntries.reduce((sum, i) => sum + Number(i.amount), 0) : presumedSalaryEstimate?.amount ?? 0;
     const totalBills = activeBillEntries.reduce((sum, e) => sum + Number(e.amount), 0);
     const totalCards = cardEntries.reduce((sum, e) => sum + e.realAmount, 0);
     const totalCommitted = totalBills + totalCards;
@@ -146,6 +152,9 @@ export class HouseholdDashboardService {
       paymentEvolution,
       allPaid,
       foreignIncome,
+      presumedSalary: presumedSalaryEstimate
+        ? { applied: true, amount: presumedSalaryEstimate.amount, isForeignCurrency: presumedSalaryEstimate.isForeignCurrency, rateUsed: presumedSalaryEstimate.rateUsed }
+        : { applied: false, amount: 0, isForeignCurrency: false, rateUsed: null },
       savingsRate,
       previousMonthComparison,
     };

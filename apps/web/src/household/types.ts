@@ -113,6 +113,14 @@ export interface HouseholdDashboardSummary {
   paymentEvolution: { day: number; cumulativePaid: number }[];
   allPaid: boolean;
   foreignIncome: { count: number; totalGrossUsd: number; totalConvertedBrl: number; avgRate: number | null };
+  presumedSalary: { applied: boolean; amount: number; isForeignCurrency: boolean; rateUsed: number | null };
   savingsRate: number | null;
   previousMonthComparison: { referenceYear: number; referenceMonth: number; totalCommitted: number; totalPaid: number; deltaCommittedPct: number | null };
+}
+
+export interface HouseholdPresumedSalary {
+  id: string;
+  isForeignCurrency: boolean;
+  amountBRL: string | null;
+  amountUsd: string | null;
 }

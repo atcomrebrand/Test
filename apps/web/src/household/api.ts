@@ -10,6 +10,7 @@ import {
   HouseholdDashboardSummary,
   HouseholdIncome,
   HouseholdIncomeCategory,
+  HouseholdPresumedSalary,
 } from "./types";
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
@@ -339,6 +340,30 @@ export function useDeleteHouseholdIncome() {
   return useMutation({
     mutationFn: (id: string) => api.delete(`/household/incomes/${id}`),
     onSuccess: () => invalidateAll(qc),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Salário presumido
+// ---------------------------------------------------------------------------
+
+export function useHouseholdPresumedSalary() {
+  return useQuery({
+    queryKey: ["household", "presumed-salary"],
+    queryFn: () => api.get<HouseholdPresumedSalary | null>("/household/presumed-salary"),
+  });
+}
+
+export function useUpdateHouseholdPresumedSalary() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { isForeignCurrency: boolean; amountBRL?: number; amountUsd?: number }) =>
+      api.patch<HouseholdPresumedSalary>("/household/presumed-salary", data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Salário presumido salvo!");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 }

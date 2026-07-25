@@ -172,6 +172,7 @@ model User {
   householdCardEntries      HouseholdCardEntry[]
   householdIncomes          HouseholdIncome[]
   householdAuditLogs        HouseholdAuditLog[]
+  householdPresumedSalary   HouseholdPresumedSalary?
 
   @@map("users")
 }
@@ -1045,6 +1046,23 @@ model HouseholdIncome {
   @@index([userId, date])
   @@index([categoryId])
   @@map("household_incomes")
+}
+
+/// Um "chão" opcional pro Dashboard usar quando nenhuma HouseholdIncome ainda foi lançada num
+/// mês (o salário simplesmente ainda não caiu). Nunca é lançado como entrada de verdade — é só uma
+/// estimativa recalculada a cada consulta; se em dólar, a conversão pra BRL é sempre pela cotação
+/// atual (nunca uma cotação travada), porque o objetivo é "quanto isso valeria hoje", não histórico.
+model HouseholdPresumedSalary {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isForeignCurrency Boolean  @default(false)
+  amountBRL         Decimal? @db.Decimal(12, 2)
+  amountUsd         Decimal? @db.Decimal(12, 2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("household_presumed_salaries")
 }
 
 model HouseholdAuditLog {

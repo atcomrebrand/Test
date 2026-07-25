@@ -1,10 +1,12 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Plus, Tag, Trash2, ChevronUp, ChevronDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { formatCurrency, parseAmountInput } from "@/lib/format";
+import { useQuotesTicker } from "@/features/useQuotes";
 import {
   useHouseholdBillCategories,
   useCreateHouseholdBillCategory,
@@ -14,6 +16,8 @@ import {
   useCreateHouseholdIncomeCategory,
   useDeleteHouseholdIncomeCategory,
   useReorderHouseholdIncomeCategories,
+  useHouseholdPresumedSalary,
+  useUpdateHouseholdPresumedSalary,
 } from "../api";
 import { HouseholdBillCategory, HouseholdIncomeCategory } from "../types";
 
@@ -149,6 +153,110 @@ function CategorySection<T extends { id: string; name: string; color: string }>(
   );
 }
 
+/** O "chão" que o Dashboard usa quando o mês ainda não tem nenhuma entrada lançada — o salário
+ *  simplesmente ainda não caiu. Em dólar, o preview abaixo já mostra a conversão pela cotação
+ *  atual, mas o valor de fato usado no Dashboard é sempre recalculado na hora (nunca travado
+ *  nessa cotação de quando foi salvo). */
+function PresumedSalaryCard() {
+  const { data, isLoading } = useHouseholdPresumedSalary();
+  const { data: quotes } = useQuotesTicker();
+  const update = useUpdateHouseholdPresumedSalary();
+
+  const [isForeignCurrency, setIsForeignCurrency] = useState(false);
+  const [amountBRL, setAmountBRL] = useState("");
+  const [amountUsd, setAmountUsd] = useState("");
+
+  useEffect(() => {
+    if (!data) return;
+    setIsForeignCurrency(data.isForeignCurrency);
+    setAmountBRL(data.amountBRL ?? "");
+    setAmountUsd(data.amountUsd ?? "");
+  }, [data]);
+
+  const usdRate = quotes?.find((q) => q.symbol === "USD")?.rate ?? null;
+  const parsedUsd = parseAmountInput(amountUsd);
+  const livePreviewBrl = usdRate && !Number.isNaN(parsedUsd) ? parsedUsd * usdRate : null;
+  const parsedBRL = parseAmountInput(amountBRL);
+  const canSave = isForeignCurrency ? !Number.isNaN(parsedUsd) : !Number.isNaN(parsedBRL);
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!canSave) return;
+    if (isForeignCurrency) update.mutate({ isForeignCurrency: true, amountUsd: parsedUsd });
+    else update.mutate({ isForeignCurrency: false, amountBRL: parsedBRL });
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div>
+          <CardTitle>Salário presumido</CardTitle>
+          <p className="mt-1 text-xs text-muted">
+            Usado como estimativa no Dashboard nos meses em que nenhuma entrada ainda foi lançada — o salário ainda não caiu.
+          </p>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <Skeleton className="h-32" />
+        ) : (
+          <form onSubmit={onSubmit} className="flex flex-col gap-4">
+            <label className="flex cursor-pointer items-center justify-between gap-4 rounded-xl surface-2 p-3">
+              <div>
+                <p className="text-sm font-medium">Recebido em dólar?</p>
+                <p className="text-xs text-muted">Converte pra reais ao vivo, pela cotação do momento, toda vez que a estimativa for usada.</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={isForeignCurrency}
+                onChange={(e) => setIsForeignCurrency(e.target.checked)}
+                className="h-5 w-5 shrink-0 rounded accent-accent-500"
+              />
+            </label>
+
+            {isForeignCurrency ? (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Valor mensal (US$)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={amountUsd}
+                  onChange={(e) => setAmountUsd(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+                />
+                <p className="text-xs text-muted">
+                  {usdRate && livePreviewBrl !== null
+                    ? `≈ ${formatCurrency(livePreviewBrl)} pela cotação atual (US$ 1 = ${formatCurrency(usdRate)})`
+                    : "Cotação indisponível no momento."}
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Valor mensal (R$)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0,00"
+                  value={amountBRL}
+                  onChange={(e) => setAmountBRL(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+                />
+              </div>
+            )}
+
+            <div className="flex justify-end">
+              <Button type="submit" loading={update.isPending} disabled={!canSave}>
+                Salvar
+              </Button>
+            </div>
+          </form>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Configuracoes() {
   const { data: billCategories, isLoading: loadingBillCats } = useHouseholdBillCategories();
   const createBillCat = useCreateHouseholdBillCategory();
@@ -189,6 +297,8 @@ export default function Configuracoes() {
           onDelete={(id) => deleteIncomeCat.mutate(id)}
           onReorder={(ids) => reorderIncomeCats.mutate(ids)}
         />
+
+        <PresumedSalaryCard />
       </div>
     </div>
   );

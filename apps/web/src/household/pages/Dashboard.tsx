@@ -61,7 +61,16 @@ export default function HouseholdDashboard() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Total de entradas" value={formatCurrency(summary.totalIncome)} icon={<Wallet className="h-4 w-4" />} />
+        <StatTile
+          label="Total de entradas"
+          value={formatCurrency(summary.totalIncome)}
+          icon={<Wallet className="h-4 w-4" />}
+          sublabel={
+            summary.presumedSalary.applied
+              ? `Estimado — salário ainda não caiu esse mês${summary.presumedSalary.isForeignCurrency && summary.presumedSalary.rateUsed ? ` (cotação atual: ${summary.presumedSalary.rateUsed.toLocaleString("pt-BR", { minimumFractionDigits: 4 })})` : ""}`
+              : undefined
+          }
+        />
         <StatTile
           label="Total das contas"
           value={formatCurrency(summary.totalBills)}
