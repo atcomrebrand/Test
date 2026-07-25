@@ -1,4 +1,4 @@
-import { useState, ReactNode } from "react";
+import { useState, useRef, ReactNode } from "react";
 import {
   Plus,
   Receipt,
@@ -159,6 +159,9 @@ function PayableCardView({
   onDragLeave,
   onDrop,
   onDragEnd,
+  onTouchStart,
+  onTouchMove,
+  onTouchEnd,
 }: {
   row: PayableRow;
   onOpenNotes: (t: NotesTarget) => void;
@@ -174,6 +177,9 @@ function PayableCardView({
   onDragLeave: () => void;
   onDrop: () => void;
   onDragEnd: () => void;
+  onTouchStart: () => void;
+  onTouchMove: (e: React.TouchEvent) => void;
+  onTouchEnd: () => void;
 }) {
   const isBill = row.kind === "BILL";
   const name = isBill ? row.entry.bill.name : row.entry.card.name;
@@ -193,6 +199,7 @@ function PayableCardView({
 
   return (
     <Card
+      data-row-id={row.id}
       draggable
       onDragStart={onDragStart}
       onDragOver={(e) => {
@@ -214,7 +221,16 @@ function PayableCardView({
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <GripVertical className="h-4 w-4 shrink-0 text-muted" />
+            <span
+              className="touch-none cursor-grab p-1 active:cursor-grabbing"
+              onTouchStart={onTouchStart}
+              onTouchMove={onTouchMove}
+              onTouchEnd={onTouchEnd}
+              aria-label="Arrastar para reordenar"
+              role="button"
+            >
+              <GripVertical className="h-4 w-4 shrink-0 text-muted" />
+            </span>
             <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ backgroundColor: iconColor }}>
               {isBill ? <Receipt className="h-4 w-4" /> : <CreditCardIcon className="h-4 w-4" />}
             </span>
@@ -352,7 +368,14 @@ export default function Contas() {
   const [payLessDraft, setPayLessDraft] = useState("");
   const [openSections, setOpenSections] = useState({ bills: true, cards: true });
   const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [draggedKind, setDraggedKind] = useState<"BILL" | "CARD" | null>(null);
   const [dragOverId, setDragOverId] = useState<string | null>(null);
+  /** Touch gestures fire touchmove/touchend faster than React necessarily re-renders between
+   *  them, so the state above (used only for visual feedback) can lag a frame behind — these
+   *  refs are the actual source of truth the touch handlers read from, always in sync. */
+  const draggedIdRef = useRef<string | null>(null);
+  const draggedKindRef = useRef<"BILL" | "CARD" | null>(null);
+  const dragOverIdRef = useRef<string | null>(null);
 
   const isLoading = loadingBills || loadingCards;
   const rows = buildRows(billEntries ?? [], cardEntries ?? []);
@@ -395,21 +418,52 @@ export default function Contas() {
     setOpenSections((s) => ({ ...s, [key]: !s[key] }));
   }
 
-  function handleDragStart(rowId: string) {
+  function handleDragStart(kind: "BILL" | "CARD", rowId: string) {
+    draggedIdRef.current = rowId;
+    draggedKindRef.current = kind;
     setDraggedId(rowId);
+    setDraggedKind(kind);
   }
 
   function handleDragEnd() {
+    draggedIdRef.current = null;
+    draggedKindRef.current = null;
+    dragOverIdRef.current = null;
     setDraggedId(null);
+    setDraggedKind(null);
     setDragOverId(null);
+  }
+
+  /** Touch devices don't fire HTML5 drag events at all, so dragging on mobile is done by hand:
+   *  the grip handle owns the touch gesture (touch-action: none keeps the page from scrolling
+   *  under it), and on every move we look up whatever row is currently under the finger via
+   *  elementFromPoint — touchmove keeps targeting the handle itself, never the element below it.
+   *  Reads/writes the refs (not the mirrored state) because touchmove/touchend can fire faster
+   *  than React re-renders, and a stale closure over last render's state would silently no-op. */
+  function handleTouchMove(e: React.TouchEvent) {
+    if (!draggedIdRef.current) return;
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const rowEl = el?.closest("[data-row-id]");
+    const targetId = rowEl?.getAttribute("data-row-id") ?? null;
+    dragOverIdRef.current = targetId;
+    setDragOverId(targetId);
+  }
+
+  function handleTouchEnd() {
+    const kind = draggedKindRef.current;
+    const targetId = dragOverIdRef.current;
+    if (kind && targetId) handleDrop(kind, targetId);
+    else handleDragEnd();
   }
 
   /** Only rows of the same kind ever produce a valid drop — dragging a bill card over the cartões
    *  section just finds no match in cardRows and silently no-ops, so no explicit kind check needed. */
   function handleDrop(kind: "BILL" | "CARD", targetRowId: string) {
-    if (draggedId && draggedId !== targetRowId) {
+    const sourceId = draggedIdRef.current;
+    if (sourceId && sourceId !== targetRowId) {
       const rows = kind === "BILL" ? billRows : cardRows;
-      const fromIndex = rows.findIndex((r) => r.id === draggedId);
+      const fromIndex = rows.findIndex((r) => r.id === sourceId);
       const toIndex = rows.findIndex((r) => r.id === targetRowId);
       if (fromIndex !== -1 && toIndex !== -1) {
         const reordered: PayableRow[] = [...rows];
@@ -420,7 +474,11 @@ export default function Contas() {
         else reorderCards.mutate(ids);
       }
     }
+    draggedIdRef.current = null;
+    draggedKindRef.current = null;
+    dragOverIdRef.current = null;
     setDraggedId(null);
+    setDraggedKind(null);
     setDragOverId(null);
   }
 
@@ -505,11 +563,14 @@ export default function Contas() {
                 onOpenPayLess={openPayLess}
                 isDragging={draggedId === row.id}
                 isDropTarget={dragOverId === row.id && draggedId !== row.id}
-                onDragStart={() => handleDragStart(row.id)}
+                onDragStart={() => handleDragStart("BILL", row.id)}
                 onDragOver={() => setDragOverId(row.id)}
                 onDragLeave={() => setDragOverId((cur) => (cur === row.id ? null : cur))}
                 onDrop={() => handleDrop("BILL", row.id)}
                 onDragEnd={handleDragEnd}
+                onTouchStart={() => handleDragStart("BILL", row.id)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
               />
             ))}
           </AccordionSection>
@@ -527,11 +588,14 @@ export default function Contas() {
                 onOpenPayLess={openPayLess}
                 isDragging={draggedId === row.id}
                 isDropTarget={dragOverId === row.id && draggedId !== row.id}
-                onDragStart={() => handleDragStart(row.id)}
+                onDragStart={() => handleDragStart("CARD", row.id)}
                 onDragOver={() => setDragOverId(row.id)}
                 onDragLeave={() => setDragOverId((cur) => (cur === row.id ? null : cur))}
                 onDrop={() => handleDrop("CARD", row.id)}
                 onDragEnd={handleDragEnd}
+                onTouchStart={() => handleDragStart("CARD", row.id)}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
               />
             ))}
           </AccordionSection>
