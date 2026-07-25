@@ -65,6 +65,10 @@ export class UpdateHouseholdBillEntryDto {
   paidAmount?: number;
 
   @IsOptional()
+  @IsBoolean()
+  skipped?: boolean;
+
+  @IsOptional()
   @IsString()
   notes?: string;
 }

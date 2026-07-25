@@ -875,6 +875,7 @@ enum HouseholdBillStatus {
   RESERVED
   PAID
   LATE
+  SKIPPED
 }
 
 model HouseholdBillCategory {
@@ -956,6 +957,10 @@ model HouseholdBillEntry {
   paidAmount     Decimal             @default(0) @db.Decimal(12, 2)
   paidAt         DateTime?
   status         HouseholdBillStatus @default(PENDING)
+  /// "Não precisou pagar esse mês" — a deliberate override, independent of the reserved/paid
+  /// amounts, for a bill that simply didn't apply this competência. Takes priority over every
+  /// other status in computeBillEntryStatus.
+  skipped        Boolean             @default(false)
   notes          String?
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt

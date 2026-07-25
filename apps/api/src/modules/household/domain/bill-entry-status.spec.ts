@@ -52,4 +52,19 @@ describe("computeBillEntryStatus", () => {
       "PENDING",
     );
   });
+
+  it("returns SKIPPED when marked as not needed this month, regardless of amounts or due date", () => {
+    expect(
+      computeBillEntryStatus({ amount: 180, reservedAmount: 0, paidAmount: 0, dueDate: DUE_DATE, skipped: true, asOf: BEFORE_DUE }),
+    ).toBe("SKIPPED");
+  });
+
+  it("SKIPPED takes priority even over an overdue or fully paid entry", () => {
+    expect(
+      computeBillEntryStatus({ amount: 180, reservedAmount: 0, paidAmount: 0, dueDate: DUE_DATE, skipped: true, asOf: AFTER_DUE }),
+    ).toBe("SKIPPED");
+    expect(
+      computeBillEntryStatus({ amount: 180, reservedAmount: 180, paidAmount: 180, dueDate: DUE_DATE, skipped: true, asOf: BEFORE_DUE }),
+    ).toBe("SKIPPED");
+  });
 });

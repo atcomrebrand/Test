@@ -18,6 +18,7 @@ export interface UpdateHouseholdBillEntryData {
   reservedAmount?: number;
   paidAmount?: number;
   status?: HouseholdBillStatus;
+  skipped?: boolean;
   paidAt?: Date | null;
   notes?: string;
 }

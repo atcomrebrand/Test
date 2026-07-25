@@ -31,6 +31,65 @@ function makeAudit(): HouseholdAuditService {
   return { log: jest.fn().mockResolvedValue(undefined) } as unknown as HouseholdAuditService;
 }
 
+function makeEntry(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "entry-1",
+    userId: "user-1",
+    billId: "bill-1",
+    bill: { id: "bill-1", allowAmountChange: true },
+    amount: 180,
+    reservedAmount: 0,
+    paidAmount: 0,
+    status: "PENDING",
+    skipped: false,
+    paidAt: null,
+    notes: null,
+    dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+    ...overrides,
+  };
+}
+
+describe("HouseholdBillsService.updateEntry — skipped", () => {
+  it("marks the entry SKIPPED and zeroes reserved/paid amounts", async () => {
+    const before = makeEntry();
+    const updateFn = jest.fn().mockImplementation((_id, data) => ({ ...before, ...data }));
+    const bills = makeBills();
+    const entries = makeEntries({ findById: jest.fn().mockResolvedValue(before), update: updateFn });
+    const service = new HouseholdBillsService(bills, entries, makeAudit());
+
+    await service.updateEntry("user-1", "entry-1", { skipped: true });
+
+    expect(updateFn).toHaveBeenCalledWith(
+      "entry-1",
+      expect.objectContaining({ skipped: true, status: "SKIPPED", reservedAmount: 0, paidAmount: 0 }),
+    );
+  });
+
+  it("un-skips automatically when a payment action is taken on an already-skipped entry", async () => {
+    const before = makeEntry({ skipped: true, status: "SKIPPED" });
+    const updateFn = jest.fn().mockImplementation((_id, data) => ({ ...before, ...data }));
+    const bills = makeBills();
+    const entries = makeEntries({ findById: jest.fn().mockResolvedValue(before), update: updateFn });
+    const service = new HouseholdBillsService(bills, entries, makeAudit());
+
+    await service.updateEntry("user-1", "entry-1", { paidAmount: 50 });
+
+    expect(updateFn).toHaveBeenCalledWith("entry-1", expect.objectContaining({ skipped: false, paidAmount: 50, status: "PENDING" }));
+  });
+
+  it("keeps skipped true when an unrelated field (like notes) is updated without a payment action", async () => {
+    const before = makeEntry({ skipped: true, status: "SKIPPED" });
+    const updateFn = jest.fn().mockImplementation((_id, data) => ({ ...before, ...data }));
+    const bills = makeBills();
+    const entries = makeEntries({ findById: jest.fn().mockResolvedValue(before), update: updateFn });
+    const service = new HouseholdBillsService(bills, entries, makeAudit());
+
+    await service.updateEntry("user-1", "entry-1", { notes: "sem fatura esse mês" });
+
+    expect(updateFn).toHaveBeenCalledWith("entry-1", expect.objectContaining({ skipped: true, status: "SKIPPED" }));
+  });
+});
+
 describe("HouseholdBillsService.remove", () => {
   it("deletes the bill unconditionally, without checking for existing competências first", async () => {
     const bill = { id: "bill-1", userId: "user-1", name: "Energia" };

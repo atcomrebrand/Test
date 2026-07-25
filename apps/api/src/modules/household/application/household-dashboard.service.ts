@@ -36,12 +36,13 @@ export class HouseholdDashboardService {
     const billsCount = billEntries.length;
     const billsPaidCount = billEntries.filter((e) => e.status === "PAID").length;
     const billsLateCount = billEntries.filter((e) => e.status === "LATE").length;
-    const billsPendingCount = billsCount - billsPaidCount - billsLateCount;
+    const billsSkippedCount = billEntries.filter((e) => e.status === "SKIPPED").length;
+    const billsPendingCount = billsCount - billsPaidCount - billsLateCount - billsSkippedCount;
 
     const now = new Date();
     const upcomingLimit = new Date(now.getTime() + UPCOMING_DAYS * 24 * 60 * 60 * 1000);
     const upcomingDue = billEntries
-      .filter((e) => e.status !== "PAID" && e.status !== "LATE" && e.dueDate >= now && e.dueDate <= upcomingLimit)
+      .filter((e) => e.status !== "PAID" && e.status !== "LATE" && e.status !== "SKIPPED" && e.dueDate >= now && e.dueDate <= upcomingLimit)
       .map((e) => ({ id: e.id, name: e.bill.name, dueDate: e.dueDate, amount: Number(e.amount) }))
       .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 
@@ -84,6 +85,7 @@ export class HouseholdDashboardService {
       billsPaidCount,
       billsPendingCount,
       billsLateCount,
+      billsSkippedCount,
       upcomingDue,
       lateBills,
       paidPct,

@@ -1,4 +1,4 @@
-export type HouseholdBillStatus = "PENDING" | "PARTIALLY_RESERVED" | "RESERVED" | "PAID" | "LATE";
+export type HouseholdBillStatus = "PENDING" | "PARTIALLY_RESERVED" | "RESERVED" | "PAID" | "LATE" | "SKIPPED";
 
 export interface HouseholdBillCategory {
   id: string;
@@ -41,6 +41,7 @@ export interface HouseholdBillEntry {
   paidAmount: string;
   paidAt: string | null;
   status: HouseholdBillStatus;
+  skipped: boolean;
   notes: string | null;
 }
 

@@ -174,8 +174,13 @@ export function useDeleteHouseholdBill() {
 export function useUpdateHouseholdBillEntry() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: { amount?: number; reservedAmount?: number; paidAmount?: number; notes?: string } }) =>
-      api.patch<HouseholdBillEntry>(`/household/bills/entries/${id}`, data),
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: string;
+      data: { amount?: number; reservedAmount?: number; paidAmount?: number; skipped?: boolean; notes?: string };
+    }) => api.patch<HouseholdBillEntry>(`/household/bills/entries/${id}`, data),
     onSuccess: () => invalidateAll(qc),
     onError: (e: Error) => toast.error(e.message),
   });

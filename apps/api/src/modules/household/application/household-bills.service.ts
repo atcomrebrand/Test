@@ -84,9 +84,13 @@ export class HouseholdBillsService {
     }
 
     const amount = dto.amount ?? Number(before.amount);
-    const reservedAmount = dto.reservedAmount ?? Number(before.reservedAmount);
-    const paidAmount = dto.paidAmount ?? Number(before.paidAmount);
-    const status = computeBillEntryStatus({ amount, reservedAmount, paidAmount, dueDate: before.dueDate });
+    // Reserving/paying is the user actively handling the bill, so it un-skips automatically —
+    // skipped only sticks when nothing else on the entry changed this call.
+    const takingPaymentAction = dto.reservedAmount !== undefined || dto.paidAmount !== undefined;
+    const skipped = dto.skipped ?? (takingPaymentAction ? false : before.skipped);
+    const reservedAmount = skipped ? 0 : dto.reservedAmount ?? Number(before.reservedAmount);
+    const paidAmount = skipped ? 0 : dto.paidAmount ?? Number(before.paidAmount);
+    const status = computeBillEntryStatus({ amount, reservedAmount, paidAmount, dueDate: before.dueDate, skipped });
 
     const wasPaid = before.status === "PAID";
     const isPaid = status === "PAID";
@@ -97,6 +101,7 @@ export class HouseholdBillsService {
       reservedAmount,
       paidAmount,
       status,
+      skipped,
       paidAt,
       notes: dto.notes ?? before.notes ?? undefined,
     });
@@ -105,7 +110,7 @@ export class HouseholdBillsService {
   }
 
   private snapshotEntry(entry: HouseholdBillEntryWithBill) {
-    return { amount: entry.amount, reservedAmount: entry.reservedAmount, paidAmount: entry.paidAmount, status: entry.status };
+    return { amount: entry.amount, reservedAmount: entry.reservedAmount, paidAmount: entry.paidAmount, status: entry.status, skipped: entry.skipped };
   }
 
   private async getOwnedBill(userId: string, id: string): Promise<HouseholdBillWithCategory> {

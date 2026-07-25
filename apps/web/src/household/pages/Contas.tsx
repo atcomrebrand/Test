@@ -11,6 +11,7 @@ import {
   CreditCard as CreditCardIcon,
   PiggyBank,
   Banknote,
+  CalendarOff,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
@@ -46,6 +47,7 @@ const STATUS_TONE: Record<HouseholdBillStatus, "neutral" | "success" | "warning"
   RESERVED: "accent",
   PAID: "success",
   LATE: "danger",
+  SKIPPED: "neutral",
 };
 
 const STATUS_LABEL: Record<HouseholdBillStatus, string> = {
@@ -54,6 +56,7 @@ const STATUS_LABEL: Record<HouseholdBillStatus, string> = {
   RESERVED: "Reservado",
   PAID: "Pago",
   LATE: "Atrasado",
+  SKIPPED: "Não precisou pagar",
 };
 
 /** Unifies bills (contas fixas) and card invoices (faturas) into one payables list — a fatura
@@ -124,6 +127,7 @@ interface BillEntryUpdate {
   amount?: number;
   reservedAmount?: number;
   paidAmount?: number;
+  skipped?: boolean;
 }
 
 interface CardEntryUpdate {
@@ -163,6 +167,7 @@ function PayableCardView({
   const billAmount = isBill ? Number(row.entry.amount) : 0;
   const billPaidAmount = isBill ? Number(row.entry.paidAmount) : 0;
   const billReservedAmount = isBill ? Number(row.entry.reservedAmount) : 0;
+  const isSkipped = isBill && row.entry.skipped;
   const isPaidFull = isBill && row.entry.status === "PAID";
   const isReservedFull = isBill && billAmount > 0 && billReservedAmount >= billAmount;
   const isPaidPartial = isBill && billPaidAmount > 0 && billPaidAmount < billAmount;
@@ -226,7 +231,7 @@ function PayableCardView({
           )}
 
           {isBill ? (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <button
                 onClick={() => onUpdateBillEntry({ paidAmount: isPaidFull ? 0 : billAmount })}
                 className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-center text-xs font-medium leading-tight transition-colors ${
@@ -253,6 +258,15 @@ function PayableCardView({
               >
                 <Banknote className="h-4 w-4" />
                 {isPaidPartial ? `Paguei ${formatCurrency(billPaidAmount)}` : "Paguei menos"}
+              </button>
+              <button
+                onClick={() => onUpdateBillEntry({ skipped: !isSkipped })}
+                className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-center text-xs font-medium leading-tight transition-colors ${
+                  isSkipped ? "bg-violet-500/10 text-violet-600 dark:text-violet-400" : "surface-2 text-muted hover:brightness-95"
+                }`}
+              >
+                <CalendarOff className="h-4 w-4" />
+                {isSkipped ? "Não precisou pagar" : "Não precisou pagar esse mês"}
               </button>
             </div>
           ) : (
