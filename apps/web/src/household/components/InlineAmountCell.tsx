@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { parseAmountInput } from "@/lib/format";
 
 interface Props {
   value: number;
@@ -7,7 +8,9 @@ interface Props {
 }
 
 /** Click-to-edit currency cell for the monthly tables — saves on blur/Enter, so there's no
- *  separate "editar" screen for something as frequent as marking an amount reserved or paid. */
+ *  separate "editar" screen for something as frequent as marking an amount reserved or paid.
+ *  Plain text input (not type="number") so typing a comma decimal ("150,50", the pt-BR way)
+ *  doesn't get silently mangled by the browser's number-input keystroke filter. */
 export function InlineAmountCell({ value, onSave, disabled }: Props) {
   const [draft, setDraft] = useState(String(value));
 
@@ -16,7 +19,7 @@ export function InlineAmountCell({ value, onSave, disabled }: Props) {
   }, [value]);
 
   function commit() {
-    const parsed = Number(draft);
+    const parsed = parseAmountInput(draft);
     if (!Number.isNaN(parsed) && parsed !== value) onSave(parsed);
     else setDraft(String(value));
   }
@@ -27,9 +30,8 @@ export function InlineAmountCell({ value, onSave, disabled }: Props) {
 
   return (
     <input
-      type="number"
-      step="0.01"
-      min="0"
+      type="text"
+      inputMode="decimal"
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}

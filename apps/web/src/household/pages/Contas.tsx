@@ -21,7 +21,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { formatDate, formatCurrency } from "@/lib/format";
+import { formatDate, formatCurrency, parseAmountInput } from "@/lib/format";
 import {
   useHouseholdBills,
   useHouseholdBillsMonth,
@@ -346,7 +346,7 @@ export default function Contas() {
 
   function confirmPayLess() {
     if (!payLessTarget) return;
-    const parsed = Number(payLessDraft);
+    const parsed = parseAmountInput(payLessDraft);
     if (!Number.isNaN(parsed) && parsed >= 0) {
       updateBillEntry.mutate({ id: payLessTarget.id, data: { paidAmount: parsed } });
     }
@@ -539,9 +539,9 @@ export default function Contas() {
           <div className="flex flex-col gap-4">
             <p className="text-sm text-muted">Valor da conta: {formatCurrency(payLessTarget.amount)}</p>
             <input
-              type="number"
-              step="0.01"
-              min="0"
+              type="text"
+              inputMode="decimal"
+              placeholder="0,00"
               autoFocus
               value={payLessDraft}
               onChange={(e) => setPayLessDraft(e.target.value)}
@@ -552,7 +552,7 @@ export default function Contas() {
               <Button variant="secondary" onClick={() => setPayLessTarget(null)}>
                 Cancelar
               </Button>
-              <Button onClick={confirmPayLess} loading={updateBillEntry.isPending}>
+              <Button onClick={confirmPayLess} loading={updateBillEntry.isPending} disabled={Number.isNaN(parseAmountInput(payLessDraft))}>
                 Salvar
               </Button>
             </div>
