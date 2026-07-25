@@ -19,6 +19,57 @@ function makeIncomes(entries: unknown[] = []): HouseholdIncomesService {
   return { findMonth: jest.fn().mockResolvedValue(entries) } as unknown as HouseholdIncomesService;
 }
 
+describe("HouseholdDashboardService.month — skipped bills don't count as money owed", () => {
+  it("excludes a SKIPPED bill's amount from totalBills/totalCommitted/totalMandatory/totalOptional", async () => {
+    const bills = makeBills({
+      "2026-7": [
+        { status: "PENDING", amount: 100, reservedAmount: 0, paidAmount: 0, bill: { mandatory: true } },
+        { status: "SKIPPED", amount: 250, reservedAmount: 0, paidAmount: 0, bill: { mandatory: true } },
+      ],
+    });
+    const service = new HouseholdDashboardService(bills, makeCards(), makeIncomes());
+
+    const result = await service.month("user-1", 2026, 7);
+
+    expect(result.totalBills).toBe(100);
+    expect(result.totalCommitted).toBe(100);
+    expect(result.totalMandatory).toBe(100);
+    expect(result.totalPending).toBe(100);
+  });
+
+  it("excludes a SKIPPED bill from the category breakdown", async () => {
+    const bills = makeBills({
+      "2026-7": [{ status: "SKIPPED", amount: 250, reservedAmount: 0, paidAmount: 0, bill: { mandatory: true, category: { id: "c1", name: "Lazer", color: "#fff" } } }],
+    });
+    const service = new HouseholdDashboardService(bills, makeCards(), makeIncomes());
+
+    const result = await service.month("user-1", 2026, 7);
+
+    expect(result.billsByCategory).toEqual([]);
+  });
+
+  it("still counts the SKIPPED bill in billsCount/billsSkippedCount (status breakdown unaffected)", async () => {
+    const bills = makeBills({ "2026-7": [{ status: "SKIPPED", amount: 250, reservedAmount: 0, paidAmount: 0, bill: { mandatory: true } }] });
+    const service = new HouseholdDashboardService(bills, makeCards(), makeIncomes());
+
+    const result = await service.month("user-1", 2026, 7);
+
+    expect(result.billsCount).toBe(1);
+    expect(result.billsSkippedCount).toBe(1);
+  });
+
+  it("excludes a SKIPPED bill from last month's totalCommitted in previousMonthComparison too", async () => {
+    const bills = makeBills({
+      "2026-6": [{ status: "SKIPPED", amount: 300, reservedAmount: 0, paidAmount: 0, bill: { mandatory: true } }],
+    });
+    const service = new HouseholdDashboardService(bills, makeCards(), makeIncomes());
+
+    const result = await service.month("user-1", 2026, 7);
+
+    expect(result.previousMonthComparison.totalCommitted).toBe(0);
+  });
+});
+
 describe("HouseholdDashboardService.month — allPaid", () => {
   it("is true when every bill is PAID/SKIPPED and every card is paid", async () => {
     const bills = makeBills({ "2026-7": [{ status: "PAID", amount: 100, reservedAmount: 0, paidAmount: 100, bill: { mandatory: true } }] });

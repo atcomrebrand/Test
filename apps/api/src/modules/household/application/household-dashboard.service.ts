@@ -24,14 +24,19 @@ export class HouseholdDashboardService {
       this.incomes.findMonth(userId, referenceYear, referenceMonth),
     ]);
 
+    // "Não precisou pagar esse mês" means exactly that — a skipped bill didn't cost anything this
+    // competência, so it's excluded from every BRL total below. It still counts in billsCount and
+    // the status breakdown further down, just not in money owed/committed.
+    const activeBillEntries = billEntries.filter((e) => e.status !== "SKIPPED");
+
     const totalIncome = incomeEntries.reduce((sum, i) => sum + Number(i.amount), 0);
-    const totalBills = billEntries.reduce((sum, e) => sum + Number(e.amount), 0);
+    const totalBills = activeBillEntries.reduce((sum, e) => sum + Number(e.amount), 0);
     const totalCards = cardEntries.reduce((sum, e) => sum + e.realAmount, 0);
     const totalCommitted = totalBills + totalCards;
-    const totalReserved = billEntries.reduce((sum, e) => sum + Number(e.reservedAmount), 0);
-    const totalMandatory = billEntries.filter((e) => e.bill.mandatory).reduce((sum, e) => sum + Number(e.amount), 0) + totalCards;
-    const totalOptional = billEntries.filter((e) => !e.bill.mandatory).reduce((sum, e) => sum + Number(e.amount), 0);
-    const billsPaidAmount = billEntries.reduce((sum, e) => sum + Number(e.paidAmount), 0);
+    const totalReserved = activeBillEntries.reduce((sum, e) => sum + Number(e.reservedAmount), 0);
+    const totalMandatory = activeBillEntries.filter((e) => e.bill.mandatory).reduce((sum, e) => sum + Number(e.amount), 0) + totalCards;
+    const totalOptional = activeBillEntries.filter((e) => !e.bill.mandatory).reduce((sum, e) => sum + Number(e.amount), 0);
+    const billsPaidAmount = activeBillEntries.reduce((sum, e) => sum + Number(e.paidAmount), 0);
     const cardsPaidAmount = cardEntries.reduce((sum, e) => sum + (e.paid ? e.realAmount : 0), 0);
     const totalPaid = billsPaidAmount + cardsPaidAmount;
     const totalPending = Math.max(0, totalCommitted - totalPaid);
@@ -59,7 +64,7 @@ export class HouseholdDashboardService {
     const reservedPct = totalBills > 0 ? Math.round((totalReserved / totalBills) * 1000) / 10 : 0;
 
     const categoryTotals = new Map<string, { name: string; color: string; amount: number }>();
-    for (const entry of billEntries) {
+    for (const entry of activeBillEntries) {
       const key = entry.bill.category?.id ?? "sem-categoria";
       const name = entry.bill.category?.name ?? "Sem categoria";
       const color = entry.bill.category?.color ?? "#8B8B8B";
@@ -95,10 +100,11 @@ export class HouseholdDashboardService {
       this.bills.findMonth(userId, prevYear, prevMonth),
       this.cards.findMonth(userId, prevYear, prevMonth),
     ]);
+    const prevActiveBillEntries = prevBillEntries.filter((e) => e.status !== "SKIPPED");
     const prevTotalCommitted =
-      prevBillEntries.reduce((sum, e) => sum + Number(e.amount), 0) + prevCardEntries.reduce((sum, e) => sum + e.realAmount, 0);
+      prevActiveBillEntries.reduce((sum, e) => sum + Number(e.amount), 0) + prevCardEntries.reduce((sum, e) => sum + e.realAmount, 0);
     const prevTotalPaid =
-      prevBillEntries.reduce((sum, e) => sum + Number(e.paidAmount), 0) +
+      prevActiveBillEntries.reduce((sum, e) => sum + Number(e.paidAmount), 0) +
       prevCardEntries.reduce((sum, e) => sum + (e.paid ? e.realAmount : 0), 0);
     const previousMonthComparison = {
       referenceYear: prevYear,
