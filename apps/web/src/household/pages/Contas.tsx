@@ -1,5 +1,19 @@
-import { useState } from "react";
-import { Plus, Receipt, Pencil, Power, Trash2, MessageSquare, CheckCircle2, Circle, CreditCard as CreditCardIcon } from "lucide-react";
+import { useState, ReactNode } from "react";
+import {
+  Plus,
+  Receipt,
+  Pencil,
+  Power,
+  Trash2,
+  MessageSquare,
+  CheckCircle2,
+  Circle,
+  CreditCard as CreditCardIcon,
+  PiggyBank,
+  Banknote,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -66,6 +80,198 @@ interface DeleteTarget {
   active: boolean;
 }
 
+interface PayLessTarget {
+  id: string;
+  amount: number;
+  current: number;
+}
+
+/** A collapsible group ("Contas da casa" / "Faturas de cartão") — same rows as before, just
+ *  organized under a header you can close instead of one long flat grid. */
+function AccordionSection({
+  title,
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <button onClick={onToggle} className="flex w-full items-center justify-between rounded-xl surface border border-[rgb(var(--border))] px-4 py-3 text-left transition-colors hover:surface-2">
+        <span className="flex items-center gap-2 font-semibold">
+          {title}
+          <Badge tone="neutral">{count}</Badge>
+        </span>
+        {open ? <ChevronUp className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
+      </button>
+      {open &&
+        (count > 0 ? (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
+        ) : (
+          <p className="px-1 text-sm text-muted">Nada por aqui neste mês.</p>
+        ))}
+    </div>
+  );
+}
+
+interface BillEntryUpdate {
+  amount?: number;
+  reservedAmount?: number;
+  paidAmount?: number;
+}
+
+interface CardEntryUpdate {
+  totalInvoice?: number;
+  provisioned?: number;
+  paid?: boolean;
+}
+
+/** One payable — a conta comum or a fatura de cartão. Contas comuns get 3 uniform action buttons
+ *  instead of a typed "reservado" field: presuming the full amount when reserving/paying means
+ *  there's nothing to type for the common case, only "paguei menos" opens a value input. */
+function PayableCardView({
+  row,
+  onOpenNotes,
+  onEdit,
+  onDelete,
+  onUpdateBillEntry,
+  onUpdateCardEntry,
+  onOpenPayLess,
+}: {
+  row: PayableRow;
+  onOpenNotes: (t: NotesTarget) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  onUpdateBillEntry: (data: BillEntryUpdate) => void;
+  onUpdateCardEntry: (data: CardEntryUpdate) => void;
+  onOpenPayLess: (id: string, amount: number, current: number) => void;
+}) {
+  const isBill = row.kind === "BILL";
+  const name = isBill ? row.entry.bill.name : row.entry.card.name;
+  const dueLabel = isBill ? `Vence dia ${formatDate(row.entry.dueDate, { day: "2-digit", month: "2-digit" })}` : `Vence dia ${row.entry.card.dueDay}`;
+  const subtitle = isBill ? row.entry.bill.category?.name : "Cartão de crédito";
+  const iconColor = isBill ? row.entry.bill.category?.color ?? "#8B8B8B" : row.entry.card.color;
+  const isCardPaid = !isBill && row.entry.paid;
+  const extraStatus = isBill && row.entry.status !== "PAID" && row.entry.status !== "PENDING" ? row.entry.status : null;
+
+  const billAmount = isBill ? Number(row.entry.amount) : 0;
+  const billPaidAmount = isBill ? Number(row.entry.paidAmount) : 0;
+  const billReservedAmount = isBill ? Number(row.entry.reservedAmount) : 0;
+  const isPaidFull = isBill && row.entry.status === "PAID";
+  const isReservedFull = isBill && billAmount > 0 && billReservedAmount >= billAmount;
+  const isPaidPartial = isBill && billPaidAmount > 0 && billPaidAmount < billAmount;
+
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ backgroundColor: iconColor }}>
+              {isBill ? <Receipt className="h-4 w-4" /> : <CreditCardIcon className="h-4 w-4" />}
+            </span>
+            <div>
+              <p className="font-semibold">{name}</p>
+              <p className="text-xs text-muted">
+                {dueLabel}
+                {subtitle ? ` · ${subtitle}` : ""}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => onOpenNotes({ kind: row.kind, id: row.entry.id, notes: row.entry.notes })}
+              className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
+              aria-label="Observações"
+            >
+              <MessageSquare className="h-4 w-4" />
+            </button>
+            <button onClick={onEdit} className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2" aria-label="Editar">
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button onClick={onDelete} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500" aria-label="Excluir">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+
+        {extraStatus && <Badge tone={STATUS_TONE[extraStatus]}>{STATUS_LABEL[extraStatus]}</Badge>}
+
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted">Valor</span>
+            {isBill ? (
+              <InlineAmountCell value={billAmount} disabled={!row.entry.bill.allowAmountChange} onSave={(v) => onUpdateBillEntry({ amount: v })} />
+            ) : (
+              <InlineAmountCell value={Number(row.entry.totalInvoice)} onSave={(v) => onUpdateCardEntry({ totalInvoice: v })} />
+            )}
+          </div>
+
+          {!isBill && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted">Reservado</span>
+              <InlineAmountCell value={Number(row.entry.provisioned)} onSave={(v) => onUpdateCardEntry({ provisioned: v })} />
+            </div>
+          )}
+          {!isBill && (
+            <div className="flex items-center justify-between border-t border-[rgb(var(--border))] pt-3 text-sm font-semibold">
+              <span>Real a pagar</span>
+              <span>{formatCurrency(row.entry.realAmount)}</span>
+            </div>
+          )}
+
+          {isBill ? (
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={() => onUpdateBillEntry({ paidAmount: isPaidFull ? 0 : billAmount })}
+                className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-center text-xs font-medium leading-tight transition-colors ${
+                  isPaidFull ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "surface-2 text-muted hover:brightness-95"
+                }`}
+              >
+                {isPaidFull ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+                {isPaidFull ? "Pago" : "Marcar como pago"}
+              </button>
+              <button
+                onClick={() => onUpdateBillEntry({ reservedAmount: isReservedFull ? 0 : billAmount })}
+                className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-center text-xs font-medium leading-tight transition-colors ${
+                  isReservedFull ? "bg-sky-500/10 text-sky-600 dark:text-sky-400" : "surface-2 text-muted hover:brightness-95"
+                }`}
+              >
+                <PiggyBank className="h-4 w-4" />
+                {isReservedFull ? "Reservado" : "Dinheiro reservado"}
+              </button>
+              <button
+                onClick={() => onOpenPayLess(row.entry.id, billAmount, billPaidAmount)}
+                className={`flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-center text-xs font-medium leading-tight transition-colors ${
+                  isPaidPartial ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" : "surface-2 text-muted hover:brightness-95"
+                }`}
+              >
+                <Banknote className="h-4 w-4" />
+                {isPaidPartial ? `Paguei ${formatCurrency(billPaidAmount)}` : "Paguei menos"}
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => onUpdateCardEntry({ paid: !isCardPaid })}
+              className={`flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-medium transition-colors ${
+                isCardPaid ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "surface-2 text-muted hover:brightness-95"
+              }`}
+            >
+              {isCardPaid ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
+              {isCardPaid ? "Paga" : "Marcar como paga"}
+            </button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Contas() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -88,9 +294,14 @@ export default function Contas() {
   const [notesTarget, setNotesTarget] = useState<NotesTarget | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [payLessTarget, setPayLessTarget] = useState<PayLessTarget | null>(null);
+  const [payLessDraft, setPayLessDraft] = useState("");
+  const [openSections, setOpenSections] = useState({ bills: true, cards: true });
 
   const isLoading = loadingBills || loadingCards;
   const rows = buildRows(billEntries ?? [], cardEntries ?? []);
+  const billRows = rows.filter((r): r is Extract<PayableRow, { kind: "BILL" }> => r.kind === "BILL");
+  const cardRows = rows.filter((r): r is Extract<PayableRow, { kind: "CARD" }> => r.kind === "CARD");
 
   function openCreate() {
     setEditingBill(null);
@@ -122,6 +333,24 @@ export default function Contas() {
     if (deleteTarget.kind === "BILL") deleteBill.mutate(deleteTarget.id);
     else deleteCard.mutate(deleteTarget.id);
     setDeleteTarget(null);
+  }
+
+  function toggleSection(key: "bills" | "cards") {
+    setOpenSections((s) => ({ ...s, [key]: !s[key] }));
+  }
+
+  function openPayLess(id: string, amount: number, current: number) {
+    setPayLessTarget({ id, amount, current });
+    setPayLessDraft(current > 0 && current < amount ? String(current) : "");
+  }
+
+  function confirmPayLess() {
+    if (!payLessTarget) return;
+    const parsed = Number(payLessDraft);
+    if (!Number.isNaN(parsed) && parsed >= 0) {
+      updateBillEntry.mutate({ id: payLessTarget.id, data: { paidAmount: parsed } });
+    }
+    setPayLessTarget(null);
   }
 
   function openNotes(target: NotesTarget) {
@@ -177,104 +406,36 @@ export default function Contas() {
       )}
 
       {!isLoading && rows.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map((row) => {
-            const isBill = row.kind === "BILL";
-            const name = isBill ? row.entry.bill.name : row.entry.card.name;
-            const dueLabel = isBill ? `Vence dia ${formatDate(row.entry.dueDate, { day: "2-digit", month: "2-digit" })}` : `Vence dia ${row.entry.card.dueDay}`;
-            const subtitle = isBill ? row.entry.bill.category?.name : "Cartão de crédito";
-            const iconColor = isBill ? row.entry.bill.category?.color ?? "#8B8B8B" : row.entry.card.color;
-            const isPaid = isBill ? row.entry.status === "PAID" : row.entry.paid;
-            const extraStatus = isBill && row.entry.status !== "PAID" && row.entry.status !== "PENDING" ? row.entry.status : null;
+        <div className="flex flex-col gap-4">
+          <AccordionSection title="Contas da casa" count={billRows.length} open={openSections.bills} onToggle={() => toggleSection("bills")}>
+            {billRows.map((row) => (
+              <PayableCardView
+                key={row.id}
+                row={row}
+                onOpenNotes={openNotes}
+                onEdit={() => openEdit(row.entry.bill)}
+                onDelete={() => openDeleteDialog({ kind: "BILL", id: row.entry.bill.id, name: row.entry.bill.name, active: true })}
+                onUpdateBillEntry={(data) => updateBillEntry.mutate({ id: row.entry.id, data })}
+                onUpdateCardEntry={() => {}}
+                onOpenPayLess={openPayLess}
+              />
+            ))}
+          </AccordionSection>
 
-            return (
-              <Card key={row.id}>
-                <CardContent className="flex flex-col gap-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ backgroundColor: iconColor }}>
-                        {isBill ? <Receipt className="h-4 w-4" /> : <CreditCardIcon className="h-4 w-4" />}
-                      </span>
-                      <div>
-                        <p className="font-semibold">{name}</p>
-                        <p className="text-xs text-muted">
-                          {dueLabel}
-                          {subtitle ? ` · ${subtitle}` : ""}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openNotes({ kind: row.kind, id: row.entry.id, notes: row.entry.notes })}
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
-                        aria-label="Observações"
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => (isBill ? openEdit(row.entry.bill) : setEditingCard(row.entry.card))}
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
-                        aria-label="Editar"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => openDeleteDialog({ kind: row.kind, id: isBill ? row.entry.bill.id : row.entry.card.id, name, active: true })}
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
-                        aria-label="Excluir"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {extraStatus && <Badge tone={STATUS_TONE[extraStatus]}>{STATUS_LABEL[extraStatus]}</Badge>}
-
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted">Valor</span>
-                      {isBill ? (
-                        <InlineAmountCell
-                          value={Number(row.entry.amount)}
-                          disabled={!row.entry.bill.allowAmountChange}
-                          onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { amount: v } })}
-                        />
-                      ) : (
-                        <InlineAmountCell value={Number(row.entry.totalInvoice)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { totalInvoice: v } })} />
-                      )}
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-muted">Reservado</span>
-                      {isBill ? (
-                        <InlineAmountCell value={Number(row.entry.reservedAmount)} onSave={(v) => updateBillEntry.mutate({ id: row.entry.id, data: { reservedAmount: v } })} />
-                      ) : (
-                        <InlineAmountCell value={Number(row.entry.provisioned)} onSave={(v) => updateCardEntry.mutate({ id: row.entry.id, data: { provisioned: v } })} />
-                      )}
-                    </div>
-                    {!isBill && (
-                      <div className="flex items-center justify-between border-t border-[rgb(var(--border))] pt-3 text-sm font-semibold">
-                        <span>Real a pagar</span>
-                        <span>{formatCurrency(row.entry.realAmount)}</span>
-                      </div>
-                    )}
-                    <button
-                      onClick={() =>
-                        isBill
-                          ? updateBillEntry.mutate({ id: row.entry.id, data: { paidAmount: isPaid ? 0 : Number(row.entry.amount) } })
-                          : updateCardEntry.mutate({ id: row.entry.id, data: { paid: !isPaid } })
-                      }
-                      className={`flex items-center justify-center gap-2 rounded-xl py-2 text-sm font-medium transition-colors ${
-                        isPaid ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "surface-2 text-muted hover:brightness-95"
-                      }`}
-                    >
-                      {isPaid ? <CheckCircle2 className="h-4 w-4" /> : <Circle className="h-4 w-4" />}
-                      {isPaid ? "Paga" : "Marcar como paga"}
-                    </button>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+          <AccordionSection title="Faturas de cartão" count={cardRows.length} open={openSections.cards} onToggle={() => toggleSection("cards")}>
+            {cardRows.map((row) => (
+              <PayableCardView
+                key={row.id}
+                row={row}
+                onOpenNotes={openNotes}
+                onEdit={() => setEditingCard(row.entry.card)}
+                onDelete={() => openDeleteDialog({ kind: "CARD", id: row.entry.card.id, name: row.entry.card.name, active: true })}
+                onUpdateBillEntry={() => {}}
+                onUpdateCardEntry={(data) => updateCardEntry.mutate({ id: row.entry.id, data })}
+                onOpenPayLess={openPayLess}
+              />
+            ))}
+          </AccordionSection>
         </div>
       )}
 
@@ -367,6 +528,32 @@ export default function Contas() {
               </Button>
               <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
                 Cancelar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!payLessTarget} onClose={() => setPayLessTarget(null)} title="Quanto você pagou?" size="sm">
+        {payLessTarget && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted">Valor da conta: {formatCurrency(payLessTarget.amount)}</p>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              autoFocus
+              value={payLessDraft}
+              onChange={(e) => setPayLessDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && confirmPayLess()}
+              className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-sm outline-none transition-colors focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+            />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" onClick={() => setPayLessTarget(null)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmPayLess} loading={updateBillEntry.isPending}>
+                Salvar
               </Button>
             </div>
           </div>
