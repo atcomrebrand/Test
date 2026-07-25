@@ -1,11 +1,19 @@
 import { Link, NavLink } from "react-router-dom";
-import { Wallet } from "lucide-react";
+import { ArrowLeft, Wallet } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { NAV_ITEMS } from "./navItems";
 
 export function Sidebar() {
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-[rgb(var(--border))] surface px-3 py-5 md:flex">
+      <Link
+        to="/"
+        className="mb-3 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-muted transition-colors hover:surface-2 hover:text-[rgb(var(--text))]"
+      >
+        <ArrowLeft className="h-4 w-4" />
+        Início
+      </Link>
+
       <Link to="/" className="mb-6 flex items-center gap-2 rounded-xl px-2 py-1 transition-colors hover:surface-2">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-accent-500 text-white">
           <Wallet className="h-5 w-5" />
