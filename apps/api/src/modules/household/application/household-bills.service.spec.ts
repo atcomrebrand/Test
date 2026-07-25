@@ -12,6 +12,7 @@ function makeBills(overrides: Partial<HouseholdBillRepository> = {}): HouseholdB
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    reorder: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as HouseholdBillRepository;
 }
@@ -109,5 +110,20 @@ describe("HouseholdBillsService.remove", () => {
     expect(deleteFn).toHaveBeenCalledWith("bill-1");
     expect(audit.log).toHaveBeenCalledWith("user-1", "HouseholdBill", "bill-1", "DELETE", bill, null);
     expect(result).toEqual({ id: "bill-1" });
+  });
+});
+
+describe("HouseholdBillsService.reorder", () => {
+  it("persists the new order and returns the freshly ordered list", async () => {
+    const reorderFn = jest.fn().mockResolvedValue(undefined);
+    const reordered = [{ id: "bill-2" }, { id: "bill-1" }];
+    const bills = makeBills({ reorder: reorderFn, findAllByUser: jest.fn().mockResolvedValue(reordered) });
+    const entries = makeEntries();
+    const service = new HouseholdBillsService(bills, entries, makeAudit(), makeMonthCompletion());
+
+    const result = await service.reorder("user-1", ["bill-2", "bill-1"]);
+
+    expect(reorderFn).toHaveBeenCalledWith("user-1", ["bill-2", "bill-1"]);
+    expect(result).toEqual(reordered);
   });
 });

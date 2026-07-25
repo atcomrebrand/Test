@@ -26,6 +26,7 @@ export interface HouseholdBill {
   allowAmountChange: boolean;
   mandatory: boolean;
   active: boolean;
+  order: number;
   notes: string | null;
 }
 
@@ -53,6 +54,7 @@ export interface HouseholdCard {
   color: string;
   icon: string;
   active: boolean;
+  order: number;
 }
 
 export interface HouseholdCardEntry {

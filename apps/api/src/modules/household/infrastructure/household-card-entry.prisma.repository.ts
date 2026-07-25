@@ -18,7 +18,7 @@ export class HouseholdCardEntryPrismaRepository extends HouseholdCardEntryReposi
     return this.prisma.householdCardEntry.findMany({
       where: { userId, referenceYear, referenceMonth },
       include: INCLUDE,
-      orderBy: { card: { name: "asc" } },
+      orderBy: [{ card: { order: "asc" } }, { id: "asc" }],
     });
   }
 

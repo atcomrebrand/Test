@@ -45,6 +45,11 @@ export class UpdateHouseholdBillDto {
   @IsOptional() @IsString() notes?: string;
 }
 
+export class ReorderHouseholdBillsDto {
+  @IsString({ each: true })
+  ids!: string[];
+}
+
 export class UpdateHouseholdBillEntryDto {
   @IsOptional()
   @Type(() => Number)

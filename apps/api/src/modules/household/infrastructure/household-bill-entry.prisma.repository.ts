@@ -18,7 +18,7 @@ export class HouseholdBillEntryPrismaRepository extends HouseholdBillEntryReposi
     return this.prisma.householdBillEntry.findMany({
       where: { userId, referenceYear, referenceMonth },
       include: INCLUDE,
-      orderBy: { dueDate: "asc" },
+      orderBy: [{ bill: { order: "asc" } }, { id: "asc" }],
     });
   }
 

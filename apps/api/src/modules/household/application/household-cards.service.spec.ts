@@ -12,6 +12,7 @@ function makeCards(overrides: Partial<HouseholdCardRepository> = {}): HouseholdC
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
+    reorder: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as HouseholdCardRepository;
 }
@@ -98,5 +99,20 @@ describe("HouseholdCardsService.remove", () => {
     expect(deleteFn).toHaveBeenCalledWith("card-1");
     expect(audit.log).toHaveBeenCalledWith("user-1", "HouseholdCard", "card-1", "DELETE", card, null);
     expect(result).toEqual({ id: "card-1" });
+  });
+});
+
+describe("HouseholdCardsService.reorder", () => {
+  it("persists the new order and returns the freshly ordered list", async () => {
+    const reorderFn = jest.fn().mockResolvedValue(undefined);
+    const reordered = [{ id: "card-2" }, { id: "card-1" }];
+    const cards = makeCards({ reorder: reorderFn, findAllByUser: jest.fn().mockResolvedValue(reordered) });
+    const entries = makeEntries();
+    const service = new HouseholdCardsService(cards, entries, makeAudit(), makeMonthCompletion());
+
+    const result = await service.reorder("user-1", ["card-2", "card-1"]);
+
+    expect(reorderFn).toHaveBeenCalledWith("user-1", ["card-2", "card-1"]);
+    expect(result).toEqual(reordered);
   });
 });

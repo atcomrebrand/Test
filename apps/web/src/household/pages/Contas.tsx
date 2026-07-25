@@ -14,6 +14,7 @@ import {
   CalendarOff,
   ChevronDown,
   ChevronUp,
+  GripVertical,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -22,6 +23,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { cn } from "@/lib/cn";
 import { formatDate, formatCurrency, parseAmountInput } from "@/lib/format";
 import {
   useHouseholdBills,
@@ -29,11 +31,13 @@ import {
   useUpdateHouseholdBill,
   useUpdateHouseholdBillEntry,
   useDeleteHouseholdBill,
+  useReorderHouseholdBills,
   useHouseholdCards,
   useHouseholdCardsMonth,
   useUpdateHouseholdCard,
   useUpdateHouseholdCardEntry,
   useDeleteHouseholdCard,
+  useReorderHouseholdCards,
 } from "../api";
 import { HouseholdBill, HouseholdBillEntry, HouseholdBillStatus, HouseholdCard, HouseholdCardEntry } from "../types";
 import { MonthSwitcher } from "../components/MonthSwitcher";
@@ -60,14 +64,15 @@ const STATUS_LABEL: Record<HouseholdBillStatus, string> = {
 };
 
 /** Unifies bills (contas fixas) and card invoices (faturas) into one payables list — a fatura
- *  lançada num cartão é, pro usuário, só mais uma conta a pagar do mês. Sorted by day-of-month so
- *  both kinds interleave chronologically instead of showing as two separate blocks. */
-type PayableRow = { kind: "BILL"; id: string; sortDay: number; entry: HouseholdBillEntry } | { kind: "CARD"; id: string; sortDay: number; entry: HouseholdCardEntry };
+ *  lançada num cartão é, pro usuário, só mais uma conta a pagar do mês. Order comes straight from
+ *  the API (bill/card.order, set by dragging in each accordion section), never re-sorted here —
+ *  re-sorting by due date on every render is what made cards "jump" after an edit. */
+type PayableRow = { kind: "BILL"; id: string; entry: HouseholdBillEntry } | { kind: "CARD"; id: string; entry: HouseholdCardEntry };
 
 function buildRows(billEntries: HouseholdBillEntry[], cardEntries: HouseholdCardEntry[]): PayableRow[] {
-  const billRows: PayableRow[] = billEntries.map((entry) => ({ kind: "BILL", id: entry.id, sortDay: new Date(entry.dueDate).getDate(), entry }));
-  const cardRows: PayableRow[] = cardEntries.map((entry) => ({ kind: "CARD", id: entry.id, sortDay: entry.card.dueDay, entry }));
-  return [...billRows, ...cardRows].sort((a, b) => a.sortDay - b.sortDay);
+  const billRows: PayableRow[] = billEntries.map((entry) => ({ kind: "BILL", id: entry.id, entry }));
+  const cardRows: PayableRow[] = cardEntries.map((entry) => ({ kind: "CARD", id: entry.id, entry }));
+  return [...billRows, ...cardRows];
 }
 
 interface NotesTarget {
@@ -147,6 +152,13 @@ function PayableCardView({
   onUpdateBillEntry,
   onUpdateCardEntry,
   onOpenPayLess,
+  isDragging,
+  isDropTarget,
+  onDragStart,
+  onDragOver,
+  onDragLeave,
+  onDrop,
+  onDragEnd,
 }: {
   row: PayableRow;
   onOpenNotes: (t: NotesTarget) => void;
@@ -155,6 +167,13 @@ function PayableCardView({
   onUpdateBillEntry: (data: BillEntryUpdate) => void;
   onUpdateCardEntry: (data: CardEntryUpdate) => void;
   onOpenPayLess: (id: string, amount: number, current: number) => void;
+  isDragging: boolean;
+  isDropTarget: boolean;
+  onDragStart: () => void;
+  onDragOver: (e: React.DragEvent) => void;
+  onDragLeave: () => void;
+  onDrop: () => void;
+  onDragEnd: () => void;
 }) {
   const isBill = row.kind === "BILL";
   const name = isBill ? row.entry.bill.name : row.entry.card.name;
@@ -173,10 +192,29 @@ function PayableCardView({
   const isPaidPartial = isBill && billPaidAmount > 0 && billPaidAmount < billAmount;
 
   return (
-    <Card>
+    <Card
+      draggable
+      onDragStart={onDragStart}
+      onDragOver={(e) => {
+        e.preventDefault();
+        onDragOver(e);
+      }}
+      onDragLeave={onDragLeave}
+      onDrop={(e) => {
+        e.preventDefault();
+        onDrop();
+      }}
+      onDragEnd={onDragEnd}
+      className={cn(
+        "cursor-grab transition-[opacity,box-shadow] active:cursor-grabbing",
+        isDragging && "opacity-40",
+        isDropTarget && "ring-2 ring-amber-500",
+      )}
+    >
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
+            <GripVertical className="h-4 w-4 shrink-0 text-muted" />
             <span className="flex h-9 w-9 items-center justify-center rounded-xl text-white" style={{ backgroundColor: iconColor }}>
               {isBill ? <Receipt className="h-4 w-4" /> : <CreditCardIcon className="h-4 w-4" />}
             </span>
@@ -301,6 +339,8 @@ export default function Contas() {
   const updateCard = useUpdateHouseholdCard();
   const deleteBill = useDeleteHouseholdBill();
   const deleteCard = useDeleteHouseholdCard();
+  const reorderBills = useReorderHouseholdBills(year, month);
+  const reorderCards = useReorderHouseholdCards(year, month);
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingBill, setEditingBill] = useState<HouseholdBill | null>(null);
@@ -311,6 +351,8 @@ export default function Contas() {
   const [payLessTarget, setPayLessTarget] = useState<PayLessTarget | null>(null);
   const [payLessDraft, setPayLessDraft] = useState("");
   const [openSections, setOpenSections] = useState({ bills: true, cards: true });
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   const isLoading = loadingBills || loadingCards;
   const rows = buildRows(billEntries ?? [], cardEntries ?? []);
@@ -351,6 +393,35 @@ export default function Contas() {
 
   function toggleSection(key: "bills" | "cards") {
     setOpenSections((s) => ({ ...s, [key]: !s[key] }));
+  }
+
+  function handleDragStart(rowId: string) {
+    setDraggedId(rowId);
+  }
+
+  function handleDragEnd() {
+    setDraggedId(null);
+    setDragOverId(null);
+  }
+
+  /** Only rows of the same kind ever produce a valid drop — dragging a bill card over the cartões
+   *  section just finds no match in cardRows and silently no-ops, so no explicit kind check needed. */
+  function handleDrop(kind: "BILL" | "CARD", targetRowId: string) {
+    if (draggedId && draggedId !== targetRowId) {
+      const rows = kind === "BILL" ? billRows : cardRows;
+      const fromIndex = rows.findIndex((r) => r.id === draggedId);
+      const toIndex = rows.findIndex((r) => r.id === targetRowId);
+      if (fromIndex !== -1 && toIndex !== -1) {
+        const reordered: PayableRow[] = [...rows];
+        const [moved] = reordered.splice(fromIndex, 1);
+        reordered.splice(toIndex, 0, moved);
+        const ids = reordered.map((r) => (r.kind === "BILL" ? r.entry.bill.id : r.entry.card.id));
+        if (kind === "BILL") reorderBills.mutate(ids);
+        else reorderCards.mutate(ids);
+      }
+    }
+    setDraggedId(null);
+    setDragOverId(null);
   }
 
   function openPayLess(id: string, amount: number, current: number) {
@@ -432,6 +503,13 @@ export default function Contas() {
                 onUpdateBillEntry={(data) => updateBillEntry.mutate({ id: row.entry.id, data })}
                 onUpdateCardEntry={() => {}}
                 onOpenPayLess={openPayLess}
+                isDragging={draggedId === row.id}
+                isDropTarget={dragOverId === row.id && draggedId !== row.id}
+                onDragStart={() => handleDragStart(row.id)}
+                onDragOver={() => setDragOverId(row.id)}
+                onDragLeave={() => setDragOverId((cur) => (cur === row.id ? null : cur))}
+                onDrop={() => handleDrop("BILL", row.id)}
+                onDragEnd={handleDragEnd}
               />
             ))}
           </AccordionSection>
@@ -447,6 +525,13 @@ export default function Contas() {
                 onUpdateBillEntry={() => {}}
                 onUpdateCardEntry={(data) => updateCardEntry.mutate({ id: row.entry.id, data })}
                 onOpenPayLess={openPayLess}
+                isDragging={draggedId === row.id}
+                isDropTarget={dragOverId === row.id && draggedId !== row.id}
+                onDragStart={() => handleDragStart(row.id)}
+                onDragOver={() => setDragOverId(row.id)}
+                onDragLeave={() => setDragOverId((cur) => (cur === row.id ? null : cur))}
+                onDrop={() => handleDrop("CARD", row.id)}
+                onDragEnd={handleDragEnd}
               />
             ))}
           </AccordionSection>

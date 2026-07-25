@@ -171,6 +171,31 @@ export function useDeleteHouseholdBill() {
   });
 }
 
+/** Reorders bills by dragging in Contas — updates the month cache immediately (so cards don't
+ *  jump back into their old spot while the request is in flight) and rolls back on failure. */
+export function useReorderHouseholdBills(year: number, month: number) {
+  const qc = useQueryClient();
+  const monthKey = ["household", "bills", "month", year, month];
+  return useMutation({
+    mutationFn: (ids: string[]) => api.patch<HouseholdBill[]>("/household/bills/reorder", { ids }),
+    onMutate: async (ids: string[]) => {
+      await qc.cancelQueries({ queryKey: monthKey });
+      const previous = qc.getQueryData<HouseholdBillEntry[]>(monthKey);
+      if (previous) {
+        const orderIndex = new Map(ids.map((id, i) => [id, i]));
+        const reordered = [...previous].sort((a, b) => (orderIndex.get(a.billId) ?? 0) - (orderIndex.get(b.billId) ?? 0));
+        qc.setQueryData(monthKey, reordered);
+      }
+      return { previous };
+    },
+    onError: (e: Error, _ids, context) => {
+      if (context?.previous) qc.setQueryData(monthKey, context.previous);
+      toast.error(e.message);
+    },
+    onSettled: () => invalidateAll(qc),
+  });
+}
+
 export function useUpdateHouseholdBillEntry() {
   const qc = useQueryClient();
   return useMutation({
@@ -234,6 +259,30 @@ export function useDeleteHouseholdCard() {
     mutationFn: (id: string) => api.delete(`/household/cards/${id}`),
     onSuccess: () => invalidateAll(qc),
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Same optimistic-reorder pattern as useReorderHouseholdBills, for the cards accordion. */
+export function useReorderHouseholdCards(year: number, month: number) {
+  const qc = useQueryClient();
+  const monthKey = ["household", "cards", "month", year, month];
+  return useMutation({
+    mutationFn: (ids: string[]) => api.patch<HouseholdCard[]>("/household/cards/reorder", { ids }),
+    onMutate: async (ids: string[]) => {
+      await qc.cancelQueries({ queryKey: monthKey });
+      const previous = qc.getQueryData<HouseholdCardEntry[]>(monthKey);
+      if (previous) {
+        const orderIndex = new Map(ids.map((id, i) => [id, i]));
+        const reordered = [...previous].sort((a, b) => (orderIndex.get(a.cardId) ?? 0) - (orderIndex.get(b.cardId) ?? 0));
+        qc.setQueryData(monthKey, reordered);
+      }
+      return { previous };
+    },
+    onError: (e: Error, _ids, context) => {
+      if (context?.previous) qc.setQueryData(monthKey, context.previous);
+      toast.error(e.message);
+    },
+    onSettled: () => invalidateAll(qc),
   });
 }
 

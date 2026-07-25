@@ -53,6 +53,11 @@ export class HouseholdBillsService {
     return { id };
   }
 
+  async reorder(userId: string, ids: string[]) {
+    await this.bills.reorder(userId, ids);
+    return this.bills.findAllByUser(userId);
+  }
+
   /** The monthly table screen's main entry point — generates any missing competência for active
    *  bills on demand (no cron, no "iniciar mês" button needed) before returning the month. */
   async findMonth(userId: string, referenceYear: number, referenceMonth: number) {

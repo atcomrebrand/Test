@@ -2,7 +2,12 @@ import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, UseGua
 import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../../../common/decorators/current-user.decorator";
 import { HouseholdCardsService } from "../application/household-cards.service";
-import { CreateHouseholdCardDto, UpdateHouseholdCardDto, UpdateHouseholdCardEntryDto } from "../application/dto/household-card.dto";
+import {
+  CreateHouseholdCardDto,
+  ReorderHouseholdCardsDto,
+  UpdateHouseholdCardDto,
+  UpdateHouseholdCardEntryDto,
+} from "../application/dto/household-card.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller("household/cards")
@@ -17,6 +22,11 @@ export class HouseholdCardsController {
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateHouseholdCardDto) {
     return this.service.create(user.userId, dto);
+  }
+
+  @Patch("reorder")
+  reorder(@CurrentUser() user: AuthUser, @Body() dto: ReorderHouseholdCardsDto) {
+    return this.service.reorder(user.userId, dto.ids);
   }
 
   @Patch(":id")

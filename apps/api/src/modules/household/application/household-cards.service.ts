@@ -41,6 +41,11 @@ export class HouseholdCardsService {
     return { id };
   }
 
+  async reorder(userId: string, ids: string[]) {
+    await this.cards.reorder(userId, ids);
+    return this.cards.findAllByUser(userId);
+  }
+
   /** Same pattern as HouseholdBillsService.findMonth — generates any missing competência (fatura
    *  zerada) for active cards on demand, so a card shows up in Contas the moment it's created,
    *  every month, without a separate "lançar fatura" step. */

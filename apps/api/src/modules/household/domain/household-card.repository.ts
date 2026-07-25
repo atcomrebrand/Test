@@ -16,4 +16,5 @@ export abstract class HouseholdCardRepository {
   abstract create(data: CreateHouseholdCardData): Promise<HouseholdCard>;
   abstract update(id: string, data: Record<string, unknown>): Promise<HouseholdCard>;
   abstract delete(id: string): Promise<void>;
+  abstract reorder(userId: string, ids: string[]): Promise<void>;
 }

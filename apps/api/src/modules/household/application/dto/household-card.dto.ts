@@ -36,6 +36,11 @@ export class UpdateHouseholdCardDto {
   @IsOptional() @IsBoolean() active?: boolean;
 }
 
+export class ReorderHouseholdCardsDto {
+  @IsString({ each: true })
+  ids!: string[];
+}
+
 export class UpdateHouseholdCardEntryDto {
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) totalInvoice?: number;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) provisioned?: number;

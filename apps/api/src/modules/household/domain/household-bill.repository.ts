@@ -20,4 +20,5 @@ export abstract class HouseholdBillRepository {
   abstract create(data: CreateHouseholdBillData): Promise<HouseholdBillWithCategory>;
   abstract update(id: string, data: Record<string, unknown>): Promise<HouseholdBillWithCategory>;
   abstract delete(id: string): Promise<void>;
+  abstract reorder(userId: string, ids: string[]): Promise<void>;
 }

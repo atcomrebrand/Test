@@ -931,6 +931,9 @@ model HouseholdBill {
   allowAmountChange Boolean                @default(true)
   mandatory         Boolean                @default(true)
   active            Boolean                @default(true)
+  /// Posição de exibição, controlada pelo usuário arrastando os cards em Contas. Ordenado junto com
+  /// id como desempate estável, pra nunca "pular" de lugar quando duas contas têm o mesmo order.
+  order             Int                    @default(0)
   notes             String?
   createdAt         DateTime               @default(now())
   updatedAt         DateTime               @updatedAt
@@ -983,6 +986,9 @@ model HouseholdCard {
   color      String   @default("#6D5BFF")
   icon       String   @default("credit-card")
   active     Boolean  @default(true)
+  /// Posição de exibição, controlada pelo usuário arrastando os cards em Contas. Ordenado junto com
+  /// id como desempate estável, pra nunca "pular" de lugar quando duas contas têm o mesmo order.
+  order      Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

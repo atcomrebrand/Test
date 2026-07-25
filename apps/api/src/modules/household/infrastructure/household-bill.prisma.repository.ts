@@ -11,18 +11,23 @@ export class HouseholdBillPrismaRepository extends HouseholdBillRepository {
   }
 
   findAllByUser(userId: string) {
-    return this.prisma.householdBill.findMany({ where: { userId }, include: INCLUDE, orderBy: { name: "asc" } });
+    return this.prisma.householdBill.findMany({ where: { userId }, include: INCLUDE, orderBy: [{ order: "asc" }, { id: "asc" }] });
   }
 
   findActiveByUser(userId: string) {
-    return this.prisma.householdBill.findMany({ where: { userId, active: true }, include: INCLUDE, orderBy: { name: "asc" } });
+    return this.prisma.householdBill.findMany({
+      where: { userId, active: true },
+      include: INCLUDE,
+      orderBy: [{ order: "asc" }, { id: "asc" }],
+    });
   }
 
   findById(id: string) {
     return this.prisma.householdBill.findUnique({ where: { id }, include: INCLUDE });
   }
 
-  create(data: CreateHouseholdBillData) {
+  async create(data: CreateHouseholdBillData) {
+    const maxOrder = await this.prisma.householdBill.aggregate({ where: { userId: data.userId }, _max: { order: true } });
     return this.prisma.householdBill.create({
       data: {
         userId: data.userId,
@@ -33,6 +38,7 @@ export class HouseholdBillPrismaRepository extends HouseholdBillRepository {
         allowAmountChange: data.allowAmountChange ?? true,
         mandatory: data.mandatory ?? true,
         notes: data.notes,
+        order: (maxOrder._max.order ?? -1) + 1,
       },
       include: INCLUDE,
     });
@@ -44,5 +50,11 @@ export class HouseholdBillPrismaRepository extends HouseholdBillRepository {
 
   async delete(id: string) {
     await this.prisma.householdBill.delete({ where: { id } });
+  }
+
+  async reorder(userId: string, ids: string[]) {
+    await this.prisma.$transaction(
+      ids.map((id, index) => this.prisma.householdBill.updateMany({ where: { id, userId }, data: { order: index } })),
+    );
   }
 }
