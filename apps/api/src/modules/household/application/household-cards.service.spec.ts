@@ -11,7 +11,6 @@ function makeCards(overrides: Partial<HouseholdCardRepository> = {}): HouseholdC
     create: jest.fn(),
     update: jest.fn(),
     delete: jest.fn(),
-    countEntries: jest.fn(),
     ...overrides,
   } as unknown as HouseholdCardRepository;
 }
@@ -77,5 +76,22 @@ describe("HouseholdCardsService.findMonth — auto-generation", () => {
     const result = await service.findMonth("user-1", 2026, 7);
 
     expect(result).toEqual([expect.objectContaining({ id: "e1", realAmount: 400 })]);
+  });
+});
+
+describe("HouseholdCardsService.remove", () => {
+  it("deletes the card unconditionally, without checking for existing entries first", async () => {
+    const card = { id: "card-1", userId: "user-1", name: "Nubank" };
+    const deleteFn = jest.fn().mockResolvedValue(undefined);
+    const cards = makeCards({ findById: jest.fn().mockResolvedValue(card), delete: deleteFn });
+    const entries = makeEntries();
+    const audit = makeAudit();
+    const service = new HouseholdCardsService(cards, entries, audit);
+
+    const result = await service.remove("user-1", "card-1");
+
+    expect(deleteFn).toHaveBeenCalledWith("card-1");
+    expect(audit.log).toHaveBeenCalledWith("user-1", "HouseholdCard", "card-1", "DELETE", card, null);
+    expect(result).toEqual({ id: "card-1" });
   });
 });

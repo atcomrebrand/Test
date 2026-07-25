@@ -45,8 +45,4 @@ export class HouseholdBillPrismaRepository extends HouseholdBillRepository {
   async delete(id: string) {
     await this.prisma.householdBill.delete({ where: { id } });
   }
-
-  countEntries(billId: string) {
-    return this.prisma.householdBillEntry.count({ where: { billId } });
-  }
 }

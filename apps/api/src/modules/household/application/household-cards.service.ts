@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
+import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { HouseholdCardRepository } from "../domain/household-card.repository";
 import { HouseholdCardEntryRepository, HouseholdCardEntryWithCard } from "../domain/household-card-entry.repository";
 import { HouseholdAuditService } from "./household-audit.service";
@@ -29,13 +29,13 @@ export class HouseholdCardsService {
     return after;
   }
 
+  /** Always deletes, cascading every fatura já lançada (HouseholdCardEntry has onDelete: Cascade)
+   *  — the choice between keeping history (desativar) and erasing it (excluir) belongs to the
+   *  user, made explicit in the frontend's confirmation dialog before this is ever called. */
   async remove(userId: string, id: string) {
-    await this.getOwnedCard(userId, id);
-    const count = await this.cards.countEntries(id);
-    if (count > 0) {
-      throw new BadRequestException("Este cartão já tem faturas lançadas — desative-o em vez de excluir, pra manter o histórico.");
-    }
+    const before = await this.getOwnedCard(userId, id);
     await this.cards.delete(id);
+    await this.audit.log(userId, "HouseholdCard", id, "DELETE", before, null);
     return { id };
   }
 

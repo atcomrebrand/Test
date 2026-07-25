@@ -59,6 +59,13 @@ interface NotesTarget {
   notes: string | null;
 }
 
+interface DeleteTarget {
+  kind: "BILL" | "CARD";
+  id: string;
+  name: string;
+  active: boolean;
+}
+
 export default function Contas() {
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -80,6 +87,7 @@ export default function Contas() {
   const [editingCard, setEditingCard] = useState<HouseholdCard | null>(null);
   const [notesTarget, setNotesTarget] = useState<NotesTarget | null>(null);
   const [notesDraft, setNotesDraft] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
 
   const isLoading = loadingBills || loadingCards;
   const rows = buildRows(billEntries ?? [], cardEntries ?? []);
@@ -94,17 +102,26 @@ export default function Contas() {
     setFormOpen(true);
   }
 
-  function toggleActive(target: { kind: "BILL"; item: HouseholdBill } | { kind: "CARD"; item: HouseholdCard }) {
-    if (target.kind === "BILL") updateBill.mutate({ id: target.item.id, data: { active: !target.item.active } });
-    else updateCard.mutate({ id: target.item.id, data: { active: !target.item.active } });
+  function setActive(target: { kind: "BILL" | "CARD"; id: string }, active: boolean) {
+    if (target.kind === "BILL") updateBill.mutate({ id: target.id, data: { active } });
+    else updateCard.mutate({ id: target.id, data: { active } });
   }
 
-  function handleDelete(row: PayableRow) {
-    const isBill = row.kind === "BILL";
-    const name = isBill ? row.entry.bill.name : row.entry.card.name;
-    if (!confirm(`Excluir "${name}"?`)) return;
-    if (isBill) deleteBill.mutate(row.entry.bill.id);
-    else deleteCard.mutate(row.entry.card.id);
+  function openDeleteDialog(target: DeleteTarget) {
+    setDeleteTarget(target);
+  }
+
+  function keepHistoryAndDeactivate() {
+    if (!deleteTarget) return;
+    setActive(deleteTarget, false);
+    setDeleteTarget(null);
+  }
+
+  function eraseEverything() {
+    if (!deleteTarget) return;
+    if (deleteTarget.kind === "BILL") deleteBill.mutate(deleteTarget.id);
+    else deleteCard.mutate(deleteTarget.id);
+    setDeleteTarget(null);
   }
 
   function openNotes(target: NotesTarget) {
@@ -201,7 +218,11 @@ export default function Contas() {
                       >
                         <Pencil className="h-4 w-4" />
                       </button>
-                      <button onClick={() => handleDelete(row)} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500" aria-label="Excluir">
+                      <button
+                        onClick={() => openDeleteDialog({ kind: row.kind, id: isBill ? row.entry.bill.id : row.entry.card.id, name, active: true })}
+                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                        aria-label="Excluir"
+                      >
                         <Trash2 className="h-4 w-4" />
                       </button>
                     </div>
@@ -266,14 +287,14 @@ export default function Contas() {
                 <p className="text-sm">{bill.name}</p>
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => toggleActive({ kind: "BILL", item: bill })}
+                    onClick={() => setActive({ kind: "BILL", id: bill.id }, true)}
                     className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:surface-2"
                   >
                     <Power className="h-3.5 w-3.5" />
                     Reativar
                   </button>
                   <button
-                    onClick={() => confirm(`Excluir "${bill.name}"?`) && deleteBill.mutate(bill.id)}
+                    onClick={() => openDeleteDialog({ kind: "BILL", id: bill.id, name: bill.name, active: false })}
                     className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
                     aria-label="Excluir"
                   >
@@ -287,14 +308,14 @@ export default function Contas() {
                 <p className="text-sm">{card.name}</p>
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={() => toggleActive({ kind: "CARD", item: card })}
+                    onClick={() => setActive({ kind: "CARD", id: card.id }, true)}
                     className="flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted transition-colors hover:surface-2"
                   >
                     <Power className="h-3.5 w-3.5" />
                     Reativar
                   </button>
                   <button
-                    onClick={() => confirm(`Excluir "${card.name}"?`) && deleteCard.mutate(card.id)}
+                    onClick={() => openDeleteDialog({ kind: "CARD", id: card.id, name: card.name, active: false })}
                     className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
                     aria-label="Excluir"
                   >
@@ -320,6 +341,32 @@ export default function Contas() {
               </Button>
               <Button onClick={saveNotes} loading={updateBillEntry.isPending || updateCardEntry.isPending}>
                 Salvar
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal open={!!deleteTarget} onClose={() => setDeleteTarget(null)} title={deleteTarget ? `Excluir "${deleteTarget.name}"?` : ""} size="sm">
+        {deleteTarget && (
+          <div className="flex flex-col gap-4">
+            <p className="text-sm text-muted">
+              {deleteTarget.active
+                ? "Você pode manter o histórico de valores e pagamentos já lançados (desativando, sem apagar nada), ou apagar tudo definitivamente."
+                : "Isso apaga a conta e todo o histórico de valores e pagamentos já lançados pra ela, sem volta."}
+            </p>
+            <div className="flex flex-col gap-2">
+              {deleteTarget.active && (
+                <Button variant="secondary" onClick={keepHistoryAndDeactivate} loading={updateBill.isPending || updateCard.isPending}>
+                  Manter histórico e desativar
+                </Button>
+              )}
+              <Button variant="danger" onClick={eraseEverything} loading={deleteBill.isPending || deleteCard.isPending}>
+                <Trash2 className="h-4 w-4" />
+                Apagar tudo, sem volta
+              </Button>
+              <Button variant="ghost" onClick={() => setDeleteTarget(null)}>
+                Cancelar
               </Button>
             </div>
           </div>

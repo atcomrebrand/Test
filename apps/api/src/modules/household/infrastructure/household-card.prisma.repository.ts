@@ -40,8 +40,4 @@ export class HouseholdCardPrismaRepository extends HouseholdCardRepository {
   async delete(id: string) {
     await this.prisma.householdCard.delete({ where: { id } });
   }
-
-  countEntries(cardId: string) {
-    return this.prisma.householdCardEntry.count({ where: { cardId } });
-  }
 }

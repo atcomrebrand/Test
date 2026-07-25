@@ -40,13 +40,14 @@ export class HouseholdBillsService {
     return after;
   }
 
+  /** Always deletes, cascading every competência already lançada (HouseholdBillEntry has
+   *  onDelete: Cascade) — the choice between keeping history (desativar) and erasing it (excluir)
+   *  belongs to the user, made explicit in the frontend's confirmation dialog before this is ever
+   *  called. The DELETE audit entry itself is the only trace that survives either way. */
   async remove(userId: string, id: string) {
-    await this.getOwnedBill(userId, id);
-    const count = await this.bills.countEntries(id);
-    if (count > 0) {
-      throw new BadRequestException("Esta conta já tem competências lançadas — desative-a em vez de excluir, pra manter o histórico.");
-    }
+    const before = await this.getOwnedBill(userId, id);
     await this.bills.delete(id);
+    await this.audit.log(userId, "HouseholdBill", id, "DELETE", before, null);
     return { id };
   }
 
