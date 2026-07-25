@@ -5,6 +5,10 @@ import { HouseholdIncomesService } from "./household-incomes.service";
 
 const UPCOMING_DAYS = 7;
 
+function previousMonthOf(referenceYear: number, referenceMonth: number) {
+  return referenceMonth === 1 ? { year: referenceYear - 1, month: 12 } : { year: referenceYear, month: referenceMonth - 1 };
+}
+
 @Injectable()
 export class HouseholdDashboardService {
   constructor(
@@ -68,6 +72,42 @@ export class HouseholdDashboardService {
     const daysInMonth = new Date(referenceYear, referenceMonth, 0).getDate();
     const paymentEvolution = this.buildPaymentEvolution(billEntries, cardEntries, daysInMonth);
 
+    const allPaid =
+      (billEntries.length > 0 || cardEntries.length > 0) &&
+      billEntries.every((e) => e.status === "PAID" || e.status === "SKIPPED") &&
+      cardEntries.every((e) => e.paid);
+
+    const foreignIncomeEntries = incomeEntries.filter((i) => i.isForeignCurrency);
+    const foreignIncome = {
+      count: foreignIncomeEntries.length,
+      totalGrossUsd: foreignIncomeEntries.reduce((sum, i) => sum + Number(i.grossAmountForeign ?? 0), 0),
+      totalConvertedBrl: foreignIncomeEntries.reduce((sum, i) => sum + Number(i.amount), 0),
+      avgRate:
+        foreignIncomeEntries.length > 0
+          ? Math.round((foreignIncomeEntries.reduce((sum, i) => sum + Number(i.exchangeRate ?? 0), 0) / foreignIncomeEntries.length) * 10000) / 10000
+          : null,
+    };
+
+    const savingsRate = totalIncome > 0 ? Math.round((freeBalance / totalIncome) * 1000) / 10 : null;
+
+    const { year: prevYear, month: prevMonth } = previousMonthOf(referenceYear, referenceMonth);
+    const [prevBillEntries, prevCardEntries] = await Promise.all([
+      this.bills.findMonth(userId, prevYear, prevMonth),
+      this.cards.findMonth(userId, prevYear, prevMonth),
+    ]);
+    const prevTotalCommitted =
+      prevBillEntries.reduce((sum, e) => sum + Number(e.amount), 0) + prevCardEntries.reduce((sum, e) => sum + e.realAmount, 0);
+    const prevTotalPaid =
+      prevBillEntries.reduce((sum, e) => sum + Number(e.paidAmount), 0) +
+      prevCardEntries.reduce((sum, e) => sum + (e.paid ? e.realAmount : 0), 0);
+    const previousMonthComparison = {
+      referenceYear: prevYear,
+      referenceMonth: prevMonth,
+      totalCommitted: prevTotalCommitted,
+      totalPaid: prevTotalPaid,
+      deltaCommittedPct: prevTotalCommitted > 0 ? Math.round(((totalCommitted - prevTotalCommitted) / prevTotalCommitted) * 1000) / 10 : null,
+    };
+
     return {
       referenceYear,
       referenceMonth,
@@ -93,6 +133,10 @@ export class HouseholdDashboardService {
       incomeVsExpenses: { income: totalIncome, expenses: totalCommitted },
       billsByCategory,
       paymentEvolution,
+      allPaid,
+      foreignIncome,
+      savingsRate,
+      previousMonthComparison,
     };
   }
 

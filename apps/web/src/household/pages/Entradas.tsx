@@ -88,8 +88,14 @@ export default function Entradas() {
                 <div className="flex items-center gap-2">
                   <p className="truncate font-semibold">{income.description || income.category?.name || "Entrada"}</p>
                   {income.category && <Badge tone="neutral">{income.category.name}</Badge>}
+                  {income.isForeignCurrency && <Badge tone="accent">Dinheiro Gringo</Badge>}
                 </div>
-                <p className="text-xs text-muted">{formatDate(income.date)}</p>
+                <p className="text-xs text-muted">
+                  {formatDate(income.date)}
+                  {income.isForeignCurrency && income.grossAmountForeign && income.exchangeRate
+                    ? ` · US$ ${Number(income.grossAmountForeign).toLocaleString("pt-BR", { minimumFractionDigits: 2 })} @ ${Number(income.exchangeRate).toLocaleString("pt-BR", { minimumFractionDigits: 4 })}`
+                    : ""}
+                </p>
               </div>
               <div className="flex items-center gap-2">
                 <p className="font-semibold text-emerald-600 dark:text-emerald-400">{formatCurrency(income.amount)}</p>

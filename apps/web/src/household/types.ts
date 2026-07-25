@@ -77,6 +77,9 @@ export interface HouseholdIncome {
   date: string;
   description: string | null;
   amount: string;
+  isForeignCurrency: boolean;
+  grossAmountForeign: string | null;
+  exchangeRate: string | null;
   notes: string | null;
 }
 
@@ -97,6 +100,7 @@ export interface HouseholdDashboardSummary {
   billsPaidCount: number;
   billsPendingCount: number;
   billsLateCount: number;
+  billsSkippedCount: number;
   upcomingDue: { id: string; name: string; dueDate: string; amount: number }[];
   lateBills: { id: string; name: string; dueDate: string; amount: number }[];
   paidPct: number;
@@ -104,4 +108,8 @@ export interface HouseholdDashboardSummary {
   incomeVsExpenses: { income: number; expenses: number };
   billsByCategory: { name: string; color: string; amount: number }[];
   paymentEvolution: { day: number; cumulativePaid: number }[];
+  allPaid: boolean;
+  foreignIncome: { count: number; totalGrossUsd: number; totalConvertedBrl: number; avgRate: number | null };
+  savingsRate: number | null;
+  previousMonthComparison: { referenceYear: number; referenceMonth: number; totalCommitted: number; totalPaid: number; deltaCommittedPct: number | null };
 }

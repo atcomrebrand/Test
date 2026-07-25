@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { HouseholdIncomeRepository } from "../domain/household-income.repository";
+import { HouseholdIncomeRepository, HouseholdIncomeWithCategory } from "../domain/household-income.repository";
 import { HouseholdAuditService } from "./household-audit.service";
 import { CreateHouseholdIncomeDto, UpdateHouseholdIncomeDto } from "./dto/household-income.dto";
 
@@ -19,12 +19,17 @@ export class HouseholdIncomesService {
   }
 
   async create(userId: string, dto: CreateHouseholdIncomeDto) {
+    const isForeignCurrency = dto.isForeignCurrency ?? false;
+
     const income = await this.incomes.create({
       userId,
       categoryId: dto.categoryId,
       date: new Date(dto.date),
       description: dto.description,
       amount: dto.amount,
+      isForeignCurrency,
+      grossAmountForeign: isForeignCurrency ? dto.grossAmountForeign : undefined,
+      exchangeRate: isForeignCurrency ? dto.exchangeRate : undefined,
       notes: dto.notes,
     });
     await this.audit.log(userId, "HouseholdIncome", income.id, "CREATE", null, income);
@@ -33,8 +38,17 @@ export class HouseholdIncomesService {
 
   async update(userId: string, id: string, dto: UpdateHouseholdIncomeDto) {
     const before = await this.getOwned(userId, id);
-    const data: Record<string, unknown> = { ...dto };
+
+    const isForeignCurrency = dto.isForeignCurrency ?? before.isForeignCurrency;
+
+    const data: Record<string, unknown> = {
+      ...dto,
+      isForeignCurrency,
+      grossAmountForeign: isForeignCurrency ? (dto.grossAmountForeign ?? Number(before.grossAmountForeign ?? 0)) : null,
+      exchangeRate: isForeignCurrency ? (dto.exchangeRate ?? Number(before.exchangeRate ?? 0)) : null,
+    };
     if (dto.date) data.date = new Date(dto.date);
+
     const after = await this.incomes.update(id, data);
     await this.audit.log(userId, "HouseholdIncome", id, "UPDATE", before, after);
     return after;
@@ -47,7 +61,7 @@ export class HouseholdIncomesService {
     return { id };
   }
 
-  private async getOwned(userId: string, id: string) {
+  private async getOwned(userId: string, id: string): Promise<HouseholdIncomeWithCategory> {
     const income = await this.incomes.findById(id);
     if (!income) throw new NotFoundException("Entrada não encontrada.");
     if (income.userId !== userId) throw new ForbiddenException();

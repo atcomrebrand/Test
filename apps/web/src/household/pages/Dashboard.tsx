@@ -10,6 +10,10 @@ import {
   Landmark,
   AlertTriangle,
   ListChecks,
+  PartyPopper,
+  Globe,
+  TrendingUp,
+  TrendingDown,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
@@ -48,6 +52,13 @@ export default function HouseholdDashboard() {
         </div>
         <MonthSwitcher year={year} month={month} onChange={(y, m) => (setYear(y), setMonth(m))} />
       </div>
+
+      {summary.allPaid && (
+        <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 px-4 py-3 text-sm font-medium text-emerald-600 dark:text-emerald-400">
+          <PartyPopper className="h-4 w-4 shrink-0" />
+          Mês 100% pago! Mas um mês com tudo pago, puxe a cadeira e descanse um pouco.
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Total de entradas" value={formatCurrency(summary.totalIncome)} icon={<Wallet className="h-4 w-4" />} />
@@ -88,7 +99,17 @@ export default function HouseholdDashboard() {
           tone={summary.totalPending > 0 ? "danger" : "default"}
           delay={0.1}
         />
-        <StatTile label="Total comprometido" value={formatCurrency(summary.totalCommitted)} icon={<Landmark className="h-4 w-4" />} delay={0.15} />
+        <StatTile
+          label="Total comprometido"
+          value={formatCurrency(summary.totalCommitted)}
+          icon={<Landmark className="h-4 w-4" />}
+          delay={0.15}
+          sublabel={
+            summary.previousMonthComparison.deltaCommittedPct !== null
+              ? `${summary.previousMonthComparison.deltaCommittedPct >= 0 ? "+" : ""}${summary.previousMonthComparison.deltaCommittedPct}% vs mês passado`
+              : undefined
+          }
+        />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -106,6 +127,25 @@ export default function HouseholdDashboard() {
           icon={<CheckCircle2 className="h-4 w-4" />}
           delay={0.15}
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatTile
+          label="Taxa de poupança"
+          value={summary.savingsRate !== null ? `${summary.savingsRate}%` : "—"}
+          icon={summary.savingsRate !== null && summary.savingsRate >= 0 ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+          tone={summary.savingsRate !== null && summary.savingsRate < 0 ? "danger" : "default"}
+          sublabel="Do que sobra da renda, sem comprometer"
+        />
+        {summary.foreignIncome.count > 0 && (
+          <StatTile
+            label="Dinheiro Gringo"
+            value={formatCurrency(summary.foreignIncome.totalConvertedBrl)}
+            icon={<Globe className="h-4 w-4" />}
+            delay={0.05}
+            sublabel={`US$ ${summary.foreignIncome.totalGrossUsd.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} · cotação média ${summary.foreignIncome.avgRate?.toLocaleString("pt-BR", { minimumFractionDigits: 4 })}`}
+          />
+        )}
       </div>
 
       {summary.lateBills.length > 0 && (

@@ -8,6 +8,9 @@ export interface CreateHouseholdIncomeData {
   date: Date;
   description?: string;
   amount: number;
+  isForeignCurrency?: boolean;
+  grossAmountForeign?: number;
+  exchangeRate?: number;
   notes?: string;
 }
 

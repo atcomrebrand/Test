@@ -4,6 +4,7 @@ import { HouseholdBillEntryRepository, HouseholdBillEntryWithBill } from "../dom
 import { computeBillEntryStatus } from "../domain/bill-entry-status";
 import { resolveDueDate } from "../domain/resolve-due-date";
 import { HouseholdAuditService } from "./household-audit.service";
+import { HouseholdMonthCompletionService } from "./household-month-completion.service";
 import { CreateHouseholdBillDto, UpdateHouseholdBillDto, UpdateHouseholdBillEntryDto } from "./dto/household-bill.dto";
 
 @Injectable()
@@ -12,6 +13,7 @@ export class HouseholdBillsService {
     private readonly bills: HouseholdBillRepository,
     private readonly entries: HouseholdBillEntryRepository,
     private readonly audit: HouseholdAuditService,
+    private readonly monthCompletion: HouseholdMonthCompletionService,
   ) {}
 
   findAll(userId: string) {
@@ -106,6 +108,7 @@ export class HouseholdBillsService {
       notes: dto.notes ?? before.notes ?? undefined,
     });
     await this.audit.log(userId, "HouseholdBillEntry", id, "UPDATE", this.snapshotEntry(before), this.snapshotEntry(after));
+    await this.monthCompletion.checkAndNotify(userId, after.referenceYear, after.referenceMonth);
     return after;
   }
 

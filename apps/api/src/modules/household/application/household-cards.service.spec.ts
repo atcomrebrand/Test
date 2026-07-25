@@ -2,6 +2,7 @@ import { HouseholdCardsService } from "./household-cards.service";
 import { HouseholdCardRepository } from "../domain/household-card.repository";
 import { HouseholdCardEntryRepository } from "../domain/household-card-entry.repository";
 import { HouseholdAuditService } from "./household-audit.service";
+import { HouseholdMonthCompletionService } from "./household-month-completion.service";
 
 function makeCards(overrides: Partial<HouseholdCardRepository> = {}): HouseholdCardRepository {
   return {
@@ -31,12 +32,16 @@ function makeAudit(): HouseholdAuditService {
   return { log: jest.fn().mockResolvedValue(undefined) } as unknown as HouseholdAuditService;
 }
 
+function makeMonthCompletion(): HouseholdMonthCompletionService {
+  return { checkAndNotify: jest.fn().mockResolvedValue(undefined) } as unknown as HouseholdMonthCompletionService;
+}
+
 describe("HouseholdCardsService.findMonth — auto-generation", () => {
   it("creates a zeroed competência for every active card missing one this month", async () => {
     const cards = makeCards({ findActiveByUser: jest.fn().mockResolvedValue([{ id: "card-1" }, { id: "card-2" }]) });
     const createMany = jest.fn().mockResolvedValue(undefined);
     const entries = makeEntries({ findExistingCardIdsForMonth: jest.fn().mockResolvedValue(new Set(["card-1"])), createMany });
-    const service = new HouseholdCardsService(cards, entries, makeAudit());
+    const service = new HouseholdCardsService(cards, entries, makeAudit(), makeMonthCompletion());
 
     await service.findMonth("user-1", 2026, 7);
 
@@ -47,7 +52,7 @@ describe("HouseholdCardsService.findMonth — auto-generation", () => {
     const cards = makeCards({ findActiveByUser: jest.fn().mockResolvedValue([{ id: "card-1" }]) });
     const createMany = jest.fn().mockResolvedValue(undefined);
     const entries = makeEntries({ findExistingCardIdsForMonth: jest.fn().mockResolvedValue(new Set(["card-1"])), createMany });
-    const service = new HouseholdCardsService(cards, entries, makeAudit());
+    const service = new HouseholdCardsService(cards, entries, makeAudit(), makeMonthCompletion());
 
     await service.findMonth("user-1", 2026, 7);
 
@@ -58,7 +63,7 @@ describe("HouseholdCardsService.findMonth — auto-generation", () => {
     const cards = makeCards({ findActiveByUser: jest.fn().mockResolvedValue([]) });
     const findExistingCardIdsForMonth = jest.fn();
     const entries = makeEntries({ findExistingCardIdsForMonth });
-    const service = new HouseholdCardsService(cards, entries, makeAudit());
+    const service = new HouseholdCardsService(cards, entries, makeAudit(), makeMonthCompletion());
 
     await service.findMonth("user-1", 2026, 7);
 
@@ -71,7 +76,7 @@ describe("HouseholdCardsService.findMonth — auto-generation", () => {
       findExistingCardIdsForMonth: jest.fn().mockResolvedValue(new Set(["card-1"])),
       findByMonth: jest.fn().mockResolvedValue([{ id: "e1", cardId: "card-1", totalInvoice: "500", provisioned: "100", paid: false }]),
     });
-    const service = new HouseholdCardsService(cards, entries, makeAudit());
+    const service = new HouseholdCardsService(cards, entries, makeAudit(), makeMonthCompletion());
 
     const result = await service.findMonth("user-1", 2026, 7);
 
@@ -86,7 +91,7 @@ describe("HouseholdCardsService.remove", () => {
     const cards = makeCards({ findById: jest.fn().mockResolvedValue(card), delete: deleteFn });
     const entries = makeEntries();
     const audit = makeAudit();
-    const service = new HouseholdCardsService(cards, entries, audit);
+    const service = new HouseholdCardsService(cards, entries, audit, makeMonthCompletion());
 
     const result = await service.remove("user-1", "card-1");
 

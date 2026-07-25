@@ -2,6 +2,7 @@ import { HouseholdBillsService } from "./household-bills.service";
 import { HouseholdBillRepository } from "../domain/household-bill.repository";
 import { HouseholdBillEntryRepository } from "../domain/household-bill-entry.repository";
 import { HouseholdAuditService } from "./household-audit.service";
+import { HouseholdMonthCompletionService } from "./household-month-completion.service";
 
 function makeBills(overrides: Partial<HouseholdBillRepository> = {}): HouseholdBillRepository {
   return {
@@ -31,6 +32,10 @@ function makeAudit(): HouseholdAuditService {
   return { log: jest.fn().mockResolvedValue(undefined) } as unknown as HouseholdAuditService;
 }
 
+function makeMonthCompletion(): HouseholdMonthCompletionService {
+  return { checkAndNotify: jest.fn().mockResolvedValue(undefined) } as unknown as HouseholdMonthCompletionService;
+}
+
 function makeEntry(overrides: Record<string, unknown> = {}) {
   return {
     id: "entry-1",
@@ -55,7 +60,7 @@ describe("HouseholdBillsService.updateEntry — skipped", () => {
     const updateFn = jest.fn().mockImplementation((_id, data) => ({ ...before, ...data }));
     const bills = makeBills();
     const entries = makeEntries({ findById: jest.fn().mockResolvedValue(before), update: updateFn });
-    const service = new HouseholdBillsService(bills, entries, makeAudit());
+    const service = new HouseholdBillsService(bills, entries, makeAudit(), makeMonthCompletion());
 
     await service.updateEntry("user-1", "entry-1", { skipped: true });
 
@@ -70,7 +75,7 @@ describe("HouseholdBillsService.updateEntry — skipped", () => {
     const updateFn = jest.fn().mockImplementation((_id, data) => ({ ...before, ...data }));
     const bills = makeBills();
     const entries = makeEntries({ findById: jest.fn().mockResolvedValue(before), update: updateFn });
-    const service = new HouseholdBillsService(bills, entries, makeAudit());
+    const service = new HouseholdBillsService(bills, entries, makeAudit(), makeMonthCompletion());
 
     await service.updateEntry("user-1", "entry-1", { paidAmount: 50 });
 
@@ -82,7 +87,7 @@ describe("HouseholdBillsService.updateEntry — skipped", () => {
     const updateFn = jest.fn().mockImplementation((_id, data) => ({ ...before, ...data }));
     const bills = makeBills();
     const entries = makeEntries({ findById: jest.fn().mockResolvedValue(before), update: updateFn });
-    const service = new HouseholdBillsService(bills, entries, makeAudit());
+    const service = new HouseholdBillsService(bills, entries, makeAudit(), makeMonthCompletion());
 
     await service.updateEntry("user-1", "entry-1", { notes: "sem fatura esse mês" });
 
@@ -97,7 +102,7 @@ describe("HouseholdBillsService.remove", () => {
     const bills = makeBills({ findById: jest.fn().mockResolvedValue(bill), delete: deleteFn });
     const entries = makeEntries();
     const audit = makeAudit();
-    const service = new HouseholdBillsService(bills, entries, audit);
+    const service = new HouseholdBillsService(bills, entries, audit, makeMonthCompletion());
 
     const result = await service.remove("user-1", "bill-1");
 

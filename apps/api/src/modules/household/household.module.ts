@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { NotificationsModule } from "../notifications/notifications.module";
 import { HouseholdBillCategoriesController } from "./interface/household-bill-categories.controller";
 import { HouseholdIncomeCategoriesController } from "./interface/household-income-categories.controller";
 import { HouseholdBillsController } from "./interface/household-bills.controller";
@@ -12,6 +13,8 @@ import { HouseholdCardsService } from "./application/household-cards.service";
 import { HouseholdIncomesService } from "./application/household-incomes.service";
 import { HouseholdDashboardService } from "./application/household-dashboard.service";
 import { HouseholdAuditService } from "./application/household-audit.service";
+import { HouseholdBillRemindersService } from "./application/household-bill-reminders.service";
+import { HouseholdMonthCompletionService } from "./application/household-month-completion.service";
 import { HouseholdBillRepository } from "./domain/household-bill.repository";
 import { HouseholdBillPrismaRepository } from "./infrastructure/household-bill.prisma.repository";
 import { HouseholdBillEntryRepository } from "./domain/household-bill-entry.repository";
@@ -24,6 +27,7 @@ import { HouseholdIncomeRepository } from "./domain/household-income.repository"
 import { HouseholdIncomePrismaRepository } from "./infrastructure/household-income.prisma.repository";
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [
     HouseholdBillCategoriesController,
     HouseholdIncomeCategoriesController,
@@ -40,6 +44,8 @@ import { HouseholdIncomePrismaRepository } from "./infrastructure/household-inco
     HouseholdIncomesService,
     HouseholdDashboardService,
     HouseholdAuditService,
+    HouseholdBillRemindersService,
+    HouseholdMonthCompletionService,
     { provide: HouseholdBillRepository, useClass: HouseholdBillPrismaRepository },
     { provide: HouseholdBillEntryRepository, useClass: HouseholdBillEntryPrismaRepository },
     { provide: HouseholdCardRepository, useClass: HouseholdCardPrismaRepository },

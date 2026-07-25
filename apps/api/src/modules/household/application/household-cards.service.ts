@@ -2,6 +2,7 @@ import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/commo
 import { HouseholdCardRepository } from "../domain/household-card.repository";
 import { HouseholdCardEntryRepository, HouseholdCardEntryWithCard } from "../domain/household-card-entry.repository";
 import { HouseholdAuditService } from "./household-audit.service";
+import { HouseholdMonthCompletionService } from "./household-month-completion.service";
 import { CreateHouseholdCardDto, UpdateHouseholdCardDto, UpdateHouseholdCardEntryDto } from "./dto/household-card.dto";
 
 @Injectable()
@@ -10,6 +11,7 @@ export class HouseholdCardsService {
     private readonly cards: HouseholdCardRepository,
     private readonly entries: HouseholdCardEntryRepository,
     private readonly audit: HouseholdAuditService,
+    private readonly monthCompletion: HouseholdMonthCompletionService,
   ) {}
 
   findAll(userId: string) {
@@ -74,6 +76,7 @@ export class HouseholdCardsService {
       notes: dto.notes ?? before.notes ?? undefined,
     });
     await this.audit.log(userId, "HouseholdCardEntry", id, "UPDATE", this.snapshotEntry(before), this.snapshotEntry(after));
+    await this.monthCompletion.checkAndNotify(userId, after.referenceYear, after.referenceMonth);
     return this.present(after);
   }
 
