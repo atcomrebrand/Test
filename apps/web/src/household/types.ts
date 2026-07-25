@@ -98,6 +98,7 @@ export interface HouseholdDashboardSummary {
   freeBalance: number;
   billsCount: number;
   billsPaidCount: number;
+  billsResolvedCount: number;
   billsPendingCount: number;
   billsLateCount: number;
   billsSkippedCount: number;

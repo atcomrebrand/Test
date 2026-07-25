@@ -47,6 +47,10 @@ export class HouseholdDashboardService {
     const billsLateCount = billEntries.filter((e) => e.status === "LATE").length;
     const billsSkippedCount = billEntries.filter((e) => e.status === "SKIPPED").length;
     const billsPendingCount = billsCount - billsPaidCount - billsLateCount - billsSkippedCount;
+    // "Resolved" = nothing left to do on it this month — paid with money, or skipped because it
+    // didn't apply. Drives the "Contas X/Y pagas" tile and the "Contas pagas" ring, so a skipped
+    // bill counts the same as a paid one there instead of quietly dragging the ratio down.
+    const billsResolvedCount = billsPaidCount + billsSkippedCount;
 
     const now = new Date();
     const upcomingLimit = new Date(now.getTime() + UPCOMING_DAYS * 24 * 60 * 60 * 1000);
@@ -60,7 +64,7 @@ export class HouseholdDashboardService {
       .map((e) => ({ id: e.id, name: e.bill.name, dueDate: e.dueDate, amount: Number(e.amount) }))
       .sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 
-    const paidPct = billsCount > 0 ? Math.round((billsPaidCount / billsCount) * 1000) / 10 : 0;
+    const paidPct = billsCount > 0 ? Math.round((billsResolvedCount / billsCount) * 1000) / 10 : 0;
     const reservedPct = totalBills > 0 ? Math.round((totalReserved / totalBills) * 1000) / 10 : 0;
 
     const categoryTotals = new Map<string, { name: string; color: string; amount: number }>();
@@ -129,6 +133,7 @@ export class HouseholdDashboardService {
       freeBalance,
       billsCount,
       billsPaidCount,
+      billsResolvedCount,
       billsPendingCount,
       billsLateCount,
       billsSkippedCount,

@@ -19,6 +19,26 @@ function makeIncomes(entries: unknown[] = []): HouseholdIncomesService {
   return { findMonth: jest.fn().mockResolvedValue(entries) } as unknown as HouseholdIncomesService;
 }
 
+describe("HouseholdDashboardService.month — billsResolvedCount / paidPct treat SKIPPED as resolved", () => {
+  it("counts a SKIPPED bill toward billsResolvedCount and paidPct, alongside PAID bills", async () => {
+    const bills = makeBills({
+      "2026-7": [
+        { status: "PAID", amount: 100, reservedAmount: 0, paidAmount: 100, bill: { mandatory: true } },
+        { status: "SKIPPED", amount: 50, reservedAmount: 0, paidAmount: 0, bill: { mandatory: true } },
+        { status: "PENDING", amount: 75, reservedAmount: 0, paidAmount: 0, bill: { mandatory: true } },
+      ],
+    });
+    const service = new HouseholdDashboardService(bills, makeCards(), makeIncomes());
+
+    const result = await service.month("user-1", 2026, 7);
+
+    expect(result.billsPaidCount).toBe(1);
+    expect(result.billsResolvedCount).toBe(2);
+    expect(result.billsCount).toBe(3);
+    expect(result.paidPct).toBeCloseTo(66.7, 1);
+  });
+});
+
 describe("HouseholdDashboardService.month — skipped bills don't count as money owed", () => {
   it("excludes a SKIPPED bill's amount from totalBills/totalCommitted/totalMandatory/totalOptional", async () => {
     const bills = makeBills({

@@ -123,7 +123,7 @@ export default function HouseholdDashboard() {
         />
         <StatTile
           label="Contas"
-          value={`${summary.billsPaidCount}/${summary.billsCount} pagas`}
+          value={`${summary.billsResolvedCount}/${summary.billsCount} pagas`}
           icon={<CheckCircle2 className="h-4 w-4" />}
           delay={0.15}
         />
