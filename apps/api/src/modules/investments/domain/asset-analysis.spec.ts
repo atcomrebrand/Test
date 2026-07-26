@@ -6,6 +6,7 @@ import {
   groupDividendsByYear,
   computeDividendMonthRadar,
   computePayoutHistory,
+  computePayoutRatio,
   computeChecklist,
 } from "./asset-analysis";
 import { HistoricalPricePoint, DividendEvent } from "./market-data.provider";
@@ -171,6 +172,36 @@ describe("computePayoutHistory", () => {
     const result = computePayoutHistory([{ year: 2023, netIncome: 1000 }], []);
     expect(result[0].payoutPercent).toBeNull();
     expect(result[0].dividendYieldPercent).toBeNull();
+  });
+});
+
+describe("computePayoutRatio", () => {
+  it("divides the last FULLY completed year's dividend per share by EPS", () => {
+    const dividendsByYear = [
+      { year: 2023, totalPerShare: 2, yieldPercent: 5 },
+      { year: 2024, totalPerShare: 3, yieldPercent: 6 },
+      { year: 2025, totalPerShare: 1.5, yieldPercent: 2 },
+    ];
+    expect(computePayoutRatio(dividendsByYear, 5, 2026)).toBeCloseTo(30);
+  });
+
+  it("skips the current (partial) year when it's the most recent entry", () => {
+    const dividendsByYear = [
+      { year: 2025, totalPerShare: 3, yieldPercent: 6 },
+      { year: 2026, totalPerShare: 0.5, yieldPercent: 1 },
+    ];
+    expect(computePayoutRatio(dividendsByYear, 5, 2026)).toBeCloseTo(60);
+  });
+
+  it("falls back to the only year available when it's also the current year", () => {
+    const dividendsByYear = [{ year: 2026, totalPerShare: 1, yieldPercent: 2 }];
+    expect(computePayoutRatio(dividendsByYear, 5, 2026)).toBeCloseTo(20);
+  });
+
+  it("returns null with no dividend history, no EPS, or EPS of zero", () => {
+    expect(computePayoutRatio([], 5, 2026)).toBeNull();
+    expect(computePayoutRatio([{ year: 2025, totalPerShare: 2, yieldPercent: 5 }], null, 2026)).toBeNull();
+    expect(computePayoutRatio([{ year: 2025, totalPerShare: 2, yieldPercent: 5 }], 0, 2026)).toBeNull();
   });
 });
 

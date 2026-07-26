@@ -7,6 +7,7 @@ import {
   computeDividendMonthRadar,
   computeGrahamFairPrice,
   computePayoutHistory,
+  computePayoutRatio,
   computeProfitabilityPeriods,
   groupDividendsByYear,
 } from "../domain/asset-analysis";
@@ -60,6 +61,7 @@ export class AssetAnalysisService {
     const dividendsByYear = groupDividendsByYear(dividends, monthlyHistory);
     const recentYears = dividendsByYear.slice(-BAZIN_LOOKBACK_YEARS);
     const avgAnnualDividend = recentYears.length > 0 ? recentYears.reduce((sum, y) => sum + y.totalPerShare, 0) / recentYears.length : null;
+    const payoutRatio = computePayoutRatio(dividendsByYear, eps, new Date().getFullYear());
 
     const profitability = computeProfitabilityPeriods(detail.history, monthlyHistory, currentPrice, new Date());
 
@@ -82,7 +84,7 @@ export class AssetAnalysisService {
         priceToSales: advanced?.indicators.priceToSales ?? null,
         priceToBook: advanced?.indicators.priceToBook ?? null,
         dividendYield,
-        payoutRatio: advanced?.indicators.payoutRatio ?? null,
+        payoutRatio: payoutRatio ?? advanced?.indicators.payoutRatio ?? null,
         netMargin: advanced?.indicators.profitMargins ?? null,
         grossMargin: advanced?.indicators.grossMargins ?? null,
         returnOnEquity: advanced?.indicators.returnOnEquity ?? null,

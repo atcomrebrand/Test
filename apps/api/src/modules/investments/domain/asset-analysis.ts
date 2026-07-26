@@ -147,6 +147,20 @@ export function groupDividendsByYear(events: DividendEvent[], monthlyPriceHistor
     .sort((a, b) => a.year - b.year);
 }
 
+/** Payout ratio = dividendo por ação ÷ lucro por ação, computed from the last FULLY completed
+ *  calendar year in dividendsByYear (skips the current year when it's the most recent entry — a
+ *  partial year of dividends divided against a full trailing-twelve-months EPS would understate the
+ *  ratio, since most of the year's dividends haven't been paid yet). Falls back to whatever single
+ *  year is available if that's all there is (e.g. a stock that only started paying this year). Null
+ *  with no dividend history yet or no EPS to divide against. Needs no data beyond what this page
+ *  already fetches (dividendsByYear + LPA), unlike every other module-sourced indicator. */
+export function computePayoutRatio(dividendsByYear: DividendYearSummary[], eps: number | null, currentYear: number): number | null {
+  if (eps === null || eps === 0 || dividendsByYear.length === 0) return null;
+  const completedYears = dividendsByYear.filter((y) => y.year < currentYear);
+  const target = completedYears.length > 0 ? completedYears[completedYears.length - 1] : dividendsByYear[dividendsByYear.length - 1];
+  return Math.round((target.totalPerShare / eps) * 1000) / 10;
+}
+
 export interface DividendMonthRadarEntry {
   month: number;
   monthlyPaymentCount: number;
