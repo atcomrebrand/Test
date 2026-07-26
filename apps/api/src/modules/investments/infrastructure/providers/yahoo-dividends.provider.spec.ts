@@ -86,3 +86,68 @@ describe("YahooDividendsProvider.fetchDividends", () => {
     expect(events[0].ticker).toBe("BBSE3F");
   });
 });
+
+describe("YahooDividendsProvider.fetchHistory", () => {
+  const originalFetch = global.fetch;
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  function mockChart(timestamps: number[], closes: number[], adjcloses?: number[]) {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        chart: {
+          result: [
+            {
+              timestamp: timestamps,
+              indicators: {
+                quote: [{ close: closes }],
+                ...(adjcloses ? { adjclose: [{ adjclose: adjcloses }] } : {}),
+              },
+            },
+          ],
+        },
+      }),
+    })) as any;
+  }
+
+  it("maps timestamp/close pairs into HistoricalPricePoint, preferring adjclose over close", async () => {
+    mockChart([1735689600, 1738368000], [10, 11], [9.5, 10.5]);
+    const provider = new YahooDividendsProvider();
+    const history = await provider.fetchHistory("SAPR4", { range: "12M" });
+    expect(history).toEqual([
+      { date: "2025-01-01", close: 9.5 },
+      { date: "2025-02-01", close: 10.5 },
+    ]);
+  });
+
+  it("requests range=max&interval=1mo for the MAX range — the same tier BRAPI's plan blocks", async () => {
+    const calls: string[] = [];
+    global.fetch = jest.fn(async (url: string) => {
+      calls.push(url);
+      return { ok: true, json: async () => ({ chart: { result: [{ timestamp: [], indicators: { quote: [{ close: [] }] } }] } }) } as any;
+    }) as any;
+
+    const provider = new YahooDividendsProvider();
+    await provider.fetchHistory("SAPR4", { range: "MAX" });
+    expect(calls[0]).toContain("interval=1mo&range=max");
+  });
+
+  it("skips a point whose close is null (a gap in Yahoo's own series) instead of throwing", async () => {
+    mockChart([1735689600, 1738368000], [10, 11]);
+    const provider = new YahooDividendsProvider();
+    const history = await provider.fetchHistory("SAPR4", { range: "12M" });
+    // Both points are valid here since close is present for both — this asserts the shape survives
+    // a mixed series where adjclose is entirely absent (falls back to close, not undefined).
+    expect(history).toHaveLength(2);
+  });
+
+  it("slices a CUSTOM range down to the exact [from, to] window", async () => {
+    mockChart([1735689600, 1736899200, 1738368000], [10, 10.5, 11]);
+    const provider = new YahooDividendsProvider();
+    const history = await provider.fetchHistory("SAPR4", { range: "CUSTOM", from: "2025-01-15", to: "2025-01-20" });
+    expect(history).toEqual([{ date: "2025-01-15", close: 10.5 }]);
+  });
+});

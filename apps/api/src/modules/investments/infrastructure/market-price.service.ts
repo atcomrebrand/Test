@@ -11,6 +11,7 @@ import {
 } from "../domain/market-data.provider";
 import { FundamentusProvider } from "./providers/fundamentus.provider";
 import { FundamentusIndicators } from "../domain/fundamentus-parser";
+import { YahooDividendsProvider } from "./providers/yahoo-dividends.provider";
 
 /** Short TTL so prices feel live without hammering the free-tier BRAPI/CoinGecko rate limits. */
 const PRICE_TTL_MS = 5 * 60 * 1000;
@@ -47,6 +48,7 @@ export class MarketPriceService {
     private readonly stockProvider: StockQuoteProvider,
     private readonly cryptoProvider: CryptoQuoteProvider,
     private readonly fundamentusProvider: FundamentusProvider,
+    private readonly yahooProvider: YahooDividendsProvider,
   ) {}
 
   /** Returns the last known price even if today's refresh failed, or null if never fetched. */
@@ -216,12 +218,25 @@ export class MarketPriceService {
    *  (which only ever holds a fixed 3-month window). Falls back to an empty list on failure so a
    *  chart error never breaks the rest of the page. */
   async getHistory(assetClass: InvestmentAssetClass, symbol: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]> {
+    if (assetClass === "CRYPTO") {
+      try {
+        return await this.cryptoProvider.fetchHistory(symbol, options);
+      } catch (err) {
+        this.logger.warn(`History fetch failed for CRYPTO ${symbol} (${options.range}): ${(err as Error).message}`);
+        return [];
+      }
+    }
+
     try {
-      if (assetClass === "CRYPTO") return await this.cryptoProvider.fetchHistory(symbol, options);
       return await this.stockProvider.fetchHistory(symbol, options);
     } catch (err) {
-      this.logger.warn(`History fetch failed for ${assetClass} ${symbol} (${options.range}): ${(err as Error).message}`);
-      return [];
+      this.logger.warn(`History fetch failed for ${assetClass} ${symbol} via BRAPI (${options.range}), trying Yahoo Finance: ${(err as Error).message}`);
+      try {
+        return await this.yahooProvider.fetchHistory(symbol, options);
+      } catch (fallbackErr) {
+        this.logger.warn(`Yahoo Finance history fallback also failed for ${symbol}: ${(fallbackErr as Error).message}`);
+        return [];
+      }
     }
   }
 
