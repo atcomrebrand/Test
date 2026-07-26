@@ -37,15 +37,19 @@ export function generateInstallments(input: GenerateInstallmentsInput): Generate
 
   const firstReference = firstReferenceMonth(purchaseDate, closingDay);
   const amount = round2(installmentAmount);
+  // A due day before the closing day means the bill is only due the following month (e.g. closes
+  // the 28th, due the 5th) — without this, the due date would land before the invoice even closes.
+  const dueOffset = dueDay < closingDay ? 1 : 0;
 
   return Array.from({ length: installmentsCount }, (_, i) => {
     const { year, month } = addMonths(firstReference.year, firstReference.month, i);
+    const due = addMonths(year, month, dueOffset);
     return {
       number: i + 1,
       amount,
       referenceMonth: month,
       referenceYear: year,
-      dueDate: dateForDayInMonth(year, month, dueDay),
+      dueDate: dateForDayInMonth(due.year, due.month, dueDay),
     };
   });
 }

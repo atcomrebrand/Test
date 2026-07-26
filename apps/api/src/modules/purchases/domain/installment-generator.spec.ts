@@ -94,6 +94,52 @@ describe("generateInstallments", () => {
     expect(result[0].dueDate.getMonth()).toBe(6); // July (before closing day, current invoice)
   });
 
+  it("rolls the due date into the following month when the due day is before the closing day", () => {
+    const result = generateInstallments({
+      purchaseDate: new Date(2026, 5, 15), // June 15th
+      closingDay: 28,
+      dueDay: 5,
+      installmentAmount: 100,
+      installmentsCount: 3,
+    });
+
+    expect(result.map((i) => i.referenceMonth)).toEqual([6, 7, 8]); // still named by closing month
+    expect(result.map((i) => [i.dueDate.getMonth(), i.dueDate.getDate()])).toEqual([
+      [6, 5], // July 5th — due after the June 28th closing, not before it
+      [7, 5], // August 5th
+      [8, 5], // September 5th
+    ]);
+  });
+
+  it("rolls the due date's year forward when the crossover lands in January", () => {
+    const result = generateInstallments({
+      purchaseDate: new Date(2026, 11, 10), // Dec 10th
+      closingDay: 28,
+      dueDay: 5,
+      installmentAmount: 100,
+      installmentsCount: 1,
+    });
+
+    expect(result[0].referenceMonth).toBe(12);
+    expect(result[0].referenceYear).toBe(2026);
+    expect(result[0].dueDate.getFullYear()).toBe(2027);
+    expect(result[0].dueDate.getMonth()).toBe(0); // January
+    expect(result[0].dueDate.getDate()).toBe(5);
+  });
+
+  it("keeps the due date in the same month as the reference when the due day is on/after the closing day", () => {
+    const result = generateInstallments({
+      purchaseDate: new Date(2026, 6, 8),
+      closingDay: 10,
+      dueDay: 17,
+      installmentAmount: 100,
+      installmentsCount: 1,
+    });
+
+    expect(result[0].dueDate.getMonth()).toBe(6); // July — same as referenceMonth
+    expect(result[0].dueDate.getDate()).toBe(17);
+  });
+
   it("clamps a due day of 31 to the last real day of a shorter month (February)", () => {
     const result = generateInstallments({
       purchaseDate: new Date(2026, 0, 15), // Jan 15th, closes before day 31 so lands on January invoice
