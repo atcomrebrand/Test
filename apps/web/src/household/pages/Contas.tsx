@@ -267,7 +267,11 @@ function PayableCardView({
             {isBill ? (
               <InlineAmountCell value={billAmount} disabled={!row.entry.bill.allowAmountChange} onSave={(v) => onUpdateBillEntry({ amount: v })} />
             ) : (
-              <InlineAmountCell value={Number(row.entry.totalInvoice)} onSave={(v) => onUpdateCardEntry({ totalInvoice: v })} />
+              <InlineAmountCell
+                value={Number(row.entry.totalInvoice)}
+                presumedValue={row.entry.presumedInvoice}
+                onSave={(v) => onUpdateCardEntry({ totalInvoice: v })}
+              />
             )}
           </div>
 
