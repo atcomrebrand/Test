@@ -144,19 +144,23 @@ export class InstallmentsService {
     return this.prisma.installment.findUnique({ where: { id } });
   }
 
-  /** Sum of Installment.amount per cardId for a given competência (referenceYear/referenceMonth),
-   *  excluding CANCELLED installments and installments whose purchase is in the lixeira (soft
-   *  deleted) — same exclusion rule findAll() applies. Read-only: never touches this module's own
-   *  tables. Used by the Household module to compute a "fatura presumida" for a linked card. */
+  /** Sum of Installment.amount per cardId actually due within the given calendar month (by
+   *  dueDate, not referenceMonth/referenceYear — the "competência" a card's invoice is named
+   *  after can fall a calendar month before it's actually due, e.g. a card that closes the 28th
+   *  and dues the 5th). Excludes CANCELLED installments and installments whose purchase is in the
+   *  lixeira (soft deleted) — same exclusion rule findAll() applies. Read-only: never touches this
+   *  module's own tables. Used by the Household module to compute a "fatura presumida" for a
+   *  linked card. */
   async getMonthlyTotalsForCards(userId: string, cardIds: string[], year: number, month: number): Promise<Map<string, number>> {
     if (cardIds.length === 0) return new Map();
+    const monthStart = new Date(year, month - 1, 1);
+    const monthEnd = new Date(year, month, 1);
     const grouped = await this.prisma.installment.groupBy({
       by: ["cardId"],
       where: {
         userId,
         cardId: { in: cardIds },
-        referenceYear: year,
-        referenceMonth: month,
+        dueDate: { gte: monthStart, lt: monthEnd },
         status: { not: "CANCELLED" },
         purchase: { deletedAt: null },
       },
