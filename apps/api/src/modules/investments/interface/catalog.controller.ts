@@ -41,4 +41,9 @@ export class CatalogController {
   ) {
     return this.explorer.getHistory(assetClass ?? "STOCK", ticker, parseChartRangeOptions(range, from, to));
   }
+
+  @Get("analysis")
+  analysis(@Query("class") assetClass: "STOCK" | "FII" | "CRYPTO", @Query("ticker") ticker: string) {
+    return this.explorer.getAnalysis(assetClass ?? "STOCK", ticker);
+  }
 }

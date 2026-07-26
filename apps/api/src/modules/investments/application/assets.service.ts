@@ -6,6 +6,7 @@ import { ChartRangeOptions } from "../domain/market-data.provider";
 import { calculatePosition } from "../domain/position-calculator";
 import { calculateStakingYield } from "../domain/staking-calculator";
 import { MarketPriceService } from "../infrastructure/market-price.service";
+import { AssetAnalysisService } from "./asset-analysis.service";
 import { DividendAutoSyncService } from "./dividend-auto-sync.service";
 import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto, UpdateIncomeDto, UpdateTransactionDto } from "./dto/asset.dto";
 
@@ -25,6 +26,7 @@ export class AssetsService {
     private readonly assets: AssetRepository,
     private readonly marketPrice: MarketPriceService,
     private readonly dividendSync: DividendAutoSyncService,
+    private readonly analysis: AssetAnalysisService,
   ) {}
 
   async findAll(userId: string, assetClass?: string, forceRefresh = false) {
@@ -59,6 +61,15 @@ export class AssetsService {
   async getHistory(userId: string, id: string, options: ChartRangeOptions) {
     const asset = await this.getOwned(userId, id);
     return this.marketPrice.getHistory(asset.class, asset.ticker, options);
+  }
+
+  /** Indicadores/Checklist/Proventos analysis tab — stocks/FIIs only. Returns null (not a thrown
+   *  error) for any other class, so the frontend can simply hide the tab instead of every caller
+   *  needing its own try/catch. */
+  async getAnalysis(userId: string, id: string) {
+    const asset = await this.getOwned(userId, id);
+    if (asset.class !== "STOCK" && asset.class !== "FII") return null;
+    return this.analysis.analyze(asset.class, asset.ticker);
   }
 
   create(userId: string, dto: CreateAssetDto) {

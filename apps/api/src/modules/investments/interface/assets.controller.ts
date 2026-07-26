@@ -36,6 +36,11 @@ export class AssetsController {
     return this.service.getHistory(user.userId, id, parseChartRangeOptions(range, from, to));
   }
 
+  @Get(":id/analysis")
+  getAnalysis(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.service.getAnalysis(user.userId, id);
+  }
+
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateAssetDto) {
     return this.service.create(user.userId, dto);

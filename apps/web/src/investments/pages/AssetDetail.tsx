@@ -7,12 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/cn";
 import { formatCurrency, formatDate } from "@/lib/format";
-import { useAsset, useAssetHistory, useAssetQuoteDetail, useRefreshAssetQuote, useToggleFavorite } from "../api";
+import { useAsset, useAssetAnalysis, useAssetHistory, useAssetQuoteDetail, useRefreshAssetQuote, useToggleFavorite } from "../api";
 import { QuoteDetailCard } from "../components/QuoteDetailCard";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
 import { StakingConfigModal } from "../components/StakingConfigModal";
 import { YieldingIndicator } from "../components/YieldingIndicator";
+import { AssetAnalysisTabs } from "../components/analysis/AssetAnalysisTabs";
 import { ChartRange } from "../types";
 
 export default function AssetDetail() {
@@ -24,6 +25,7 @@ export default function AssetDetail() {
 
   const [chartRange, setChartRange] = useState<{ range: ChartRange; from?: string; to?: string }>({ range: "3M" });
   const { data: history, isLoading: historyLoading } = useAssetHistory(id ?? null, chartRange);
+  const { data: analysis, isLoading: analysisLoading } = useAssetAnalysis(id ?? null, asset?.class);
 
   const [transactionOpen, setTransactionOpen] = useState(false);
   const [incomeOpen, setIncomeOpen] = useState(false);
@@ -102,6 +104,10 @@ export default function AssetDetail() {
         customTo={chartRange.to}
         onRangeChange={(range, from, to) => setChartRange({ range, from, to })}
       />
+
+      {(asset.class === "STOCK" || asset.class === "FII") && (
+        <AssetAnalysisTabs analysis={analysis} isLoading={analysisLoading} />
+      )}
 
       {asset.class === "CRYPTO" && (
         <Card>

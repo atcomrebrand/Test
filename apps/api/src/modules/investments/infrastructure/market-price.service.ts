@@ -1,12 +1,22 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { InvestmentAssetClass } from "@prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
-import { ChartRangeOptions, CryptoQuoteProvider, HistoricalPricePoint, AssetFundamentals, StockQuoteProvider } from "../domain/market-data.provider";
+import {
+  AdvancedFundamentals,
+  ChartRangeOptions,
+  CryptoQuoteProvider,
+  HistoricalPricePoint,
+  AssetFundamentals,
+  StockQuoteProvider,
+} from "../domain/market-data.provider";
 
 /** Short TTL so prices feel live without hammering the free-tier BRAPI/CoinGecko rate limits. */
 const PRICE_TTL_MS = 5 * 60 * 1000;
 /** History/fundamentals change far less often intraday, so they get a longer TTL. */
 const DETAIL_TTL_MS = 30 * 60 * 1000;
+/** Balanços/DRE only change quarterly at most — a long TTL keeps the heavier multi-module lookup
+ *  from ever running more than once every few hours per ticker. */
+const ADVANCED_FUNDAMENTALS_TTL_MS = 6 * 60 * 60 * 1000;
 
 export interface AssetQuoteDetail {
   price: number;
@@ -131,6 +141,39 @@ export class MarketPriceService {
         fetchedAt: cached.fetchedAt,
         approximate: cached.approximate,
       };
+    }
+  }
+
+  /** Indicadores/checklist-grade fundamentals (P/VP, ROE, ROA, margens, payout, balanço/DRE
+   *  histórico) — stocks/FIIs only, crypto has no equivalent. Cached separately from the basic
+   *  `fundamentals` blob on a much longer TTL since this is a heavier multi-module lookup and the
+   *  underlying data (quarterly financials) barely changes day to day. Returns null on total
+   *  failure with nothing cached yet — the caller shows "indisponível" instead of crashing.
+   *  Callers should call getDetail() for this symbol first (AssetAnalysisService always does) so
+   *  the cache row already exists with a real price before this ever needs to create one itself. */
+  async getAdvancedFundamentals(symbol: string, options: { forceRefresh?: boolean } = {}): Promise<AdvancedFundamentals | null> {
+    const assetClass: InvestmentAssetClass = "STOCK";
+    const cached = await this.prisma.investmentPriceCache.findUnique({ where: { symbol_assetClass: { symbol, assetClass } } });
+
+    const isFresh =
+      cached?.advancedFundamentals &&
+      cached.advancedFundamentalsAt &&
+      !options.forceRefresh &&
+      Date.now() - cached.advancedFundamentalsAt.getTime() < ADVANCED_FUNDAMENTALS_TTL_MS;
+    if (isFresh) return cached.advancedFundamentals as unknown as AdvancedFundamentals;
+
+    try {
+      const data = await this.stockProvider.fetchAdvancedFundamentals(symbol);
+      if (!data) return (cached?.advancedFundamentals as unknown as AdvancedFundamentals) ?? null;
+      await this.prisma.investmentPriceCache.upsert({
+        where: { symbol_assetClass: { symbol, assetClass } },
+        create: { symbol, assetClass, price: 0, currency: "BRL", source: "brapi", advancedFundamentals: data as any, advancedFundamentalsAt: new Date() },
+        update: { advancedFundamentals: data as any, advancedFundamentalsAt: new Date() },
+      });
+      return data;
+    } catch (err) {
+      this.logger.warn(`Advanced fundamentals refresh failed for ${symbol}: ${(err as Error).message}`);
+      return (cached?.advancedFundamentals as unknown as AdvancedFundamentals) ?? null;
     }
   }
 

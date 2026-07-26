@@ -118,6 +118,90 @@ export interface MarketQuoteDetailResponse {
   ownedAssetId: string | null;
 }
 
+// ---------------------------------------------------------------------------
+// Análise (Visão Geral / Indicadores / Checklist / Proventos) — stocks/FIIs only
+// ---------------------------------------------------------------------------
+
+export type ProfitabilityPeriod = "1M" | "3M" | "1A" | "2A" | "5A" | "10A";
+
+export interface AssetIndicators {
+  peRatio: number | null;
+  priceToSales: number | null;
+  priceToBook: number | null;
+  dividendYield: number | null;
+  payoutRatio: number | null;
+  netMargin: number | null;
+  grossMargin: number | null;
+  returnOnEquity: number | null;
+  returnOnAssets: number | null;
+  netDebtToEquity: number | null;
+  currentRatio: number | null;
+}
+
+export interface GrahamResult {
+  currentPrice: number;
+  fairPrice: number;
+  upsidePercent: number;
+}
+
+export interface BazinResult {
+  currentPrice: number;
+  ceilingPrice: number;
+}
+
+export type ChecklistStatus = "PASS" | "FAIL" | "UNKNOWN";
+
+export interface ChecklistItem {
+  id: string;
+  label: string;
+  status: ChecklistStatus;
+}
+
+export interface DividendYearSummary {
+  year: number;
+  totalPerShare: number;
+  yieldPercent: number | null;
+}
+
+export interface DividendMonthRadarEntry {
+  month: number;
+  monthlyPaymentCount: number;
+}
+
+export interface PayoutYearEntry {
+  year: number;
+  netIncome: number;
+  payoutPercent: number | null;
+  dividendYieldPercent: number | null;
+}
+
+export interface DividendEventDto {
+  ticker: string;
+  type: "DIVIDENDO" | "JCP" | "OUTRO";
+  rate: number;
+  exDate: string | null;
+  paymentDate: string | null;
+  relatedTo: string | null;
+}
+
+export interface AssetAnalysis {
+  ticker: string;
+  assetClass: "STOCK" | "FII";
+  currentPrice: number;
+  changePercent: number | null;
+  indicators: AssetIndicators;
+  tip: { amountIfInvested100OneYearAgo: number | null };
+  profitability: Record<ProfitabilityPeriod, number | null>;
+  graham: GrahamResult | null;
+  bazin: BazinResult | null;
+  checklist: ChecklistItem[];
+  dividendsByYear: DividendYearSummary[];
+  dividendsPaid: DividendEventDto[];
+  dividendsUpcoming: DividendEventDto[];
+  dividendMonthRadar: DividendMonthRadarEntry[];
+  payoutHistory: PayoutYearEntry[];
+}
+
 export interface NewsArticle {
   title: string;
   link: string;

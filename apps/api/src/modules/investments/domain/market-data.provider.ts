@@ -86,6 +86,40 @@ export interface DividendEvent {
   relatedTo: string | null;
 }
 
+export interface AnnualIncomeEntry {
+  year: number;
+  netIncome: number;
+}
+
+/** Current-snapshot ratios beyond the basic P/L, LPA and dividend yield already in
+ *  AssetFundamentals — powers the "Indicadores" and part of the "Checklist" sections. Every field
+ *  is best-effort: the advanced BRAPI modules this comes from may not be available on every plan,
+ *  so a null here means "couldn't get it," not "the company has none." */
+export interface AdvancedIndicators {
+  priceToBook: number | null; // P/VP
+  returnOnEquity: number | null; // ROE, %
+  returnOnAssets: number | null; // ROA, %
+  profitMargins: number | null; // margem líquida, %
+  grossMargins: number | null; // margem bruta, %
+  payoutRatio: number | null; // %
+  currentRatio: number | null; // liquidez corrente
+  debtToEquity: number | null; // dívida líquida / patrimônio
+  priceToSales: number | null; // PSR
+  bookValuePerShare: number | null; // VPA — feeds Graham
+}
+
+export interface AdvancedFundamentals {
+  indicators: AdvancedIndicators;
+  /** Annual net income history, oldest first. Null when the module wasn't available at all
+   *  (distinct from an empty array, which would mean "available but genuinely no history"). */
+  annualNetIncome: AnnualIncomeEntry[] | null;
+  /** Quarterly net income history, oldest first — used for the "20 quarters of profit" checklist
+   *  item, which annual data alone can't answer. */
+  quarterlyNetIncome: number[] | null;
+  totalLiabilities: number | null;
+  totalStockholderEquity: number | null;
+}
+
 export abstract class StockQuoteProvider {
   abstract fetchQuote(ticker: string): Promise<QuoteResult>;
   abstract fetchDetail(ticker: string): Promise<QuoteDetail>;
@@ -99,6 +133,12 @@ export abstract class StockQuoteProvider {
    *  equivalent corporate action, so this isn't on CryptoQuoteProvider. assetClass picks which
    *  BRAPI endpoint serves the request — see DividendAssetClass. */
   abstract fetchDividends(ticker: string, assetClass: DividendAssetClass): Promise<DividendEvent[]>;
+  /** Indicadores/checklist-grade fundamentals — a separate, heavier lookup from fetchDetail (more
+   *  modules, more likely to hit a plan limit), so callers should treat a failure here as "show
+   *  what we have" rather than losing the whole detail page over it. Returns null wholesale when
+   *  even the base request fails; individual fields inside a successful response are still
+   *  independently nullable when only part of the payload came back. */
+  abstract fetchAdvancedFundamentals(ticker: string): Promise<AdvancedFundamentals | null>;
 }
 
 export abstract class CryptoQuoteProvider {

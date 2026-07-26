@@ -40,6 +40,7 @@ import { B3ImportController } from "./interface/b3-import.controller";
 import { LaunchesController } from "./interface/launches.controller";
 import { InvestmentsResetService } from "./application/investments-reset.service";
 import { InvestmentsResetController } from "./interface/investments-reset.controller";
+import { AssetAnalysisService } from "./application/asset-analysis.service";
 
 @Module({
   imports: [NotificationsModule],
@@ -76,6 +77,7 @@ import { InvestmentsResetController } from "./interface/investments-reset.contro
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },
     FixedIncomesService,
     { provide: AssetRepository, useClass: AssetPrismaRepository },
+    AssetAnalysisService,
     AssetsService,
     { provide: CashAccountRepository, useClass: CashAccountPrismaRepository },
     CashAccountsService,

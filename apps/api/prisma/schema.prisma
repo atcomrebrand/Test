@@ -623,6 +623,11 @@ model InvestmentPriceCache {
   history       Json?
   /// Loose key/value fundamentals (P/L, market cap, 52w high/low, etc.) — provider-dependent.
   fundamentals  Json?
+  /// AdvancedFundamentals (P/VP, ROE, ROA, margens, payout, balanço/DRE histórico) — a separate,
+  /// heavier fetch than `fundamentals` above, cached on its own timestamp/TTL so a slow advanced
+  /// lookup never blocks the basic price/detail view.
+  advancedFundamentals   Json?
+  advancedFundamentalsAt DateTime?
 
   @@unique([symbol, assetClass])
   @@map("investment_price_cache")

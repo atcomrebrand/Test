@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { baseTickerFor } from "../../domain/fractional-ticker";
 import {
+  AdvancedFundamentals,
   AssetFundamentals,
   CatalogEntry,
   ChartRangeOptions,
@@ -110,6 +111,51 @@ interface BrapiV2StatisticsData {
   dividendYield?: number;
 }
 
+/** NOT confirmed against a live call — this sandbox's network egress blocks brapi.dev outright, so
+ *  this is inferred from brapi's own blog posts describing these modules (field names match their
+ *  docs) plus the well-known Yahoo Finance quoteSummary shape brapi's module names mirror exactly
+ *  (defaultKeyStatistics/financialData/balanceSheetHistory/incomeStatementHistory are Yahoo's own
+ *  module names). Every consumer of this treats every field as optional and degrades gracefully —
+ *  verify against a real token in production and tighten these interfaces once confirmed, the same
+ *  way every other "Confirmed against a live call" comment in this file was written after the fact. */
+interface BrapiV2DefaultKeyStatistics {
+  priceToBook?: number;
+  returnOnEquity?: number;
+  bookValue?: number;
+  payoutRatio?: number;
+  profitMargins?: number;
+}
+
+interface BrapiV2FinancialData {
+  currentRatio?: number;
+  debtToEquity?: number;
+  returnOnAssets?: number;
+  grossMargins?: number;
+  revenuePerShare?: number;
+}
+
+interface BrapiV2IncomeStatementEntry {
+  endDate?: string;
+  netIncome?: number;
+  totalRevenue?: number;
+}
+
+interface BrapiV2BalanceSheetEntry {
+  endDate?: string;
+  totalStockholderEquity?: number;
+  totalLiab?: number;
+}
+
+/** Mirrors Yahoo's quoteSummary nesting (module name repeated as the array's own key) — see the
+ *  unverified-inference note above. */
+interface BrapiV2AdvancedModules {
+  defaultKeyStatistics?: BrapiV2DefaultKeyStatistics;
+  financialData?: BrapiV2FinancialData;
+  incomeStatementHistory?: { incomeStatementHistory?: BrapiV2IncomeStatementEntry[] };
+  incomeStatementHistoryQuarterly?: { incomeStatementHistory?: BrapiV2IncomeStatementEntry[] };
+  balanceSheetHistory?: { balanceSheetStatements?: BrapiV2BalanceSheetEntry[] };
+}
+
 /** Confirmed against a live call to /api/v2/stocks/historical with a real token (2026-07-20) —
  *  same historicalDataPrice shape as v1 (date/open/high/low/close/volume/adjustedClose), just
  *  nested under results[0].data alongside usedRange/usedInterval instead of sitting directly on
@@ -199,6 +245,83 @@ export class BrapiProvider extends StockQuoteProvider {
       fundamentals,
       approximate,
     };
+  }
+
+  /** Indicadores/checklist-grade fundamentals — a heavier, separate request from fetchDetail so a
+   *  plan limit or module hiccup here never takes down the basic price/P-L/DY view. Every field is
+   *  independently optional; a totally failed request degrades to null (caller shows "indisponível"
+   *  instead of crashing the page). */
+  async fetchAdvancedFundamentals(ticker: string): Promise<AdvancedFundamentals | null> {
+    try {
+      const modules = await this.fetchAdvancedModulesV2WithFallback(ticker);
+      const stats = modules.defaultKeyStatistics;
+      const financial = modules.financialData;
+      const balanceSheet = modules.balanceSheetHistory?.balanceSheetStatements?.[0];
+      const annualIncome = modules.incomeStatementHistory?.incomeStatementHistory;
+      const quarterlyIncome = modules.incomeStatementHistoryQuarterly?.incomeStatementHistory;
+
+      return {
+        indicators: {
+          priceToBook: stats?.priceToBook ?? null,
+          returnOnEquity: stats?.returnOnEquity ?? null,
+          returnOnAssets: financial?.returnOnAssets ?? null,
+          profitMargins: stats?.profitMargins ?? null,
+          grossMargins: financial?.grossMargins ?? null,
+          payoutRatio: stats?.payoutRatio ?? null,
+          currentRatio: financial?.currentRatio ?? null,
+          debtToEquity: financial?.debtToEquity ?? null,
+          priceToSales: null,
+          bookValuePerShare: stats?.bookValue ?? null,
+        },
+        annualNetIncome: annualIncome
+          ? annualIncome
+              .filter((e): e is BrapiV2IncomeStatementEntry & { netIncome: number; endDate: string } => typeof e.netIncome === "number" && !!e.endDate)
+              .map((e) => ({ year: new Date(e.endDate).getFullYear(), netIncome: e.netIncome }))
+              .sort((a, b) => a.year - b.year)
+          : null,
+        quarterlyNetIncome: quarterlyIncome
+          ? quarterlyIncome
+              .filter((e): e is BrapiV2IncomeStatementEntry & { netIncome: number; endDate: string } => typeof e.netIncome === "number" && !!e.endDate)
+              .sort((a, b) => new Date(a.endDate).getTime() - new Date(b.endDate).getTime())
+              .map((e) => e.netIncome)
+          : null,
+        totalLiabilities: balanceSheet?.totalLiab ?? null,
+        totalStockholderEquity: balanceSheet?.totalStockholderEquity ?? null,
+      };
+    } catch (err) {
+      this.logger.warn(`No advanced fundamentals for ${ticker}: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
+  /** Same round-lot fallback as the other v2 endpoints. */
+  private async fetchAdvancedModulesV2WithFallback(ticker: string): Promise<BrapiV2AdvancedModules> {
+    try {
+      return await this.fetchRawAdvancedModulesV2(ticker);
+    } catch (err) {
+      const base = baseTickerFor(ticker);
+      if (!base) throw err;
+      this.logger.warn(`No v2 advanced modules for fractional ticker ${ticker}, falling back to ${base}: ${(err as Error).message}`);
+      return this.fetchRawAdvancedModulesV2(base);
+    }
+  }
+
+  private async fetchRawAdvancedModulesV2(ticker: string): Promise<BrapiV2AdvancedModules> {
+    const token = process.env.BRAPI_TOKEN;
+    const modules = "defaultKeyStatistics,financialData,balanceSheetHistory,incomeStatementHistory,incomeStatementHistoryQuarterly";
+    const url = `https://brapi.dev/api/v2/stocks/quote?symbols=${encodeURIComponent(ticker)}&modules=${modules}`;
+
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(10000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      throw new Error(`BRAPI v2 advanced modules request failed for ${ticker}: ${res.status}`);
+    }
+    const body = (await res.json()) as { results?: { data?: BrapiV2AdvancedModules }[] };
+    const data = body.results?.[0]?.data;
+    if (!data) throw new Error(`BRAPI v2 returned no advanced modules data for ${ticker}`);
+    return data;
   }
 
   /** Price history for a user-chosen time range. Not part of the 30-minute detail cache — range

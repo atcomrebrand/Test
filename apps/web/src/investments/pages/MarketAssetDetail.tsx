@@ -6,7 +6,8 @@ import { Badge } from "@/components/ui/Badge";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { QuoteDetailCard } from "../components/QuoteDetailCard";
 import { AssetFormModal } from "../components/AssetFormModal";
-import { useMarketHistory, useMarketQuoteDetail, useRefreshMarketQuoteDetail } from "../api";
+import { AssetAnalysisTabs } from "../components/analysis/AssetAnalysisTabs";
+import { useMarketAnalysis, useMarketHistory, useMarketQuoteDetail, useRefreshMarketQuoteDetail } from "../api";
 import { AssetClass, ChartRange } from "../types";
 
 export default function MarketAssetDetail() {
@@ -22,6 +23,7 @@ export default function MarketAssetDetail() {
 
   const [chartRange, setChartRange] = useState<{ range: ChartRange; from?: string; to?: string }>({ range: "3M" });
   const { data: history, isLoading: historyLoading } = useMarketHistory(normalizedClass, normalizedTicker, chartRange);
+  const { data: analysis, isLoading: analysisLoading } = useMarketAnalysis(normalizedClass, normalizedTicker);
 
   if (isLoading) {
     return (
@@ -77,6 +79,10 @@ export default function MarketAssetDetail() {
         customTo={chartRange.to}
         onRangeChange={(range, from, to) => setChartRange({ range, from, to })}
       />
+
+      {(normalizedClass === "STOCK" || normalizedClass === "FII") && (
+        <AssetAnalysisTabs analysis={analysis} isLoading={analysisLoading} />
+      )}
 
       <AssetFormModal
         open={addOpen}

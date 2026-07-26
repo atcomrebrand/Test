@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { api } from "@/lib/api";
 import {
   ArticlePreview,
+  AssetAnalysis,
   AssetQuoteDetailResponse,
   B3ImportCommitResult,
   B3ImportPreviewResult,
@@ -95,6 +96,18 @@ export function useMarketHistory(assetClass: string, ticker: string | null, para
   });
 }
 
+/** Indicadores/Checklist/Proventos analysis tab — same shape for both "Explorar" (any ticker) and
+ *  "Minha carteira" (below), backed by the same server endpoint either way. Stocks/FIIs only —
+ *  callers shouldn't even render the tab for CRYPTO. */
+export function useMarketAnalysis(assetClass: string, ticker: string | null) {
+  return useQuery({
+    queryKey: ["investments", "market", "analysis", assetClass, ticker],
+    queryFn: () => api.get<AssetAnalysis | null>("/investments/catalog/analysis", { params: { class: assetClass, ticker } }),
+    enabled: !!ticker && (assetClass === "STOCK" || assetClass === "FII"),
+    staleTime: 5 * 60_000,
+  });
+}
+
 export function useRefreshMarketQuoteDetail(assetClass: string, ticker: string | null) {
   const qc = useQueryClient();
   return useMutation({
@@ -153,6 +166,16 @@ export function useAssetHistory(id: string | null, params: ChartRangeParams) {
     queryKey: ["investments", "assets", "history", id, params],
     queryFn: () => api.get<HistoricalPricePoint[]>(`/investments/assets/${id}/history`, { params }),
     enabled: !!id && (params.range !== "CUSTOM" || (!!params.from && !!params.to)),
+  });
+}
+
+/** Same analysis as useMarketAnalysis, for an owned asset by id instead of a ticker. */
+export function useAssetAnalysis(id: string | null, assetClass?: string) {
+  return useQuery({
+    queryKey: ["investments", "assets", "analysis", id],
+    queryFn: () => api.get<AssetAnalysis | null>(`/investments/assets/${id}/analysis`),
+    enabled: !!id && (assetClass === "STOCK" || assetClass === "FII"),
+    staleTime: 5 * 60_000,
   });
 }
 

@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { AssetRepository } from "../domain/asset.repository";
 import { ChartRangeOptions } from "../domain/market-data.provider";
 import { MarketPriceService } from "../infrastructure/market-price.service";
+import { AssetAnalysisService } from "./asset-analysis.service";
 
 /**
  * Browsing/researching an asset (price, chart, fundamentals) is decoupled from owning it — you
@@ -14,6 +15,7 @@ export class MarketExplorerService {
   constructor(
     private readonly marketPrice: MarketPriceService,
     private readonly assets: AssetRepository,
+    private readonly analysis: AssetAnalysisService,
   ) {}
 
   async getQuoteDetail(userId: string, assetClass: "STOCK" | "FII" | "CRYPTO", ticker: string, forceRefresh = false) {
@@ -37,5 +39,12 @@ export class MarketExplorerService {
   async getHistory(assetClass: "STOCK" | "FII" | "CRYPTO", ticker: string, options: ChartRangeOptions) {
     const normalizedTicker = assetClass === "CRYPTO" ? ticker : ticker.toUpperCase();
     return this.marketPrice.getHistory(assetClass, normalizedTicker, options);
+  }
+
+  /** Same Indicadores/Checklist/Proventos analysis as AssetsService.getAnalysis, for any catalog
+   *  ticker regardless of ownership. Stocks/FIIs only. */
+  async getAnalysis(assetClass: "STOCK" | "FII" | "CRYPTO", ticker: string) {
+    if (assetClass !== "STOCK" && assetClass !== "FII") return null;
+    return this.analysis.analyze(assetClass, ticker.toUpperCase());
   }
 }

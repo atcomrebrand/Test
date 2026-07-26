@@ -25,6 +25,13 @@ export function parseAmountInput(raw: string): number {
   return Number(normalized);
 }
 
+/** Renders null as "—" instead of "0,0%" — a missing indicator should never look like a real
+ *  zero. */
+export function formatPercent(value: number | null | undefined, decimals = 1) {
+  if (value === null || value === undefined) return "—";
+  return `${value.toLocaleString("pt-BR", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}%`;
+}
+
 export function formatDate(value: string | Date, options?: Intl.DateTimeFormatOptions) {
   const date = typeof value === "string" ? new Date(value) : value;
   return new Intl.DateTimeFormat("pt-BR", options ?? { day: "2-digit", month: "short", year: "numeric" }).format(date);
