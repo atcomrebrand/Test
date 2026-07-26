@@ -14,6 +14,7 @@ function buildFixture(overrides: Record<string, string> = {}): string {
       <tr>${cell("Dia")}${cell("-1,72%")}${cell("?P/L")}${cell(withOverride("P/L", "5,06"))}</tr>
       <tr>${cell("Dia")}${cell("-1,72%")}${cell("?LPA")}${cell(withOverride("LPA", "8,35"))}</tr>
       <tr>${cell("Mês")}${cell("10,67%")}${cell("?Marg. Bruta")}${cell(withOverride("Marg. Bruta", "47,4%"))}</tr>
+      <tr>${cell("Mês")}${cell("10,67%")}${cell("?Marg. Líquida")}${cell(withOverride("Marg. Líquida", "21,7%"))}</tr>
       <tr>${cell("Mês")}${cell("10,67%")}${cell("?P/VP")}${cell(withOverride("P/VP", "1,22"))}</tr>
       <tr>${cell("30 dias")}${cell("7,32%")}${cell("?PSR")}${cell(withOverride("PSR", "1,09"))}</tr>
       <tr>${cell("30 dias")}${cell("7,32%")}${cell("?VPA")}${cell(withOverride("VPA", "34,54"))}</tr>
@@ -35,6 +36,7 @@ describe("parseFundamentusIndicators", () => {
     const result = parseFundamentusIndicators(buildFixture());
 
     expect(result.grossMargin).toBeCloseTo(47.4);
+    expect(result.netMargin).toBeCloseTo(21.7);
     expect(result.priceToSales).toBeCloseTo(1.09);
     expect(result.returnOnEquity).toBeCloseTo(24.2);
     expect(result.currentRatio).toBeCloseTo(0.74);
@@ -73,6 +75,7 @@ describe("parseFundamentusIndicators", () => {
     const result = parseFundamentusIndicators("<table><tr><td>Nada aqui</td></tr></table>");
     expect(result).toEqual({
       grossMargin: null,
+      netMargin: null,
       priceToSales: null,
       returnOnEquity: null,
       returnOnAssets: null,

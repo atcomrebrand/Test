@@ -1,5 +1,6 @@
 export interface FundamentusIndicators {
   grossMargin: number | null;
+  netMargin: number | null;
   priceToSales: number | null;
   returnOnEquity: number | null;
   returnOnAssets: number | null;
@@ -65,6 +66,7 @@ export function parseFundamentusIndicators(html: string): FundamentusIndicators 
 
   return {
     grossMargin: parsePtBrNumber(labeled.get("Marg. Bruta")),
+    netMargin: parsePtBrNumber(labeled.get("Marg. Líquida")),
     priceToSales: parsePtBrNumber(labeled.get("PSR")),
     returnOnEquity: parsePtBrNumber(labeled.get("ROE")),
     returnOnAssets: netIncomeTtm !== null && totalAssets !== null && totalAssets !== 0 ? (netIncomeTtm / totalAssets) * 100 : null,

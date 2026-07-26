@@ -191,7 +191,7 @@ export class MarketPriceService {
         priceToBook: brapi?.indicators.priceToBook ?? fundamentus?.priceToBook ?? null,
         returnOnEquity: fundamentus?.returnOnEquity ?? brapi?.indicators.returnOnEquity ?? null,
         returnOnAssets: fundamentus?.returnOnAssets ?? brapi?.indicators.returnOnAssets ?? null,
-        profitMargins: brapi?.indicators.profitMargins ?? null,
+        profitMargins: brapi?.indicators.profitMargins ?? fundamentus?.netMargin ?? null,
         grossMargins: fundamentus?.grossMargin ?? brapi?.indicators.grossMargins ?? null,
         payoutRatio: brapi?.indicators.payoutRatio ?? null,
         currentRatio: fundamentus?.currentRatio ?? brapi?.indicators.currentRatio ?? null,
