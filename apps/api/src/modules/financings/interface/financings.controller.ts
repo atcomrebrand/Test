@@ -45,6 +45,11 @@ export class FinancingsController {
     return this.service.updatePayoff(user.userId, id, dto);
   }
 
+  @Get(":id/payoff-quotes")
+  payoffQuoteHistory(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.service.payoffQuoteHistory(user.userId, id);
+  }
+
   @Delete(":id")
   remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.service.remove(user.userId, id);

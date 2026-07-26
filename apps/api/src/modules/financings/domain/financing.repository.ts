@@ -37,4 +37,6 @@ export abstract class FinancingRepository {
   abstract addPayoffQuote(userId: string, financingId: string, amount: number, quotedAt: Date): Promise<void>;
   /** Quotes for this financing recorded on/after `since`, oldest first. */
   abstract listPayoffQuotesSince(financingId: string, since: Date): Promise<{ amount: number; quotedAt: Date }[]>;
+  /** Every quote ever recorded for this financing, most recent first — for the full history view. */
+  abstract listPayoffQuotes(financingId: string): Promise<{ amount: number; quotedAt: Date }[]>;
 }

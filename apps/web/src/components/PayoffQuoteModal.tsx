@@ -3,8 +3,9 @@ import { TrendingDown, TrendingUp, Minus, Trophy } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { useUpdatePayoff, PayoffComparison } from "@/features/useFinancings";
-import { formatCurrency } from "@/lib/format";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { useUpdatePayoff, useFinancingPayoffQuotes, PayoffComparison } from "@/features/useFinancings";
+import { formatCurrency, formatDate } from "@/lib/format";
 import { Financing } from "@/types";
 
 interface Props {
@@ -19,6 +20,7 @@ function todayISO() {
 
 export function PayoffQuoteModal({ open, onClose, financing }: Props) {
   const updatePayoff = useUpdatePayoff();
+  const { data: quotes, isLoading: quotesLoading } = useFinancingPayoffQuotes(open ? (financing?.id ?? null) : null);
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(todayISO());
   const [comparison, setComparison] = useState<PayoffComparison | null>(null);
@@ -124,6 +126,27 @@ export function PayoffQuoteModal({ open, onClose, financing }: Props) {
             </Button>
           </div>
         </form>
+      )}
+
+      {(quotesLoading || (quotes && quotes.length > 0)) && (
+        <div className="mt-6 border-t border-[rgb(var(--border))] pt-4">
+          <p className="mb-2 text-sm font-medium">Histórico de propostas</p>
+          {quotesLoading ? (
+            <div className="flex flex-col gap-2">
+              <Skeleton className="h-10" />
+              <Skeleton className="h-10" />
+            </div>
+          ) : (
+            <div className="flex max-h-48 flex-col gap-2 overflow-y-auto">
+              {quotes!.map((q, i) => (
+                <div key={`${q.quotedAt}-${i}`} className="flex items-center justify-between rounded-xl surface-2 px-3 py-2 text-sm">
+                  <span className="text-muted">{formatDate(q.quotedAt)}</span>
+                  <span className="font-semibold">{formatCurrency(q.amount)}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </Modal>
   );

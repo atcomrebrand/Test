@@ -162,4 +162,13 @@ export class FinancingPrismaRepository extends FinancingRepository {
     });
     return quotes.map((q) => ({ amount: Number(q.amount), quotedAt: q.quotedAt }));
   }
+
+  async listPayoffQuotes(financingId: string) {
+    const quotes = await this.prisma.financingPayoffQuote.findMany({
+      where: { financingId },
+      orderBy: { quotedAt: "desc" },
+      select: { amount: true, quotedAt: true },
+    });
+    return quotes.map((q) => ({ amount: Number(q.amount), quotedAt: q.quotedAt }));
+  }
 }

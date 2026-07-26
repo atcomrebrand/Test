@@ -69,6 +69,19 @@ export function useUpdatePayoff() {
   });
 }
 
+export interface PayoffQuote {
+  amount: number;
+  quotedAt: string;
+}
+
+export function useFinancingPayoffQuotes(id: string | null) {
+  return useQuery({
+    queryKey: ["financings", id, "payoff-quotes"],
+    queryFn: () => api.get<PayoffQuote[]>(`/financings/${id}/payoff-quotes`),
+    enabled: !!id,
+  });
+}
+
 export function useDeleteFinancing() {
   const qc = useQueryClient();
   return useMutation({

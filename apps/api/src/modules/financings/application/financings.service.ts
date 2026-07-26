@@ -112,6 +112,11 @@ export class FinancingsService {
     };
   }
 
+  async payoffQuoteHistory(userId: string, id: string) {
+    await this.getOwned(userId, id);
+    return this.financings.listPayoffQuotes(id);
+  }
+
   async remove(userId: string, id: string) {
     await this.getOwned(userId, id);
     await this.financings.delete(id);
