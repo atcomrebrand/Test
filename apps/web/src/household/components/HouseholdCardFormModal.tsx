@@ -2,8 +2,11 @@ import { FormEvent, useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
+import { useCards } from "@/features/useCards";
 import { useCreateHouseholdCard, useUpdateHouseholdCard } from "../api";
 import { HouseholdCard } from "../types";
+
+const NO_LINK = "";
 
 interface Props {
   open: boolean;
@@ -16,6 +19,7 @@ const COLORS = ["#6D5BFF", "#820AD1", "#EC7000", "#1B1B1B", "#FF7A00", "#0EA5E9"
 export function HouseholdCardFormModal({ open, onClose, card }: Props) {
   const create = useCreateHouseholdCard();
   const update = useUpdateHouseholdCard();
+  const { data: parcelamentoCards } = useCards();
   const isEditing = !!card;
 
   const [name, setName] = useState("");
@@ -23,6 +27,7 @@ export function HouseholdCardFormModal({ open, onClose, card }: Props) {
   const [dueDay, setDueDay] = useState("5");
   const [color, setColor] = useState(COLORS[0]);
   const [active, setActive] = useState(true);
+  const [linkedCardId, setLinkedCardId] = useState(NO_LINK);
 
   useEffect(() => {
     if (!open) return;
@@ -32,18 +37,26 @@ export function HouseholdCardFormModal({ open, onClose, card }: Props) {
       setDueDay(String(card.dueDay));
       setColor(card.color);
       setActive(card.active);
+      setLinkedCardId(card.linkedCardId ?? NO_LINK);
     } else {
       setName("");
       setClosingDay("25");
       setDueDay("5");
       setColor(COLORS[0]);
       setActive(true);
+      setLinkedCardId(NO_LINK);
     }
   }, [open, card]);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
-    const payload = { name, closingDay: Number(closingDay), dueDay: Number(dueDay), color };
+    const payload = {
+      name,
+      closingDay: Number(closingDay),
+      dueDay: Number(dueDay),
+      color,
+      linkedCardId: linkedCardId || null,
+    };
 
     if (isEditing && card) {
       update.mutate({ id: card.id, data: { ...payload, active } }, { onSuccess: onClose });
@@ -64,6 +77,13 @@ export function HouseholdCardFormModal({ open, onClose, card }: Props) {
           <Select label="Dia de fechamento" options={days} value={closingDay} onChange={(e) => setClosingDay(e.target.value)} />
           <Select label="Dia de vencimento" options={days} value={dueDay} onChange={(e) => setDueDay(e.target.value)} />
         </div>
+
+        <Select
+          label="Vincular ao cartão do Parcelamento (opcional)"
+          options={[{ value: NO_LINK, label: "Nenhum" }, ...(parcelamentoCards ?? []).map((c) => ({ value: c.id, label: c.name }))]}
+          value={linkedCardId}
+          onChange={(e) => setLinkedCardId(e.target.value)}
+        />
 
         <div>
           <p className="mb-1.5 text-sm font-medium">Cor</p>

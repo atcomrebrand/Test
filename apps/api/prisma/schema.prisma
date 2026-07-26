@@ -233,6 +233,10 @@ model Card {
 
   purchases    Purchase[]
   installments Installment[]
+  /// Household cards ("Casa") that link to this one to show a fatura presumida based on this
+  /// card's installments. Purely a read-side cross-module reference — this side is never written
+  /// to, and this card's own data/behavior is completely unaffected by whether anything links here.
+  householdCardLinks HouseholdCard[]
 
   @@index([userId, active])
   @@map("cards")
@@ -995,12 +999,19 @@ model HouseholdCard {
   /// Posição de exibição, controlada pelo usuário arrastando os cards em Contas. Ordenado junto com
   /// id como desempate estável, pra nunca "pular" de lugar quando duas contas têm o mesmo order.
   order      Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  /// Optional link to a Parcelamento Card — when set, a month whose fatura hasn't been entered yet
+  /// (totalInvoice still 0) shows that card's installment total for the same competência as a
+  /// "fatura presumida" instead, computed live and never written back. Nullable/SetNull so linking,
+  /// unlinking, or deleting the Parcelamento card never touches this card's own real entries.
+  linkedCardId String?
+  linkedCard   Card?    @relation(fields: [linkedCardId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   entries HouseholdCardEntry[]
 
   @@index([userId, active])
+  @@index([linkedCardId])
   @@map("household_cards")
 }
 

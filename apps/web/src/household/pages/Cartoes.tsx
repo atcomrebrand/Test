@@ -107,6 +107,7 @@ export default function Cartoes() {
                         <span className="text-muted">Fatura total</span>
                         <InlineAmountCell
                           value={Number(entry.totalInvoice)}
+                          presumedValue={entry.presumedInvoice}
                           onSave={(v) => updateEntry.mutate({ id: entry.id, data: { totalInvoice: v } })}
                         />
                       </div>

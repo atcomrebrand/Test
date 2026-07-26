@@ -25,6 +25,12 @@ export class CreateHouseholdCardDto {
   @IsOptional()
   @IsString()
   icon?: string;
+
+  /** Cartão do Parcelamento (módulo separado) cujas parcelas viram "fatura presumida" nos meses
+   *  ainda não preenchidos. Opcional — sem vínculo, esse cartão funciona exatamente como antes. */
+  @IsOptional()
+  @IsString()
+  linkedCardId?: string;
 }
 
 export class UpdateHouseholdCardDto {
@@ -34,6 +40,8 @@ export class UpdateHouseholdCardDto {
   @IsOptional() @IsHexColor() color?: string;
   @IsOptional() @IsString() icon?: string;
   @IsOptional() @IsBoolean() active?: boolean;
+  /** Send null to unlink. */
+  @IsOptional() @IsString() linkedCardId?: string | null;
 }
 
 export class ReorderHouseholdCardsDto {

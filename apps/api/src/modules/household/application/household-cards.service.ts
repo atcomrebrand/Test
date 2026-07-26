@@ -3,6 +3,7 @@ import { HouseholdCardRepository } from "../domain/household-card.repository";
 import { HouseholdCardEntryRepository, HouseholdCardEntryWithCard } from "../domain/household-card-entry.repository";
 import { HouseholdAuditService } from "./household-audit.service";
 import { HouseholdMonthCompletionService } from "./household-month-completion.service";
+import { InstallmentsService } from "../../installments/installments.service";
 import { CreateHouseholdCardDto, UpdateHouseholdCardDto, UpdateHouseholdCardEntryDto } from "./dto/household-card.dto";
 
 @Injectable()
@@ -12,6 +13,7 @@ export class HouseholdCardsService {
     private readonly entries: HouseholdCardEntryRepository,
     private readonly audit: HouseholdAuditService,
     private readonly monthCompletion: HouseholdMonthCompletionService,
+    private readonly installments: InstallmentsService,
   ) {}
 
   findAll(userId: string) {
@@ -52,7 +54,8 @@ export class HouseholdCardsService {
   async findMonth(userId: string, referenceYear: number, referenceMonth: number) {
     await this.ensureMonthGenerated(userId, referenceYear, referenceMonth);
     const entries = await this.entries.findByMonth(userId, referenceYear, referenceMonth);
-    return entries.map((e) => this.present(e));
+    const presumed = await this.presumedTotalsFor(userId, entries, referenceYear, referenceMonth);
+    return entries.map((e) => this.present(e, presumed));
   }
 
   async ensureMonthGenerated(userId: string, referenceYear: number, referenceMonth: number) {
@@ -82,13 +85,36 @@ export class HouseholdCardsService {
     });
     await this.audit.log(userId, "HouseholdCardEntry", id, "UPDATE", this.snapshotEntry(before), this.snapshotEntry(after));
     await this.monthCompletion.checkAndNotify(userId, after.referenceYear, after.referenceMonth);
-    return this.present(after);
+    const presumed = await this.presumedTotalsFor(userId, [after], after.referenceYear, after.referenceMonth);
+    return this.present(after, presumed);
   }
 
-  /** realAmount is always totalInvoice - provisioned — never stored, so it can never drift. */
-  private present(entry: HouseholdCardEntryWithCard) {
-    const realAmount = Math.round((Number(entry.totalInvoice) - Number(entry.provisioned)) * 100) / 100;
-    return { ...entry, realAmount };
+  /** Presumed invoice per entry — the linked Parcelamento card's installment total for this exact
+   *  competência (same referenceYear/referenceMonth as the entry, never "the current month"),
+   *  computed live and never stored. Only fetched for entries that actually need it (fatura still
+   *  at R$0 and the card has a link), batched into one query instead of one per card. */
+  private async presumedTotalsFor(
+    userId: string,
+    entries: HouseholdCardEntryWithCard[],
+    referenceYear: number,
+    referenceMonth: number,
+  ): Promise<Map<string, number>> {
+    const linkedCardIds = entries.filter((e) => Number(e.totalInvoice) === 0 && e.card.linkedCardId).map((e) => e.card.linkedCardId as string);
+    if (linkedCardIds.length === 0) return new Map();
+    return this.installments.getMonthlyTotalsForCards(userId, linkedCardIds, referenceYear, referenceMonth);
+  }
+
+  /** realAmount is always totalInvoice - provisioned — never stored, so it can never drift. When
+   *  the fatura hasn't been entered yet (totalInvoice still R$0) and the card is linked to a
+   *  Parcelamento card, both presumedInvoice (shown in blue by the frontend) and realAmount itself
+   *  fall back to that card's installment total for the month — the moment a real value is saved,
+   *  this stops applying on its own, since the R$0 gate closes. */
+  private present(entry: HouseholdCardEntryWithCard, presumed: Map<string, number>) {
+    const totalInvoice = Number(entry.totalInvoice);
+    const presumedInvoice = totalInvoice === 0 && entry.card.linkedCardId ? (presumed.get(entry.card.linkedCardId) ?? null) : null;
+    const effectiveInvoice = presumedInvoice ?? totalInvoice;
+    const realAmount = Math.round((effectiveInvoice - Number(entry.provisioned)) * 100) / 100;
+    return { ...entry, realAmount, presumedInvoice };
   }
 
   private snapshotEntry(entry: HouseholdCardEntryWithCard) {

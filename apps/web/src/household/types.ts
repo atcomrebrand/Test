@@ -55,6 +55,9 @@ export interface HouseholdCard {
   icon: string;
   active: boolean;
   order: number;
+  /** Cartão do Parcelamento (módulo separado) cujas parcelas viram "fatura presumida" — null quando
+   *  esse cartão não está vinculado. */
+  linkedCardId: string | null;
 }
 
 export interface HouseholdCardEntry {
@@ -67,6 +70,10 @@ export interface HouseholdCardEntry {
   provisioned: string;
   /** Always totalInvoice - provisioned, computed server-side — never edit this directly. */
   realAmount: number;
+  /** The linked Parcelamento card's installment total for this exact competência — only present
+   *  while totalInvoice is still R$0 and the card has a link. Null otherwise. Never stored: shown
+   *  as a hint, never written on its own. */
+  presumedInvoice: number | null;
   paid: boolean;
   paidAt: string | null;
   notes: string | null;

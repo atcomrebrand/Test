@@ -7,6 +7,7 @@ export interface CreateHouseholdCardData {
   dueDay: number;
   color?: string;
   icon?: string;
+  linkedCardId?: string;
 }
 
 export abstract class HouseholdCardRepository {

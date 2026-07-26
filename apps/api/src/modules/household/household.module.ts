@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { NotificationsModule } from "../notifications/notifications.module";
 import { TrackingModule } from "../tracking/tracking.module";
+import { InstallmentsModule } from "../installments/installments.module";
 import { HouseholdBillCategoriesController } from "./interface/household-bill-categories.controller";
 import { HouseholdIncomeCategoriesController } from "./interface/household-income-categories.controller";
 import { HouseholdBillsController } from "./interface/household-bills.controller";
@@ -30,7 +31,7 @@ import { HouseholdIncomeRepository } from "./domain/household-income.repository"
 import { HouseholdIncomePrismaRepository } from "./infrastructure/household-income.prisma.repository";
 
 @Module({
-  imports: [NotificationsModule, TrackingModule],
+  imports: [NotificationsModule, TrackingModule, InstallmentsModule],
   controllers: [
     HouseholdBillCategoriesController,
     HouseholdIncomeCategoriesController,

@@ -30,6 +30,7 @@ export class HouseholdCardPrismaRepository extends HouseholdCardRepository {
         dueDay: data.dueDay,
         color: data.color,
         icon: data.icon,
+        linkedCardId: data.linkedCardId,
         order: (maxOrder._max.order ?? -1) + 1,
       },
     });
