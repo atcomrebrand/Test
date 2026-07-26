@@ -58,14 +58,21 @@ export class AssetAnalysisService {
     const dividendYield = numberField(detail.fundamentals, "Dividend Yield");
     const dailyVolume = numberField(detail.fundamentals, "Volume");
 
+    const now = new Date();
     const dividendsByYear = groupDividendsByYear(dividends, monthlyHistory);
     const recentYears = dividendsByYear.slice(-BAZIN_LOOKBACK_YEARS);
     const avgAnnualDividend = recentYears.length > 0 ? recentYears.reduce((sum, y) => sum + y.totalPerShare, 0) / recentYears.length : null;
-    const payoutRatio = computePayoutRatio(dividendsByYear, eps, new Date().getFullYear());
+    const payoutRatio = computePayoutRatio(dividendsByYear, eps, now.getFullYear());
 
-    const profitability = computeProfitabilityPeriods(detail.history, monthlyHistory, currentPrice, new Date());
+    const earliestHistoryDate = monthlyHistory.reduce<string | null>((min, p) => (min === null || p.date < min ? p.date : min), null);
+    const yearsFromHistory = earliestHistoryDate ? (now.getTime() - new Date(earliestHistoryDate).getTime()) / (365.25 * 24 * 3600 * 1000) : null;
+    const yearsFromDividends = dividendsByYear.length > 0 ? now.getFullYear() - dividendsByYear[0].year : null;
+    const yearsOfHistoryAvailable =
+      yearsFromHistory !== null && yearsFromDividends !== null ? Math.max(yearsFromHistory, yearsFromDividends) : (yearsFromHistory ?? yearsFromDividends);
+    const recentNetIncomePositive = typeof advanced?.recentNetIncome === "number" ? advanced.recentNetIncome > 0 : null;
 
-    const now = new Date();
+    const profitability = computeProfitabilityPeriods(detail.history, monthlyHistory, currentPrice, now);
+
     const paidDividends = dividends
       .filter((d) => d.paymentDate && new Date(d.paymentDate) <= now)
       .sort((a, b) => new Date(b.paymentDate!).getTime() - new Date(a.paymentDate!).getTime())
@@ -104,6 +111,8 @@ export class AssetAnalysisService {
         totalLiabilities: advanced?.totalLiabilities ?? null,
         totalStockholderEquity: advanced?.totalStockholderEquity ?? null,
         averageDailyVolumeBRL: dailyVolume !== null ? dailyVolume * currentPrice : null,
+        yearsOfHistoryAvailable,
+        recentNetIncomePositive,
       }),
       dividendsByYear,
       dividendsPaid: paidDividends,

@@ -7,6 +7,9 @@ export interface FundamentusIndicators {
   netDebtToEquity: number | null;
   totalStockholderEquity: number | null;
   totalLiabilities: number | null;
+  /** Lucro Líquido, trailing-twelve-months column — a fallback source for the checklist's
+   *  "profitable recently" question when BRAPI's netIncomeToCommon isn't available either. */
+  netIncomeTtm: number | null;
 }
 
 function parsePtBrNumber(raw: string | undefined): number | null {
@@ -61,5 +64,6 @@ export function parseFundamentusIndicators(html: string): FundamentusIndicators 
     netDebtToEquity: parsePtBrNumber(labeled.get("Dív Líq / Patrim")),
     totalStockholderEquity,
     totalLiabilities: totalAssets !== null && totalStockholderEquity !== null ? totalAssets - totalStockholderEquity : null,
+    netIncomeTtm,
   };
 }

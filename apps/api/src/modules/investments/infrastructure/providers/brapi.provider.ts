@@ -119,6 +119,12 @@ interface BrapiV2StatisticsData {
   profitMargins?: number;
   bookValue?: number;
   priceToBook?: number;
+  /** Trailing-twelve-months net income attributable to common shareholders — confirmed present in
+   *  the live PETR4 payload (2026-07-26). Not a multi-year/quarter history, just a same-day
+   *  snapshot — feeds the checklist's reduced "profitable recently" fallback, not the real
+   *  20-quarters check, which still needs incomeStatementHistoryQuarterly (unavailable on this
+   *  plan). */
+  netIncomeToCommon?: number;
 }
 
 /** Confirmed against a live call to /api/v2/stocks/historical with a real token (2026-07-20) —
@@ -241,6 +247,7 @@ export class BrapiProvider extends StockQuoteProvider {
         quarterlyNetIncome: null,
         totalLiabilities: null,
         totalStockholderEquity: null,
+        recentNetIncome: stats.netIncomeToCommon ?? null,
       };
     } catch (err) {
       this.logger.warn(`No advanced fundamentals for ${ticker}: ${(err as Error).message}`);

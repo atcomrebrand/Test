@@ -233,6 +233,15 @@ export interface ChecklistInput {
   /** Average daily traded volume in BRL (regularMarketVolume × price) — always available from the
    *  plain quote endpoint, unlike everything else on this list. */
   averageDailyVolumeBRL: number | null;
+  /** How far back price/dividend history reaches, in years — a proxy for "listed/tradeable for at
+   *  least 5 years" when annualNetIncome (the more rigorous signal) isn't available at all. Not the
+   *  same as "founded 5+ years ago", but the practical question this check is really after. */
+  yearsOfHistoryAvailable: number | null;
+  /** Whether the most recent trailing-twelve-months net income was positive — a same-day-snapshot
+   *  fallback for "profitable recently" when quarterlyNetIncome (the real 20-quarter series) isn't
+   *  available at all. Much weaker than the real check, so it only ever backs the reduced-scope
+   *  "profitable nos últimos 12 meses" item, never a genuine 20-quarters claim. */
+  recentNetIncomePositive: boolean | null;
 }
 
 function unknownOr(status: boolean | null, id: string, label: string): ChecklistItem {
@@ -240,14 +249,16 @@ function unknownOr(status: boolean | null, id: string, label: string): Checklist
 }
 
 export function computeChecklist(input: ChecklistInput): ChecklistItem[] {
-  const olderThan5Years = input.annualNetIncome ? input.annualNetIncome.length >= 5 : null;
+  const olderThan5Years = input.annualNetIncome
+    ? input.annualNetIncome.length >= 5
+    : input.yearsOfHistoryAvailable !== null
+      ? input.yearsOfHistoryAvailable >= 5
+      : null;
   const neverHadLoss = input.annualNetIncome ? input.annualNetIncome.every((y) => y.netIncome > 0) : null;
-  const profitableLast20Quarters =
+  const profitableRecentPeriod =
     input.quarterlyNetIncome && input.quarterlyNetIncome.length >= 20
       ? input.quarterlyNetIncome.slice(-20).every((v) => v > 0)
-      : input.quarterlyNetIncome
-        ? null
-        : null;
+      : input.recentNetIncomePositive;
 
   const recentYears = input.dividendYearYields.slice(-5);
   const dividendAbove5PctLast5Years =
@@ -262,8 +273,8 @@ export function computeChecklist(input: ChecklistInput): ChecklistItem[] {
 
   return [
     unknownOr(olderThan5Years, "older-than-5-years", "Empresa com mais de 5 anos"),
-    unknownOr(neverHadLoss, "never-had-loss", "Empresa nunca deu prejuízo"),
-    unknownOr(profitableLast20Quarters, "profitable-20-quarters", "Empresa com lucro nos últimos 20 trimestres"),
+    unknownOr(neverHadLoss, "never-had-loss", "Empresa nunca deu prejuízo *Rever"),
+    unknownOr(profitableRecentPeriod, "profitable-recent-period", "Empresa com lucro nos últimos 12 meses"),
     unknownOr(dividendAbove5PctLast5Years, "dividend-above-5pct-5-years", "Empresa pagou +5% de dividendo nos últimos 5 anos"),
     unknownOr(roeAbove10, "roe-above-10", "Empresa possui ROE acima de 10%"),
     unknownOr(debtBelowEquity, "debt-below-equity", "Empresa possui dívida menor que patrimônio"),

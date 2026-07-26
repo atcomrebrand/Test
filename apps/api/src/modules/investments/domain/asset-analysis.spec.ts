@@ -8,6 +8,7 @@ import {
   computePayoutHistory,
   computePayoutRatio,
   computeChecklist,
+  ChecklistInput,
 } from "./asset-analysis";
 import { HistoricalPricePoint, DividendEvent } from "./market-data.provider";
 
@@ -206,7 +207,7 @@ describe("computePayoutRatio", () => {
 });
 
 describe("computeChecklist", () => {
-  function fullPassInput() {
+  function fullPassInput(): ChecklistInput {
     return {
       annualNetIncome: [
         { year: 2020, netIncome: 100 },
@@ -227,6 +228,8 @@ describe("computeChecklist", () => {
       totalLiabilities: 500,
       totalStockholderEquity: 1000,
       averageDailyVolumeBRL: 5_000_000,
+      yearsOfHistoryAvailable: 8,
+      recentNetIncomePositive: true,
     };
   }
 
@@ -238,16 +241,41 @@ describe("computeChecklist", () => {
 
   it("fails the loss-free check when any year had a loss", () => {
     const input = fullPassInput();
-    input.annualNetIncome[2] = { year: 2022, netIncome: -50 };
+    input.annualNetIncome![2] = { year: 2022, netIncome: -50 };
     const result = computeChecklist(input);
     expect(result.find((i) => i.id === "never-had-loss")?.status).toBe("FAIL");
   });
 
-  it("fails the quarterly-profit check when a recent quarter had a loss", () => {
+  it("always labels the loss-free check for manual review, regardless of status", () => {
+    const result = computeChecklist(fullPassInput());
+    expect(result.find((i) => i.id === "never-had-loss")?.label).toBe("Empresa nunca deu prejuízo *Rever");
+  });
+
+  it("fails the recent-profitability check when a recent quarter had a loss", () => {
     const input = fullPassInput();
     input.quarterlyNetIncome![19] = -10;
     const result = computeChecklist(input);
-    expect(result.find((i) => i.id === "profitable-20-quarters")?.status).toBe("FAIL");
+    expect(result.find((i) => i.id === "profitable-recent-period")?.status).toBe("FAIL");
+  });
+
+  it("falls back to recentNetIncomePositive for the profitability check when there's no quarterly series", () => {
+    const input = fullPassInput();
+    input.quarterlyNetIncome = null;
+    input.recentNetIncomePositive = false;
+    const result = computeChecklist(input);
+    expect(result.find((i) => i.id === "profitable-recent-period")?.status).toBe("FAIL");
+  });
+
+  it("falls back to yearsOfHistoryAvailable for the 5-years check when there's no annual net income", () => {
+    const input = fullPassInput();
+    input.annualNetIncome = null;
+    input.yearsOfHistoryAvailable = 3;
+    const result = computeChecklist(input);
+    expect(result.find((i) => i.id === "older-than-5-years")?.status).toBe("FAIL");
+
+    input.yearsOfHistoryAvailable = 6;
+    const passing = computeChecklist(input);
+    expect(passing.find((i) => i.id === "older-than-5-years")?.status).toBe("PASS");
   });
 
   it("fails ROE/debt/liquidity checks when below their thresholds", () => {
@@ -270,6 +298,8 @@ describe("computeChecklist", () => {
       totalLiabilities: null,
       totalStockholderEquity: null,
       averageDailyVolumeBRL: null,
+      yearsOfHistoryAvailable: null,
+      recentNetIncomePositive: null,
     });
     expect(result.every((item) => item.status === "UNKNOWN")).toBe(true);
   });
@@ -283,6 +313,8 @@ describe("computeChecklist", () => {
       totalLiabilities: null,
       totalStockholderEquity: null,
       averageDailyVolumeBRL: 3_000_000,
+      yearsOfHistoryAvailable: null,
+      recentNetIncomePositive: null,
     });
     expect(result.find((i) => i.id === "liquidity-above-2m")?.status).toBe("PASS");
   });

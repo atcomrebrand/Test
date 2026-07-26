@@ -118,6 +118,10 @@ export interface AdvancedFundamentals {
   quarterlyNetIncome: number[] | null;
   totalLiabilities: number | null;
   totalStockholderEquity: number | null;
+  /** Trailing-twelve-months net income — a same-day snapshot, not a history, so it can only answer
+   *  a much weaker "profitable recently" question, used as a fallback when quarterlyNetIncome (the
+   *  real multi-year series) isn't available at all. */
+  recentNetIncome: number | null;
 }
 
 export abstract class StockQuoteProvider {

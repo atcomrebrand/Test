@@ -36,6 +36,7 @@ describe("parseFundamentusIndicators", () => {
     expect(result.currentRatio).toBeCloseTo(0.74);
     expect(result.netDebtToEquity).toBeCloseTo(0.73);
     expect(result.totalStockholderEquity).toBe(445189000000);
+    expect(result.netIncomeTtm).toBe(107583000000);
   });
 
   it("derives totalLiabilities from the Ativo = Passivo + Patrimônio identity", () => {
@@ -70,6 +71,7 @@ describe("parseFundamentusIndicators", () => {
       netDebtToEquity: null,
       totalStockholderEquity: null,
       totalLiabilities: null,
+      netIncomeTtm: null,
     });
   });
 });

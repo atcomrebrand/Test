@@ -203,6 +203,7 @@ export class MarketPriceService {
       quarterlyNetIncome: brapi?.quarterlyNetIncome ?? null,
       totalLiabilities: fundamentus?.totalLiabilities ?? brapi?.totalLiabilities ?? null,
       totalStockholderEquity: fundamentus?.totalStockholderEquity ?? brapi?.totalStockholderEquity ?? null,
+      recentNetIncome: brapi?.recentNetIncome ?? fundamentus?.netIncomeTtm ?? null,
     };
   }
 
