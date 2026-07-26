@@ -188,7 +188,7 @@ export class MarketPriceService {
     if (!brapi && !fundamentus) return null;
     return {
       indicators: {
-        priceToBook: brapi?.indicators.priceToBook ?? null,
+        priceToBook: brapi?.indicators.priceToBook ?? fundamentus?.priceToBook ?? null,
         returnOnEquity: fundamentus?.returnOnEquity ?? brapi?.indicators.returnOnEquity ?? null,
         returnOnAssets: fundamentus?.returnOnAssets ?? brapi?.indicators.returnOnAssets ?? null,
         profitMargins: brapi?.indicators.profitMargins ?? null,
@@ -197,7 +197,10 @@ export class MarketPriceService {
         currentRatio: fundamentus?.currentRatio ?? brapi?.indicators.currentRatio ?? null,
         debtToEquity: fundamentus?.netDebtToEquity ?? brapi?.indicators.debtToEquity ?? null,
         priceToSales: fundamentus?.priceToSales ?? brapi?.indicators.priceToSales ?? null,
-        bookValuePerShare: brapi?.indicators.bookValuePerShare ?? null,
+        bookValuePerShare: brapi?.indicators.bookValuePerShare ?? fundamentus?.bookValuePerShare ?? null,
+        peRatio: brapi?.indicators.peRatio ?? fundamentus?.peRatio ?? null,
+        eps: brapi?.indicators.eps ?? fundamentus?.eps ?? null,
+        dividendYield: brapi?.indicators.dividendYield ?? fundamentus?.dividendYield ?? null,
       },
       annualNetIncome: brapi?.annualNetIncome ?? null,
       quarterlyNetIncome: brapi?.quarterlyNetIncome ?? null,

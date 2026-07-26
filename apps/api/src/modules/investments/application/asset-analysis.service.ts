@@ -53,9 +53,9 @@ export class AssetAnalysisService {
     ]);
 
     const currentPrice = detail.price;
-    const eps = numberField(detail.fundamentals, "LPA");
-    const peRatio = numberField(detail.fundamentals, "P/L");
-    const dividendYield = numberField(detail.fundamentals, "Dividend Yield");
+    const eps = numberField(detail.fundamentals, "LPA") ?? advanced?.indicators.eps ?? null;
+    const peRatio = numberField(detail.fundamentals, "P/L") ?? advanced?.indicators.peRatio ?? null;
+    const dividendYield = numberField(detail.fundamentals, "Dividend Yield") ?? advanced?.indicators.dividendYield ?? null;
     const dailyVolume = numberField(detail.fundamentals, "Volume");
 
     const now = new Date();

@@ -10,6 +10,14 @@ export interface FundamentusIndicators {
   /** Lucro Líquido, trailing-twelve-months column — a fallback source for the checklist's
    *  "profitable recently" question when BRAPI's netIncomeToCommon isn't available either. */
   netIncomeTtm: number | null;
+  /** P/L, LPA, P/VP, VPA, Div. Yield — BRAPI already supplies these too, but its free plan 403s
+   *  for every ticker outside a small "sample" set (confirmed for BBAS3, 2026-07-26), so these back
+   *  up basic indicators that used to be assumed always-available, not just the advanced ones. */
+  peRatio: number | null;
+  eps: number | null;
+  priceToBook: number | null;
+  bookValuePerShare: number | null;
+  dividendYield: number | null;
 }
 
 function parsePtBrNumber(raw: string | undefined): number | null {
@@ -65,5 +73,10 @@ export function parseFundamentusIndicators(html: string): FundamentusIndicators 
     totalStockholderEquity,
     totalLiabilities: totalAssets !== null && totalStockholderEquity !== null ? totalAssets - totalStockholderEquity : null,
     netIncomeTtm,
+    peRatio: parsePtBrNumber(labeled.get("P/L")),
+    eps: parsePtBrNumber(labeled.get("LPA")),
+    priceToBook: parsePtBrNumber(labeled.get("P/VP")),
+    bookValuePerShare: parsePtBrNumber(labeled.get("VPA")),
+    dividendYield: parsePtBrNumber(labeled.get("Div. Yield")),
   };
 }

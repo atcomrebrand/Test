@@ -106,6 +106,12 @@ export interface AdvancedIndicators {
   debtToEquity: number | null; // dívida líquida / patrimônio
   priceToSales: number | null; // PSR
   bookValuePerShare: number | null; // VPA — feeds Graham
+  /** P/L, LPA, Dividend Yield — normally read off the basic quote-detail fundamentals blob, but
+   *  that comes from the same BRAPI statistics endpoint that 403s outside its free-plan ticker
+   *  sample, so these back it up when that basic fetch also came back empty. */
+  peRatio: number | null; // P/L
+  eps: number | null; // LPA — feeds Graham
+  dividendYield: number | null; // %
 }
 
 export interface AdvancedFundamentals {

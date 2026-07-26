@@ -12,9 +12,13 @@ function buildFixture(overrides: Record<string, string> = {}): string {
     <table>
       <tr>${cell("Oscilações")}${cell("Indicadores fundamentalistas")}</tr>
       <tr>${cell("Dia")}${cell("-1,72%")}${cell("?P/L")}${cell(withOverride("P/L", "5,06"))}</tr>
+      <tr>${cell("Dia")}${cell("-1,72%")}${cell("?LPA")}${cell(withOverride("LPA", "8,35"))}</tr>
       <tr>${cell("Mês")}${cell("10,67%")}${cell("?Marg. Bruta")}${cell(withOverride("Marg. Bruta", "47,4%"))}</tr>
+      <tr>${cell("Mês")}${cell("10,67%")}${cell("?P/VP")}${cell(withOverride("P/VP", "1,22"))}</tr>
       <tr>${cell("30 dias")}${cell("7,32%")}${cell("?PSR")}${cell(withOverride("PSR", "1,09"))}</tr>
+      <tr>${cell("30 dias")}${cell("7,32%")}${cell("?VPA")}${cell(withOverride("VPA", "34,54"))}</tr>
       <tr>${cell("12 meses")}${cell("41,89%")}${cell("?ROE")}${cell(withOverride("ROE", "24,2%"))}</tr>
+      <tr>${cell("12 meses")}${cell("41,89%")}${cell("?Div. Yield")}${cell(withOverride("Div. Yield", "7,0%"))}</tr>
       <tr>${cell("2026")}${cell("40,43%")}${cell("?Liquidez Corr")}${cell(withOverride("Liquidez Corr", "0,74")) }</tr>
       <tr>${cell("2025")}${cell("-6,06%")}${cell("?Dív Líq / Patrim")}${cell(withOverride("Dív Líq / Patrim", "0,73"))}</tr>
       <tr>${cell("Dados Balanço Patrimonial")}</tr>
@@ -37,6 +41,11 @@ describe("parseFundamentusIndicators", () => {
     expect(result.netDebtToEquity).toBeCloseTo(0.73);
     expect(result.totalStockholderEquity).toBe(445189000000);
     expect(result.netIncomeTtm).toBe(107583000000);
+    expect(result.peRatio).toBeCloseTo(5.06);
+    expect(result.eps).toBeCloseTo(8.35);
+    expect(result.priceToBook).toBeCloseTo(1.22);
+    expect(result.bookValuePerShare).toBeCloseTo(34.54);
+    expect(result.dividendYield).toBeCloseTo(7.0);
   });
 
   it("derives totalLiabilities from the Ativo = Passivo + Patrimônio identity", () => {
@@ -72,6 +81,11 @@ describe("parseFundamentusIndicators", () => {
       totalStockholderEquity: null,
       totalLiabilities: null,
       netIncomeTtm: null,
+      peRatio: null,
+      eps: null,
+      priceToBook: null,
+      bookValuePerShare: null,
+      dividendYield: null,
     });
   });
 });
