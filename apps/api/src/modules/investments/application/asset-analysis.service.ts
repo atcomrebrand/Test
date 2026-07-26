@@ -46,7 +46,7 @@ export class AssetAnalysisService {
     if (!detail) return null;
 
     const [advanced, dividends, monthlyHistory] = await Promise.all([
-      this.marketPrice.getAdvancedFundamentals(normalizedTicker),
+      this.marketPrice.getAdvancedFundamentals(assetClass, normalizedTicker),
       this.dividendsCache.get(normalizedTicker, dividendAssetClass).catch(() => [] as DividendEvent[]),
       this.marketPrice.getHistory(assetClass, normalizedTicker, { range: "MAX" }),
     ]);

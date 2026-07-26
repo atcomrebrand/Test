@@ -31,6 +31,7 @@ import { NewsService } from "./application/news.service";
 import { NewsController } from "./interface/news.controller";
 import { DividendsCacheService } from "./infrastructure/dividends-cache.service";
 import { YahooDividendsProvider } from "./infrastructure/providers/yahoo-dividends.provider";
+import { FundamentusProvider } from "./infrastructure/providers/fundamentus.provider";
 import { DividendsService } from "./application/dividends.service";
 import { DividendsController } from "./interface/dividends.controller";
 import { DividendAutoSyncService } from "./application/dividend-auto-sync.service";
@@ -69,6 +70,7 @@ import { AssetAnalysisService } from "./application/asset-analysis.service";
     NewsService,
     DividendsCacheService,
     YahooDividendsProvider,
+    FundamentusProvider,
     DividendsService,
     DividendAutoSyncService,
     DividendNotificationsService,

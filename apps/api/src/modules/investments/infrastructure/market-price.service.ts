@@ -9,6 +9,8 @@ import {
   AssetFundamentals,
   StockQuoteProvider,
 } from "../domain/market-data.provider";
+import { FundamentusProvider } from "./providers/fundamentus.provider";
+import { FundamentusIndicators } from "../domain/fundamentus-parser";
 
 /** Short TTL so prices feel live without hammering the free-tier BRAPI/CoinGecko rate limits. */
 const PRICE_TTL_MS = 5 * 60 * 1000;
@@ -44,6 +46,7 @@ export class MarketPriceService {
     private readonly prisma: PrismaService,
     private readonly stockProvider: StockQuoteProvider,
     private readonly cryptoProvider: CryptoQuoteProvider,
+    private readonly fundamentusProvider: FundamentusProvider,
   ) {}
 
   /** Returns the last known price even if today's refresh failed, or null if never fetched. */
@@ -149,10 +152,14 @@ export class MarketPriceService {
    *  `fundamentals` blob on a much longer TTL since this is a heavier multi-module lookup and the
    *  underlying data (quarterly financials) barely changes day to day. Returns null on total
    *  failure with nothing cached yet — the caller shows "indisponível" instead of crashing.
-   *  Callers should call getDetail() for this symbol first (AssetAnalysisService always does) so
-   *  the cache row already exists with a real price before this ever needs to create one itself. */
-  async getAdvancedFundamentals(symbol: string, options: { forceRefresh?: boolean } = {}): Promise<AdvancedFundamentals | null> {
-    const assetClass: InvestmentAssetClass = "STOCK";
+   *  Callers should call getDetail() for this symbol/assetClass first (AssetAnalysisService always
+   *  does) so the cache row already exists with a real price before this ever needs to create one
+   *  itself. Merges two independent sources: BrapiProvider (P/VP, margem líquida, VPA — from the
+   *  already-used /v2/stocks/statistics endpoint) and FundamentusProvider (ROE, ROA, margem bruta,
+   *  PSR, liquidez corrente, dívida líquida/patrimônio — fields BRAPI's free plan doesn't return at
+   *  all), which only runs for STOCK since Fundamentus serves FIIs from a different, unverified
+   *  page. */
+  async getAdvancedFundamentals(assetClass: InvestmentAssetClass, symbol: string, options: { forceRefresh?: boolean } = {}): Promise<AdvancedFundamentals | null> {
     const cached = await this.prisma.investmentPriceCache.findUnique({ where: { symbol_assetClass: { symbol, assetClass } } });
 
     const isFresh =
@@ -162,19 +169,41 @@ export class MarketPriceService {
       Date.now() - cached.advancedFundamentalsAt.getTime() < ADVANCED_FUNDAMENTALS_TTL_MS;
     if (isFresh) return cached.advancedFundamentals as unknown as AdvancedFundamentals;
 
-    try {
-      const data = await this.stockProvider.fetchAdvancedFundamentals(symbol);
-      if (!data) return (cached?.advancedFundamentals as unknown as AdvancedFundamentals) ?? null;
-      await this.prisma.investmentPriceCache.upsert({
-        where: { symbol_assetClass: { symbol, assetClass } },
-        create: { symbol, assetClass, price: 0, currency: "BRL", source: "brapi", advancedFundamentals: data as any, advancedFundamentalsAt: new Date() },
-        update: { advancedFundamentals: data as any, advancedFundamentalsAt: new Date() },
-      });
-      return data;
-    } catch (err) {
-      this.logger.warn(`Advanced fundamentals refresh failed for ${symbol}: ${(err as Error).message}`);
-      return (cached?.advancedFundamentals as unknown as AdvancedFundamentals) ?? null;
-    }
+    const [brapiData, fundamentusData] = await Promise.all([
+      this.stockProvider.fetchAdvancedFundamentals(symbol),
+      assetClass === "STOCK" ? this.fundamentusProvider.fetchIndicators(symbol) : Promise.resolve(null),
+    ]);
+    const data = this.mergeAdvancedFundamentals(brapiData, fundamentusData);
+    if (!data) return (cached?.advancedFundamentals as unknown as AdvancedFundamentals) ?? null;
+
+    await this.prisma.investmentPriceCache.upsert({
+      where: { symbol_assetClass: { symbol, assetClass } },
+      create: { symbol, assetClass, price: 0, currency: "BRL", source: "brapi", advancedFundamentals: data as any, advancedFundamentalsAt: new Date() },
+      update: { advancedFundamentals: data as any, advancedFundamentalsAt: new Date() },
+    });
+    return data;
+  }
+
+  private mergeAdvancedFundamentals(brapi: AdvancedFundamentals | null, fundamentus: FundamentusIndicators | null): AdvancedFundamentals | null {
+    if (!brapi && !fundamentus) return null;
+    return {
+      indicators: {
+        priceToBook: brapi?.indicators.priceToBook ?? null,
+        returnOnEquity: fundamentus?.returnOnEquity ?? brapi?.indicators.returnOnEquity ?? null,
+        returnOnAssets: fundamentus?.returnOnAssets ?? brapi?.indicators.returnOnAssets ?? null,
+        profitMargins: brapi?.indicators.profitMargins ?? null,
+        grossMargins: fundamentus?.grossMargin ?? brapi?.indicators.grossMargins ?? null,
+        payoutRatio: brapi?.indicators.payoutRatio ?? null,
+        currentRatio: fundamentus?.currentRatio ?? brapi?.indicators.currentRatio ?? null,
+        debtToEquity: fundamentus?.netDebtToEquity ?? brapi?.indicators.debtToEquity ?? null,
+        priceToSales: fundamentus?.priceToSales ?? brapi?.indicators.priceToSales ?? null,
+        bookValuePerShare: brapi?.indicators.bookValuePerShare ?? null,
+      },
+      annualNetIncome: brapi?.annualNetIncome ?? null,
+      quarterlyNetIncome: brapi?.quarterlyNetIncome ?? null,
+      totalLiabilities: fundamentus?.totalLiabilities ?? brapi?.totalLiabilities ?? null,
+      totalStockholderEquity: fundamentus?.totalStockholderEquity ?? brapi?.totalStockholderEquity ?? null,
+    };
   }
 
   /** Price history for a user-chosen time range. Deliberately bypasses the price/detail caches —
