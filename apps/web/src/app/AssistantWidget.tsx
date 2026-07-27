@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, Mic, Phone, Send, User, Volume2, VolumeX, X } from "lucide-react";
+import { Bot, Mic, Phone, Send, Settings2, User, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAssistantChat, ChatMessage } from "@/features/useAssistant";
 import { useAssistantVoiceStore } from "@/store/assistantVoice";
@@ -8,13 +8,16 @@ import {
   createSpeechRecognition,
   extractLatestResult,
   isSpeechRecognitionSupported,
+  isSpeechSynthesisSupported,
   primeSpeechSynthesis,
   speak,
   SpeechRecognitionLike,
 } from "@/lib/speech";
 import { AssistantCallOverlay } from "./AssistantCallOverlay";
+import { VoicePickerModal } from "./VoicePickerModal";
 
 const micSupported = isSpeechRecognitionSupported();
+const speechOutputSupported = isSpeechSynthesisSupported();
 
 /**
  * Mounted once in AppLockGate so it floats above every authenticated screen, in every module —
@@ -29,11 +32,13 @@ export function AssistantWidget() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [listening, setListening] = useState(false);
+  const [voicePickerOpen, setVoicePickerOpen] = useState(false);
   const chat = useAssistantChat();
   const bottomRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceEnabled = useAssistantVoiceStore((s) => s.voiceEnabled);
   const toggleVoice = useAssistantVoiceStore((s) => s.toggleVoice);
+  const voiceURI = useAssistantVoiceStore((s) => s.voiceURI);
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -57,7 +62,7 @@ export function AssistantWidget() {
       onSuccess: (res) => {
         setMessages(res.messages);
         const last = res.messages[res.messages.length - 1];
-        if (voiceEnabled && last?.role === "assistant") speak(last.content);
+        if (voiceEnabled && last?.role === "assistant") speak(last.content, undefined, voiceURI);
       },
     });
   }
@@ -113,6 +118,16 @@ export function AssistantWidget() {
                 >
                   {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
                 </button>
+                {speechOutputSupported && (
+                  <button
+                    onClick={() => setVoicePickerOpen(true)}
+                    className="rounded-lg p-1.5 text-muted hover:surface-2"
+                    aria-label="Escolher voz"
+                    title="Escolher voz"
+                  >
+                    <Settings2 className="h-4 w-4" />
+                  </button>
+                )}
                 {micSupported && (
                   <button
                     onClick={() => {
@@ -209,6 +224,7 @@ export function AssistantWidget() {
       </AnimatePresence>
 
       <AssistantCallOverlay open={callOpen} onClose={() => setCallOpen(false)} messages={messages} setMessages={setMessages} />
+      <VoicePickerModal open={voicePickerOpen} onClose={() => setVoicePickerOpen(false)} />
     </>
   );
 }

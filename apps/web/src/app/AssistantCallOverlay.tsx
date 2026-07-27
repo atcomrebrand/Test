@@ -2,6 +2,7 @@ import { Dispatch, SetStateAction, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Mic, PhoneOff, Volume2 } from "lucide-react";
 import { useAssistantChat, ChatMessage } from "@/features/useAssistant";
+import { useAssistantVoiceStore } from "@/store/assistantVoice";
 import { cancelSpeech, createSpeechRecognition, extractLatestResult, speak, SpeechRecognitionLike } from "@/lib/speech";
 
 type CallState = "listening" | "thinking" | "speaking" | "error";
@@ -34,6 +35,7 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const openRef = useRef(open);
   const messagesRef = useRef(messages);
+  const voiceURI = useAssistantVoiceStore((s) => s.voiceURI);
 
   useEffect(() => {
     openRef.current = open;
@@ -117,9 +119,13 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
   function respondAndListen(text: string) {
     setCallState("speaking");
     setCaption(text);
-    speak(text, () => {
-      if (openRef.current) startListening();
-    });
+    speak(
+      text,
+      () => {
+        if (openRef.current) startListening();
+      },
+      voiceURI,
+    );
   }
 
   function handleHangUp() {

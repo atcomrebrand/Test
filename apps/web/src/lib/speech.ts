@@ -79,6 +79,30 @@ export function extractLatestResult(event: SpeechRecognitionEventLike): Recognit
   return { transcript: result[0].transcript, isFinal: result.isFinal };
 }
 
+/** getVoices() can return [] on first call in some browsers until the async voiceschanged event
+ *  fires — this waits for that (with a timeout fallback) so callers get a populated list instead
+ *  of an empty one on a cold page load. */
+export function loadVoices(): Promise<SpeechSynthesisVoice[]> {
+  if (!isSpeechSynthesisSupported()) return Promise.resolve([]);
+  const synth = window.speechSynthesis;
+  const existing = synth.getVoices();
+  if (existing.length > 0) return Promise.resolve(existing);
+  return new Promise((resolve) => {
+    const timeoutId = window.setTimeout(() => resolve(synth.getVoices()), 1000);
+    synth.onvoiceschanged = () => {
+      clearTimeout(timeoutId);
+      resolve(synth.getVoices());
+    };
+  });
+}
+
+/** Prefers pt-* voices (what most people here will want) but falls back to everything installed
+ *  rather than an empty picker if the device has no Portuguese voice at all. */
+export function getPreferredVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
+  const pt = voices.filter((v) => v.lang.toLowerCase().startsWith("pt"));
+  return pt.length > 0 ? pt : voices;
+}
+
 /** Speaks a near-silent utterance synchronously inside a user-gesture handler (a click, not an
  *  async callback) — some browsers only grant speechSynthesis permission within an active user
  *  gesture, and by the time a reply comes back from the API that gesture has long expired. This
@@ -97,7 +121,7 @@ export function primeSpeechSynthesis(): void {
  *  forever in a "falando" state with no way out except hanging up. */
 const SPEAK_TIMEOUT_MS = 15_000;
 
-export function speak(text: string, onEnd?: () => void): void {
+export function speak(text: string, onEnd?: () => void, voiceURI?: string | null): void {
   if (!isSpeechSynthesisSupported() || !text.trim()) {
     onEnd?.();
     return;
@@ -116,6 +140,10 @@ export function speak(text: string, onEnd?: () => void): void {
   const doSpeak = () => {
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = LANG;
+    if (voiceURI) {
+      const voice = synth.getVoices().find((v) => v.voiceURI === voiceURI);
+      if (voice) utterance.voice = voice;
+    }
     utterance.onend = finish;
     utterance.onerror = finish;
     synth.speak(utterance);
