@@ -8,6 +8,7 @@ import {
   createSpeechRecognition,
   extractLatestResult,
   isSpeechRecognitionSupported,
+  primeSpeechSynthesis,
   speak,
   SpeechRecognitionLike,
 } from "@/lib/speech";
@@ -48,6 +49,9 @@ export function AssistantWidget() {
     const next = [...messages, { role: "user" as const, content }];
     setMessages(next);
     setInput("");
+    // Must happen synchronously inside this click/submit handler — priming after the async
+    // response arrives is too late for browsers that gate speechSynthesis on a live user gesture.
+    if (voiceEnabled) primeSpeechSynthesis();
 
     chat.mutate(next, {
       onSuccess: (res) => {
@@ -111,7 +115,10 @@ export function AssistantWidget() {
                 </button>
                 {micSupported && (
                   <button
-                    onClick={() => setCallOpen(true)}
+                    onClick={() => {
+                      primeSpeechSynthesis();
+                      setCallOpen(true);
+                    }}
                     className="rounded-lg p-1.5 text-muted hover:surface-2"
                     aria-label="Ligar (modo voz)"
                     title="Conversar por voz"

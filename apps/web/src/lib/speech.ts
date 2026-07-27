@@ -79,16 +79,56 @@ export function extractLatestResult(event: SpeechRecognitionEventLike): Recognit
   return { transcript: result[0].transcript, isFinal: result.isFinal };
 }
 
+/** Speaks a near-silent utterance synchronously inside a user-gesture handler (a click, not an
+ *  async callback) — some browsers only grant speechSynthesis permission within an active user
+ *  gesture, and by the time a reply comes back from the API that gesture has long expired. This
+ *  "unlocks" the engine for the async speak() calls that follow later in the same session, the
+ *  same trick used to unlock <audio>/Web Audio on iOS Safari. */
+export function primeSpeechSynthesis(): void {
+  if (!isSpeechSynthesisSupported()) return;
+  const utterance = new SpeechSynthesisUtterance(" ");
+  utterance.volume = 0;
+  window.speechSynthesis.speak(utterance);
+}
+
+/** Max time to wait for the utterance to actually start/end before giving up and calling onEnd
+ *  anyway — covers the case where speak() silently never fires any event at all (missing TTS
+ *  voice data, engine not installed), which would otherwise hang a caller like the call-mode loop
+ *  forever in a "falando" state with no way out except hanging up. */
+const SPEAK_TIMEOUT_MS = 15_000;
+
 export function speak(text: string, onEnd?: () => void): void {
   if (!isSpeechSynthesisSupported() || !text.trim()) {
     onEnd?.();
     return;
   }
-  window.speechSynthesis.cancel();
-  const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = LANG;
-  if (onEnd) utterance.onend = onEnd;
-  window.speechSynthesis.speak(utterance);
+  const synth = window.speechSynthesis;
+
+  let settled = false;
+  const finish = () => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeoutId);
+    onEnd?.();
+  };
+  const timeoutId = window.setTimeout(finish, SPEAK_TIMEOUT_MS);
+
+  const doSpeak = () => {
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = LANG;
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    synth.speak(utterance);
+  };
+
+  // Chrome has a known bug where speak() called immediately after cancel() silently drops the
+  // utterance — only cancel (and wait a beat) when something is actually queued/speaking.
+  if (synth.speaking || synth.pending) {
+    synth.cancel();
+    setTimeout(doSpeak, 50);
+  } else {
+    doSpeak();
+  }
 }
 
 export function cancelSpeech(): void {
