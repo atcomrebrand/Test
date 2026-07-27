@@ -86,6 +86,6 @@ import { AssetAnalysisService } from "./application/asset-analysis.service";
     InvestmentsDashboardService,
     MarketExplorerService,
   ],
-  exports: [MarketPriceService, EconomicIndicatorCacheService, FixedIncomeRepository, AssetRepository, CashAccountRepository],
+  exports: [MarketPriceService, EconomicIndicatorCacheService, FixedIncomeRepository, AssetRepository, CashAccountRepository, InvestmentsDashboardService],
 })
 export class InvestmentsModule {}

@@ -58,5 +58,6 @@ import { HouseholdIncomePrismaRepository } from "./infrastructure/household-inco
     { provide: HouseholdCardEntryRepository, useClass: HouseholdCardEntryPrismaRepository },
     { provide: HouseholdIncomeRepository, useClass: HouseholdIncomePrismaRepository },
   ],
+  exports: [HouseholdDashboardService],
 })
 export class HouseholdModule {}

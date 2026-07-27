@@ -7,6 +7,6 @@ import { CardPrismaRepository } from "./infrastructure/card.prisma.repository";
 @Module({
   controllers: [CardsController],
   providers: [CardsService, { provide: CardRepository, useClass: CardPrismaRepository }],
-  exports: [CardRepository],
+  exports: [CardRepository, CardsService],
 })
 export class CardsModule {}

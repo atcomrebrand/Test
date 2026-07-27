@@ -5,6 +5,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Home from "./pages/Home";
 import GeneralSettings from "./pages/GeneralSettings";
+import Assistant from "./pages/Assistant";
 import Dashboard from "./pages/Dashboard";
 import Cards from "./pages/Cards";
 import Purchases from "./pages/Purchases";
@@ -56,6 +57,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Home />} />
         <Route path="/configuracoes" element={<GeneralSettings />} />
+        <Route path="/assistente" element={<Assistant />} />
 
         <Route element={<Layout />}>
           <Route path="/parcelas" element={<Dashboard />} />
