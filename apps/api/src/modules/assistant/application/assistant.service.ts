@@ -78,6 +78,11 @@ export class AssistantService {
       if (err instanceof Anthropic.RateLimitError) {
         throw new ServiceUnavailableException("Limite de uso da API atingido — tenta de novo daqui a pouco.");
       }
+      if (err instanceof Anthropic.BadRequestError && /credit balance/i.test(err.message)) {
+        throw new ServiceUnavailableException(
+          "Sem créditos na conta da Anthropic — adicione créditos em console.anthropic.com (Plans & Billing) pra voltar a usar o assistente.",
+        );
+      }
       this.logger.error("Erro ao consultar o assistente", err as Error);
       throw new InternalServerErrorException("Erro ao consultar o assistente.");
     }
