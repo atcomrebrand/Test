@@ -2,8 +2,10 @@
  * Thin wrapper over the browser's Web Speech API (SpeechRecognition + speechSynthesis) — not in
  * TS's standard DOM lib since it's a de-facto (Chrome/WebKit) API, not a W3C standard, hence the
  * local interfaces below. No server involved: transcription and voice both run in the browser/OS.
- * iOS Safari has no SpeechRecognition support — isSpeechRecognitionSupported() is how callers
- * detect and degrade gracefully instead of throwing.
+ * iOS Safari (and any "Chrome"/other browser on iOS — Apple requires them all to run on WebKit)
+ * has supported webkitSpeechRecognition since 14.5, but WebKit's autoplay/media-unlock rules are
+ * much stricter than Chrome's — see primeAudioPlayback() below. isSpeechRecognitionSupported() is
+ * how callers detect the (rarer, but real) browsers with no support at all and degrade gracefully.
  */
 
 interface SpeechRecognitionResultLike {
@@ -115,7 +117,10 @@ export function getPreferredVoices(voices: SpeechSynthesisVoice[]): SpeechSynthe
 export function primeSpeechSynthesis(): void {
   if (!isSpeechSynthesisSupported()) return;
   const utterance = new SpeechSynthesisUtterance(" ");
-  utterance.volume = 0;
+  // Not 0 — WebKit's autoplay-unlock heuristic can treat a fully muted (volume: 0) playback as
+  // never having needed permission in the first place, so it may not count as proof of a genuine
+  // user gesture for the *next* (real, audible) speak() call. Low but non-zero still counts.
+  utterance.volume = 0.01;
   window.speechSynthesis.speak(utterance);
 }
 
@@ -174,10 +179,12 @@ const SILENT_WAV_DATA_URI = "data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABA
  *  ElevenLabs-generated audio): play-and-immediately-discard a silent clip synchronously inside a
  *  user-gesture handler, so the browser's autoplay policy treats this tab/origin as having
  *  "unlocked" audio and doesn't block the real .play() call that happens later, after the async
- *  API round-trip (Claude, then ElevenLabs) has long since left the original gesture behind. */
+ *  API round-trip (Claude, then ElevenLabs) has long since left the original gesture behind.
+ *  Deliberately NOT muted (no `audio.volume = 0`) — the clip's own PCM data is already silent, and
+ *  WebKit's unlock heuristic can otherwise treat an explicitly-muted play() as never having needed
+ *  permission at all, so it doesn't "spend"/prove the gesture the way a real (if inaudible) one does. */
 export function primeAudioPlayback(): void {
   const audio = new Audio(SILENT_WAV_DATA_URI);
-  audio.volume = 0;
   audio.play().catch(() => {
     // Autoplay blocked entirely — nothing to do here; the real playback later will just fail the
     // same way and fall back to the browser voice (see useSpeakAssistantReply).
