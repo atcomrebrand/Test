@@ -6,10 +6,11 @@ import { InvestmentsModule } from "../investments/investments.module";
 import { TrackingModule } from "../tracking/tracking.module";
 import { AssistantController } from "./interface/assistant.controller";
 import { AssistantService } from "./application/assistant.service";
+import { ElevenLabsProvider } from "./infrastructure/elevenlabs.provider";
 
 @Module({
   imports: [CardsModule, CalendarModule, HouseholdModule, InvestmentsModule, TrackingModule],
   controllers: [AssistantController],
-  providers: [AssistantService],
+  providers: [AssistantService, ElevenLabsProvider],
 })
 export class AssistantModule {}

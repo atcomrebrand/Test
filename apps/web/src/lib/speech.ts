@@ -166,3 +166,20 @@ export function speak(text: string, onEnd?: () => void, voiceURI?: string | null
 export function cancelSpeech(): void {
   if (isSpeechSynthesisSupported()) window.speechSynthesis.cancel();
 }
+
+// A ~1-sample silent WAV — just enough to be a valid, playable file.
+const SILENT_WAV_DATA_URI = "data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQEAAACA";
+
+/** Same trick as primeSpeechSynthesis(), but for a plain HTMLAudioElement (used to play
+ *  ElevenLabs-generated audio): play-and-immediately-discard a silent clip synchronously inside a
+ *  user-gesture handler, so the browser's autoplay policy treats this tab/origin as having
+ *  "unlocked" audio and doesn't block the real .play() call that happens later, after the async
+ *  API round-trip (Claude, then ElevenLabs) has long since left the original gesture behind. */
+export function primeAudioPlayback(): void {
+  const audio = new Audio(SILENT_WAV_DATA_URI);
+  audio.volume = 0;
+  audio.play().catch(() => {
+    // Autoplay blocked entirely — nothing to do here; the real playback later will just fail the
+    // same way and fall back to the browser voice (see useSpeakAssistantReply).
+  });
+}

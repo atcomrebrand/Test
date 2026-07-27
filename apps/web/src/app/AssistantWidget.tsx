@@ -3,14 +3,15 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Bot, Mic, Phone, Send, Settings2, User, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAssistantChat, ChatMessage } from "@/features/useAssistant";
+import { useSpeakAssistantReply } from "@/features/useAssistantSpeech";
 import { useAssistantVoiceStore } from "@/store/assistantVoice";
 import {
   createSpeechRecognition,
   extractLatestResult,
   isSpeechRecognitionSupported,
   isSpeechSynthesisSupported,
+  primeAudioPlayback,
   primeSpeechSynthesis,
-  speak,
   SpeechRecognitionLike,
 } from "@/lib/speech";
 import { AssistantCallOverlay } from "./AssistantCallOverlay";
@@ -38,7 +39,7 @@ export function AssistantWidget() {
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const voiceEnabled = useAssistantVoiceStore((s) => s.voiceEnabled);
   const toggleVoice = useAssistantVoiceStore((s) => s.toggleVoice);
-  const voiceURI = useAssistantVoiceStore((s) => s.voiceURI);
+  const { speakReply } = useSpeakAssistantReply();
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -55,14 +56,17 @@ export function AssistantWidget() {
     setMessages(next);
     setInput("");
     // Must happen synchronously inside this click/submit handler — priming after the async
-    // response arrives is too late for browsers that gate speechSynthesis on a live user gesture.
-    if (voiceEnabled) primeSpeechSynthesis();
+    // response arrives is too late for browsers that gate speech/audio on a live user gesture.
+    if (voiceEnabled) {
+      primeSpeechSynthesis();
+      primeAudioPlayback();
+    }
 
     chat.mutate(next, {
       onSuccess: (res) => {
         setMessages(res.messages);
         const last = res.messages[res.messages.length - 1];
-        if (voiceEnabled && last?.role === "assistant") speak(last.content, undefined, voiceURI);
+        if (voiceEnabled && last?.role === "assistant") speakReply(last.content);
       },
     });
   }
@@ -132,6 +136,7 @@ export function AssistantWidget() {
                   <button
                     onClick={() => {
                       primeSpeechSynthesis();
+                      primeAudioPlayback();
                       setCallOpen(true);
                     }}
                     className="rounded-lg p-1.5 text-muted hover:surface-2"
