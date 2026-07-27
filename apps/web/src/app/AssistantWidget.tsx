@@ -1,25 +1,44 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Bot, Send, User, X } from "lucide-react";
+import { Bot, Mic, Phone, Send, User, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAssistantChat, ChatMessage } from "@/features/useAssistant";
+import { useAssistantVoiceStore } from "@/store/assistantVoice";
+import {
+  createSpeechRecognition,
+  extractLatestResult,
+  isSpeechRecognitionSupported,
+  speak,
+  SpeechRecognitionLike,
+} from "@/lib/speech";
+import { AssistantCallOverlay } from "./AssistantCallOverlay";
+
+const micSupported = isSpeechRecognitionSupported();
 
 /**
  * Mounted once in AppLockGate so it floats above every authenticated screen, in every module —
  * not scoped to one route. Messages live in this component's own state, so the conversation
  * survives navigation between modules for as long as the tab stays open (lost on reload, same as
- * any other in-memory chat).
+ * any other in-memory chat). Also owns the shared conversation passed into AssistantCallOverlay,
+ * so switching between typing and the voice "call" mode continues the same thread.
  */
 export function AssistantWidget() {
   const [open, setOpen] = useState(false);
+  const [callOpen, setCallOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
+  const [listening, setListening] = useState(false);
   const chat = useAssistantChat();
   const bottomRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const voiceEnabled = useAssistantVoiceStore((s) => s.voiceEnabled);
+  const toggleVoice = useAssistantVoiceStore((s) => s.toggleVoice);
 
   useEffect(() => {
     if (open) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, chat.isPending, open]);
+
+  useEffect(() => () => recognitionRef.current?.stop(), []);
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -31,8 +50,30 @@ export function AssistantWidget() {
     setInput("");
 
     chat.mutate(next, {
-      onSuccess: (res) => setMessages(res.messages),
+      onSuccess: (res) => {
+        setMessages(res.messages);
+        const last = res.messages[res.messages.length - 1];
+        if (voiceEnabled && last?.role === "assistant") speak(last.content);
+      },
     });
+  }
+
+  function toggleMic() {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const recognition = createSpeechRecognition({ continuous: false, interimResults: false });
+    if (!recognition) return;
+    recognitionRef.current = recognition;
+    recognition.onresult = (event) => {
+      const { transcript, isFinal } = extractLatestResult(event);
+      if (isFinal) setInput((prev) => (prev ? `${prev} ${transcript}` : transcript));
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+    recognition.start();
+    setListening(true);
   }
 
   return (
@@ -55,13 +96,33 @@ export function AssistantWidget() {
             className="fixed bottom-[calc(15rem_+_env(safe-area-inset-bottom))] right-4 z-40 flex h-[32rem] max-h-[70vh] w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[rgb(var(--border))] surface shadow-elevated md:bottom-40 md:right-6"
           >
             <div className="flex items-center justify-between border-b border-[rgb(var(--border))] px-4 py-3">
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold">Assistente</p>
-                <p className="text-xs text-muted">Pergunte sobre seus cartões, contas ou investimentos.</p>
+                <p className="truncate text-xs text-muted">Pergunte sobre seus cartões, contas ou investimentos.</p>
               </div>
-              <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-muted hover:surface-2" aria-label="Fechar">
-                <X className="h-4 w-4" />
-              </button>
+              <div className="flex shrink-0 items-center gap-0.5">
+                <button
+                  onClick={toggleVoice}
+                  className="rounded-lg p-1.5 text-muted hover:surface-2"
+                  aria-label={voiceEnabled ? "Desativar leitura em voz alta" : "Ativar leitura em voz alta"}
+                  title={voiceEnabled ? "Leitura em voz alta ligada" : "Leitura em voz alta desligada"}
+                >
+                  {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+                </button>
+                {micSupported && (
+                  <button
+                    onClick={() => setCallOpen(true)}
+                    className="rounded-lg p-1.5 text-muted hover:surface-2"
+                    aria-label="Ligar (modo voz)"
+                    title="Conversar por voz"
+                  >
+                    <Phone className="h-4 w-4" />
+                  </button>
+                )}
+                <button onClick={() => setOpen(false)} className="rounded-lg p-1.5 text-muted hover:surface-2" aria-label="Fechar">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
@@ -113,10 +174,22 @@ export function AssistantWidget() {
             </div>
 
             <form onSubmit={handleSubmit} className="flex items-center gap-2 border-t border-[rgb(var(--border))] p-3">
+              {micSupported && (
+                <button
+                  type="button"
+                  onClick={toggleMic}
+                  aria-label={listening ? "Parar de ouvir" : "Falar"}
+                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
+                    listening ? "animate-pulse bg-red-500 text-white" : "surface-2 text-muted hover:text-[rgb(var(--text))]"
+                  }`}
+                >
+                  <Mic className="h-4 w-4" />
+                </button>
+              )}
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Escreva sua pergunta..."
+                placeholder={listening ? "Ouvindo..." : "Escreva sua pergunta..."}
                 disabled={chat.isPending}
                 className="h-10 flex-1 rounded-xl border border-[rgb(var(--border))] surface px-3 text-sm outline-none focus:ring-2 focus:ring-accent-500/50"
               />
@@ -127,6 +200,8 @@ export function AssistantWidget() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <AssistantCallOverlay open={callOpen} onClose={() => setCallOpen(false)} messages={messages} setMessages={setMessages} />
     </>
   );
 }
