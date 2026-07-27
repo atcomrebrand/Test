@@ -172,6 +172,19 @@ export function cancelSpeech(): void {
   if (isSpeechSynthesisSupported()) window.speechSynthesis.cancel();
 }
 
+/** iOS Safari/WebKit (including "Chrome" on iOS, which runs on WebKit too) has known reliability
+ *  issues playing audio loaded from a `blob:` URL — it can fetch fine and still fail to decode/play
+ *  with no useful error beyond "something went wrong". A `data:` URI sidesteps that blob-loading
+ *  path entirely and is far more consistently supported for <audio> playback across browsers. */
+export function blobToDataUri(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error ?? new Error("Erro ao ler o áudio."));
+    reader.readAsDataURL(blob);
+  });
+}
+
 // A ~1-sample silent WAV — just enough to be a valid, playable file.
 const SILENT_WAV_DATA_URI = "data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQEAAACA";
 
