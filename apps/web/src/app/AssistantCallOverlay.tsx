@@ -31,6 +31,7 @@ const STATE_LABEL: Record<CallState, string> = {
 export function AssistantCallOverlay({ open, onClose, messages, setMessages }: AssistantCallOverlayProps) {
   const [callState, setCallState] = useState<CallState>("listening");
   const [caption, setCaption] = useState("");
+  const [speechNote, setSpeechNote] = useState<string | null>(null);
   const chat = useAssistantChat();
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const openRef = useRef(open);
@@ -119,9 +120,14 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
   function respondAndListen(text: string) {
     setCallState("speaking");
     setCaption(text);
-    speakReply(text, () => {
-      if (openRef.current) startListening();
-    });
+    setSpeechNote(null);
+    speakReply(
+      text,
+      () => {
+        if (openRef.current) startListening();
+      },
+      (reason) => setSpeechNote(`Não consegui usar a voz escolhida (${reason}) — falando com a voz do navegador.`),
+    );
   }
 
   function handleHangUp() {
@@ -174,6 +180,7 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
           </div>
 
           {caption && <p className="max-w-sm text-center text-sm text-muted">{caption}</p>}
+          {speechNote && <p className="max-w-sm text-center text-xs text-amber-500">{speechNote}</p>}
         </div>
 
         <button

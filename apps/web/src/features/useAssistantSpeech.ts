@@ -18,7 +18,7 @@ export function useSpeakAssistantReply() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   const speakReply = useCallback(
-    (text: string, onEnd?: () => void) => {
+    (text: string, onEnd?: () => void, onFallback?: (reason: string) => void) => {
       if (voiceSource === "elevenlabs" && elevenLabsVoiceId) {
         synthesizeSpeech(text, elevenLabsVoiceId)
           .then((blob) => {
@@ -31,10 +31,27 @@ export function useSpeakAssistantReply() {
               onEnd?.();
             };
             audio.onended = finish;
-            audio.onerror = finish;
-            audio.play().catch(finish);
+            audio.onerror = () => {
+              URL.revokeObjectURL(url);
+              if (audioRef.current === audio) audioRef.current = null;
+              onFallback?.("elevenlabs-playback-erro");
+              speakWithBrowser(text, onEnd, voiceURI);
+            };
+            audio.play().catch(() => {
+              // Most likely the browser's autoplay policy blocking .play() this far removed from
+              // the click that started the turn — surface it so the caller (the call-mode
+              // caption) can tell the user what actually happened, and still speak via the free
+              // browser voice instead of leaving the reply completely silent.
+              URL.revokeObjectURL(url);
+              if (audioRef.current === audio) audioRef.current = null;
+              onFallback?.("audio-autoplay-bloqueado");
+              speakWithBrowser(text, onEnd, voiceURI);
+            });
           })
-          .catch(() => speakWithBrowser(text, onEnd, voiceURI));
+          .catch((err) => {
+            onFallback?.(err instanceof Error ? err.message : "elevenlabs-erro");
+            speakWithBrowser(text, onEnd, voiceURI);
+          });
         return;
       }
       speakWithBrowser(text, onEnd, voiceURI);
