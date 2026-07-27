@@ -30,6 +30,10 @@ export function VoicePickerModal({ open, onClose }: VoicePickerModalProps) {
         <p className="text-sm text-muted">Nenhuma voz encontrada nesse navegador.</p>
       ) : (
         <div className="space-y-1">
+          <p className="px-1 pb-1 text-xs text-muted">
+            Vozes com <span className="font-medium text-accent-600 dark:text-accent-300">"melhor qualidade"</span> costumam soar
+            bem menos robotizadas — vale testar essas primeiro.
+          </p>
           <button
             onClick={() => setVoiceURI(null)}
             className={`flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${
@@ -49,6 +53,11 @@ export function VoicePickerModal({ open, onClose }: VoicePickerModalProps) {
             >
               <button onClick={() => setVoiceURI(v.voiceURI)} className="min-w-0 flex-1 truncate px-2 py-1.5 text-left">
                 {v.name} <span className="text-xs text-muted">({v.lang})</span>
+                {!v.localService && (
+                  <span className="ml-1.5 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-600 dark:text-emerald-400">
+                    melhor qualidade
+                  </span>
+                )}
               </button>
               <div className="flex shrink-0 items-center gap-1 pr-1">
                 <button

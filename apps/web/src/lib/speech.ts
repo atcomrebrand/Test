@@ -97,10 +97,14 @@ export function loadVoices(): Promise<SpeechSynthesisVoice[]> {
 }
 
 /** Prefers pt-* voices (what most people here will want) but falls back to everything installed
- *  rather than an empty picker if the device has no Portuguese voice at all. */
+ *  rather than an empty picker if the device has no Portuguese voice at all. Also puts
+ *  `localService: false` ("network") voices first — those are rendered server-side by the
+ *  browser vendor (still free to us) and consistently sound far less robotic than the on-device
+ *  ones, which is the whole free lever available here without switching to a paid TTS API. */
 export function getPreferredVoices(voices: SpeechSynthesisVoice[]): SpeechSynthesisVoice[] {
   const pt = voices.filter((v) => v.lang.toLowerCase().startsWith("pt"));
-  return pt.length > 0 ? pt : voices;
+  const pool = pt.length > 0 ? pt : voices;
+  return [...pool].sort((a, b) => Number(a.localService) - Number(b.localService));
 }
 
 /** Speaks a near-silent utterance synchronously inside a user-gesture handler (a click, not an
