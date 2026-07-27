@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { LogOut, Moon, Settings, Sun, Wrench, CreditCard, LineChart, Clock, Home as HomeIcon, Bot, type LucideIcon } from "lucide-react";
+import { LogOut, Moon, Settings, Sun, Wrench, CreditCard, LineChart, Clock, Home as HomeIcon, type LucideIcon } from "lucide-react";
 import { useThemeStore } from "@/store/theme";
 import { useAuthStore } from "@/store/auth";
 import { QuotesTicker } from "@/app/QuotesTicker";
@@ -41,13 +41,6 @@ const APPS: AppCard[] = [
     description: "Contas, cartões, entradas e quanto realmente sobra no mês.",
     icon: HomeIcon,
     color: "bg-amber-500",
-  },
-  {
-    to: "/assistente",
-    title: "Assistente",
-    description: "Pergunte sobre seus cartões, contas ou investimentos.",
-    icon: Bot,
-    color: "bg-sky-500",
   },
 ];
 

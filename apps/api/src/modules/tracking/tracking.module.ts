@@ -80,6 +80,6 @@ import { CurrencyApiFxProvider } from "./infrastructure/providers/currency-api-f
     { provide: TrackingJobPaymentRepository, useClass: TrackingJobPaymentPrismaRepository },
     { provide: TrackingFxRateProvider, useClass: AwesomeApiFxProvider },
   ],
-  exports: [TrackingJobRepository, TrackingSessionRepository, TrackingIncomeRepository, TrackingFxService],
+  exports: [TrackingJobRepository, TrackingSessionRepository, TrackingIncomeRepository, TrackingFxService, TrackingDashboardService],
 })
 export class TrackingModule {}

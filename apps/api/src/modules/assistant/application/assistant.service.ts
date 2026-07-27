@@ -4,6 +4,7 @@ import { CardsService } from "../../cards/application/cards.service";
 import { CalendarService } from "../../calendar/calendar.service";
 import { HouseholdDashboardService } from "../../household/application/household-dashboard.service";
 import { InvestmentsDashboardService } from "../../investments/application/investments-dashboard.service";
+import { TrackingDashboardService } from "../../tracking/application/tracking-dashboard.service";
 
 const MODEL = "claude-haiku-4-5";
 const MAX_TOOL_ROUNDS = 6;
@@ -29,6 +30,7 @@ export class AssistantService {
     private readonly calendar: CalendarService,
     private readonly householdDashboard: HouseholdDashboardService,
     private readonly investmentsDashboard: InvestmentsDashboardService,
+    private readonly trackingDashboard: TrackingDashboardService,
   ) {}
 
   async chat(userId: string, history: ChatMessage[]): Promise<ChatMessage[]> {
@@ -149,6 +151,12 @@ export class AssistantService {
           "Resumo completo da carteira de investimentos: patrimônio total, valor investido, lucro líquido, rentabilidade, distribuição por categoria, maiores ganhos/perdas, próximos vencimentos de renda fixa.",
         input_schema: { type: "object", properties: {}, required: [] },
       },
+      {
+        name: "resumo_horas",
+        description:
+          "Dashboard do módulo Horas (controle de ponto/trabalhos): horas trabalhadas hoje e no mês, receita de trabalhos fixos/freelance/outras entradas, valor médio da hora, dias trabalhados, próximo pagamento, comparação com o mês anterior. Use pra perguntas sobre horas trabalhadas, faturamento de trabalho/freela ou valor da hora.",
+        input_schema: { type: "object", properties: {}, required: [] },
+      },
     ];
   }
 
@@ -164,6 +172,8 @@ export class AssistantService {
         return this.householdDashboard.month(userId, Number(input.year), Number(input.month));
       case "resumo_investimentos":
         return this.investmentsDashboard.summary(userId);
+      case "resumo_horas":
+        return this.trackingDashboard.summary(userId);
       default:
         return { error: `Ferramenta desconhecida: ${name}` };
     }
