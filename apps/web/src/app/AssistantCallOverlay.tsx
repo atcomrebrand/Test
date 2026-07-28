@@ -38,6 +38,8 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
   const openRef = useRef(open);
   const messagesRef = useRef(messages);
+  const typewriterIdRef = useRef<number | null>(null);
+  const pendingListenIdRef = useRef<number | null>(null);
   const { speakReply, stop: stopSpeaking } = useSpeakAssistantReply();
 
   useEffect(() => {
@@ -55,6 +57,8 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
     } else {
       stopRecognitionHard();
       stopSpeaking();
+      clearTypewriter();
+      clearPendingListen();
       // Drop the shared AudioContext when a call ends — iOS Safari's audio session can get stuck
       // after interleaving mic capture (SpeechRecognition) with playback across several turns, so
       // a call that hung up cleanly could otherwise leave the next call unable to speak. Starting
@@ -64,9 +68,41 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
     return () => {
       stopRecognitionHard();
       stopSpeaking();
+      clearTypewriter();
+      clearPendingListen();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  function clearTypewriter() {
+    if (typewriterIdRef.current !== null) {
+      window.clearInterval(typewriterIdRef.current);
+      typewriterIdRef.current = null;
+    }
+  }
+
+  function clearPendingListen() {
+    if (pendingListenIdRef.current !== null) {
+      window.clearTimeout(pendingListenIdRef.current);
+      pendingListenIdRef.current = null;
+    }
+  }
+
+  /** Reveals `text` progressively, roughly in sync with how long it takes to actually say it —
+   *  called from speakReply's onStart (once audio genuinely begins), not from respondAndListen
+   *  itself, so nothing shows on screen during the silent gap while a reply is being
+   *  fetched/synthesized. A subtitle-style reveal reads as far more "alive" than the full reply
+   *  appearing all at once. */
+  function startTypewriter(text: string, durationMs: number) {
+    clearTypewriter();
+    const start = performance.now();
+    const safeDuration = Math.max(durationMs, 300);
+    typewriterIdRef.current = window.setInterval(() => {
+      const fraction = Math.min((performance.now() - start) / safeDuration, 1);
+      setCaption(text.slice(0, Math.ceil(text.length * fraction)));
+      if (fraction >= 1) clearTypewriter();
+    }, 40);
+  }
 
   /** stop() on iOS Safari's webkitSpeechRecognition is unreliable about actually releasing the
    *  microphone — it can leave the recording session (and the mic permission prompt) stuck
@@ -146,20 +182,37 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
 
   function respondAndListen(text: string) {
     setCallState("speaking");
-    setCaption(text);
+    // Nothing shown yet — startTypewriter() (fired from onStart, once audio genuinely begins)
+    // reveals it progressively instead of dumping the whole reply on screen immediately.
+    setCaption("");
     setSpeechNote(null);
     speakReply(
       text,
       () => {
-        if (openRef.current) startListening();
+        clearTypewriter();
+        // Show the complete reply and let it sit on screen for a beat before clearing for the
+        // next turn — startListening() below clears the caption immediately, so without this
+        // pause the reveal would jump straight from a partial line to blank, never actually
+        // showing the finished sentence (the duration passed to startTypewriter is only an
+        // estimate, so it rarely finishes exactly when speech does).
+        setCaption(text);
+        if (openRef.current) {
+          pendingListenIdRef.current = window.setTimeout(() => {
+            pendingListenIdRef.current = null;
+            if (openRef.current) startListening();
+          }, 400);
+        }
       },
       (reason) => setSpeechNote(`Não consegui usar a voz escolhida (${reason}) — falando com a voz do navegador.`),
+      (durationMs) => startTypewriter(text, durationMs),
     );
   }
 
   function handleHangUp() {
     stopRecognitionHard();
     stopSpeaking();
+    clearTypewriter();
+    clearPendingListen();
     onClose();
   }
 

@@ -19,7 +19,7 @@ export function useSpeakAssistantReply() {
   const stopAudioRef = useRef<(() => void) | null>(null);
 
   const speakReply = useCallback(
-    (text: string, onEnd?: () => void, onFallback?: (reason: string) => void) => {
+    (text: string, onEnd?: () => void, onFallback?: (reason: string) => void, onStart?: (durationMs: number) => void) => {
       if (voiceSource === "elevenlabs" && elevenLabsVoiceId) {
         synthesizeSpeech(text, elevenLabsVoiceId)
           .then((blob) => {
@@ -32,17 +32,18 @@ export function useSpeakAssistantReply() {
               (err) => {
                 stopAudioRef.current = null;
                 onFallback?.(err instanceof Error ? err.message : "elevenlabs-playback-erro");
-                speakWithBrowser(text, onEnd, voiceURI);
+                speakWithBrowser(text, onEnd, voiceURI, onStart);
               },
+              onStart,
             );
           })
           .catch((err) => {
             onFallback?.(err instanceof Error ? err.message : "elevenlabs-erro");
-            speakWithBrowser(text, onEnd, voiceURI);
+            speakWithBrowser(text, onEnd, voiceURI, onStart);
           });
         return;
       }
-      speakWithBrowser(text, onEnd, voiceURI);
+      speakWithBrowser(text, onEnd, voiceURI, onStart);
     },
     [voiceSource, voiceURI, elevenLabsVoiceId],
   );

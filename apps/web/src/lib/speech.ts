@@ -130,7 +130,21 @@ export function primeSpeechSynthesis(): void {
  *  forever in a "falando" state with no way out except hanging up. */
 const SPEAK_TIMEOUT_MS = 15_000;
 
-export function speak(text: string, onEnd?: () => void, voiceURI?: string | null): void {
+/** Rough Portuguese speech rate used to estimate how long an utterance will take to read aloud —
+ *  there's no way to know the real duration in advance for speechSynthesis (unlike decoded
+ *  ElevenLabs audio, which reports its own exact duration), so callers that want to reveal a
+ *  caption in sync with speech (a typewriter effect) use this estimate to pace it. */
+const CHARS_PER_SECOND = 14;
+
+export function estimateSpeechDurationMs(text: string): number {
+  return (text.length / CHARS_PER_SECOND) * 1000;
+}
+
+/** onStart fires once speech genuinely begins (or after a short grace period if the browser never
+ *  fires its own "start" event) with an estimated duration in ms — callers use it to sync a
+ *  caption reveal to roughly when audio is actually audible, not to whenever speak() was called
+ *  (which can be well before anything comes out of the speakers). */
+export function speak(text: string, onEnd?: () => void, voiceURI?: string | null, onStart?: (estimatedDurationMs: number) => void): void {
   if (!isSpeechSynthesisSupported() || !text.trim()) {
     onEnd?.();
     return;
@@ -153,6 +167,19 @@ export function speak(text: string, onEnd?: () => void, voiceURI?: string | null
       const voice = synth.getVoices().find((v) => v.voiceURI === voiceURI);
       if (voice) utterance.voice = voice;
     }
+    let started = false;
+    const start = () => {
+      if (started) return;
+      started = true;
+      onStart?.(estimateSpeechDurationMs(text));
+    };
+    // Not every engine reliably fires onstart (notably some WebKit versions) — a short grace
+    // period guarantees the caption still reveals instead of staying blank for the whole reply.
+    const startFallbackId = window.setTimeout(start, 300);
+    utterance.onstart = () => {
+      clearTimeout(startFallbackId);
+      start();
+    };
     utterance.onend = finish;
     utterance.onerror = finish;
     synth.speak(utterance);
@@ -256,8 +283,15 @@ export function primeAudioPlayback(): void {
 
 /** Decodes and plays an audio Blob. Returns a stop() you can call to cancel playback early —
  *  callers that need to hang up mid-reply (the call-mode overlay) use this instead of pausing an
- *  <audio> element, since there isn't one anymore. */
-export function playAudioBlob(blob: Blob, onEnd: () => void, onError: (err: unknown) => void): () => void {
+ *  <audio> element, since there isn't one anymore. onStart fires right as playback begins with the
+ *  audio's real, exact duration in ms — unlike speak() above, decoded audio always knows this in
+ *  advance, so a caption reveal synced to it can be pixel (well, character) perfect. */
+export function playAudioBlob(
+  blob: Blob,
+  onEnd: () => void,
+  onError: (err: unknown) => void,
+  onStart?: (durationMs: number) => void,
+): () => void {
   const ctx = getAudioContext();
   if (!ctx) {
     onError(new Error("Web Audio API não suportada neste navegador."));
@@ -286,6 +320,7 @@ export function playAudioBlob(blob: Blob, onEnd: () => void, onError: (err: unkn
       source.onended = () => {
         if (!stopped) onEnd();
       };
+      onStart?.(audioBuffer.duration * 1000);
       source.start(0);
     })
     .catch(onError);
