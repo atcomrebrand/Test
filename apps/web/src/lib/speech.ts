@@ -172,34 +172,85 @@ export function cancelSpeech(): void {
   if (isSpeechSynthesisSupported()) window.speechSynthesis.cancel();
 }
 
-/** iOS Safari/WebKit (including "Chrome" on iOS, which runs on WebKit too) has known reliability
- *  issues playing audio loaded from a `blob:` URL — it can fetch fine and still fail to decode/play
- *  with no useful error beyond "something went wrong". A `data:` URI sidesteps that blob-loading
- *  path entirely and is far more consistently supported for <audio> playback across browsers. */
-export function blobToDataUri(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error ?? new Error("Erro ao ler o áudio."));
-    reader.readAsDataURL(blob);
-  });
+/**
+ * Plays ElevenLabs-generated audio via the Web Audio API instead of an <audio> element. iOS
+ * Safari/WebKit (incl. "Chrome" on iOS — same engine underneath) has real, documented reliability
+ * problems playing dynamically-fetched audio through <audio src> once it's more than ~70KB either
+ * via a `blob:` URL (broken since iOS 15.4) or a `data:` URI (never reliably supported for audio
+ * on mobile Safari at all) — a short spoken reply crosses that size easily. decodeAudioData() is
+ * the documented-stable path around both. Uses the legacy 3-argument callback form (not the
+ * Promise-returning overload) since that's the one every WebKit version has supported.
+ */
+type AudioContextConstructor = new () => AudioContext;
+
+declare global {
+  interface Window {
+    webkitAudioContext?: AudioContextConstructor;
+  }
 }
 
-// A ~1-sample silent WAV — just enough to be a valid, playable file.
-const SILENT_WAV_DATA_URI = "data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQEAAACA";
+let sharedAudioContext: AudioContext | null = null;
 
-/** Same trick as primeSpeechSynthesis(), but for a plain HTMLAudioElement (used to play
- *  ElevenLabs-generated audio): play-and-immediately-discard a silent clip synchronously inside a
- *  user-gesture handler, so the browser's autoplay policy treats this tab/origin as having
- *  "unlocked" audio and doesn't block the real .play() call that happens later, after the async
- *  API round-trip (Claude, then ElevenLabs) has long since left the original gesture behind.
- *  Deliberately NOT muted (no `audio.volume = 0`) — the clip's own PCM data is already silent, and
- *  WebKit's unlock heuristic can otherwise treat an explicitly-muted play() as never having needed
- *  permission at all, so it doesn't "spend"/prove the gesture the way a real (if inaudible) one does. */
+function getAudioContext(): AudioContext | null {
+  if (sharedAudioContext) return sharedAudioContext;
+  const Ctor = window.AudioContext ?? window.webkitAudioContext;
+  if (!Ctor) return null;
+  sharedAudioContext = new Ctor();
+  return sharedAudioContext;
+}
+
+/** iOS only lets an AudioContext actually produce sound once it's been resumed synchronously
+ *  inside a genuine user-gesture handler — but that unlock persists for the rest of the page
+ *  session on the same AudioContext instance, so later async playback (after the Claude + then
+ *  ElevenLabs network round-trips) doesn't need a fresh gesture. Same idea as
+ *  primeSpeechSynthesis(), call this from the same click/submit handler. */
 export function primeAudioPlayback(): void {
-  const audio = new Audio(SILENT_WAV_DATA_URI);
-  audio.play().catch(() => {
-    // Autoplay blocked entirely — nothing to do here; the real playback later will just fail the
-    // same way and fall back to the browser voice (see useSpeakAssistantReply).
-  });
+  const ctx = getAudioContext();
+  if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+}
+
+/** Decodes and plays an audio Blob. Returns a stop() you can call to cancel playback early —
+ *  callers that need to hang up mid-reply (the call-mode overlay) use this instead of pausing an
+ *  <audio> element, since there isn't one anymore. */
+export function playAudioBlob(blob: Blob, onEnd: () => void, onError: (err: unknown) => void): () => void {
+  const ctx = getAudioContext();
+  if (!ctx) {
+    onError(new Error("Web Audio API não suportada neste navegador."));
+    return () => {};
+  }
+
+  let source: AudioBufferSourceNode | null = null;
+  let stopped = false;
+
+  blob
+    .arrayBuffer()
+    .then((arrayBuffer) => {
+      const resumeIfNeeded = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+      return resumeIfNeeded.then(
+        () =>
+          new Promise<AudioBuffer>((resolve, reject) => {
+            ctx.decodeAudioData(arrayBuffer, resolve, reject);
+          }),
+      );
+    })
+    .then((audioBuffer) => {
+      if (stopped) return;
+      source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      source.onended = () => {
+        if (!stopped) onEnd();
+      };
+      source.start(0);
+    })
+    .catch(onError);
+
+  return () => {
+    stopped = true;
+    try {
+      source?.stop();
+    } catch {
+      // Already stopped/finished — nothing to do.
+    }
+  };
 }

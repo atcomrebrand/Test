@@ -4,7 +4,7 @@ import { Check, Loader2, Play } from "lucide-react";
 import { Modal } from "@/components/ui/Modal";
 import { Tabs } from "@/components/ui/Tabs";
 import { useAssistantVoiceStore, VoiceSource } from "@/store/assistantVoice";
-import { getPreferredVoices, loadVoices, speak, blobToDataUri } from "@/lib/speech";
+import { getPreferredVoices, loadVoices, speak, playAudioBlob, primeAudioPlayback } from "@/lib/speech";
 import { useElevenLabsVoices, synthesizeSpeech } from "@/features/useAssistant";
 
 interface VoicePickerModalProps {
@@ -56,12 +56,13 @@ export function VoicePickerModal({ open, onClose }: VoicePickerModalProps) {
   }
 
   async function previewElevenLabsVoice(voiceId: string) {
+    primeAudioPlayback();
     setPreviewingId(voiceId);
     try {
       const blob = await synthesizeSpeech(SAMPLE_TEXT, voiceId);
-      const dataUri = await blobToDataUri(blob);
-      const audio = new Audio(dataUri);
-      await audio.play();
+      await new Promise<void>((resolve, reject) => {
+        playAudioBlob(blob, resolve, reject);
+      });
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Erro ao testar essa voz.");
     } finally {
