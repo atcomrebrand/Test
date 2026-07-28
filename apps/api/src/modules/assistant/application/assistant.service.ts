@@ -4,7 +4,18 @@ import { CardsService } from "../../cards/application/cards.service";
 import { CalendarService } from "../../calendar/calendar.service";
 import { HouseholdDashboardService } from "../../household/application/household-dashboard.service";
 import { InvestmentsDashboardService } from "../../investments/application/investments-dashboard.service";
+import { MarketExplorerService } from "../../investments/application/market-explorer.service";
+import { DividendsService } from "../../investments/application/dividends.service";
 import { TrackingDashboardService } from "../../tracking/application/tracking-dashboard.service";
+import { QuotesService } from "../../quotes/quotes.service";
+
+type AssetClasseUsuario = "ACAO" | "FII" | "CRIPTO";
+
+const CLASSE_USUARIO_PARA_INTERNA: Record<AssetClasseUsuario, "STOCK" | "FII" | "CRYPTO"> = {
+  ACAO: "STOCK",
+  FII: "FII",
+  CRIPTO: "CRYPTO",
+};
 
 const MODEL = "claude-haiku-4-5";
 const MAX_TOOL_ROUNDS = 6;
@@ -30,7 +41,10 @@ export class AssistantService {
     private readonly calendar: CalendarService,
     private readonly householdDashboard: HouseholdDashboardService,
     private readonly investmentsDashboard: InvestmentsDashboardService,
+    private readonly marketExplorer: MarketExplorerService,
+    private readonly dividends: DividendsService,
     private readonly trackingDashboard: TrackingDashboardService,
+    private readonly quotes: QuotesService,
   ) {}
 
   async chat(userId: string, history: ChatMessage[]): Promise<ChatMessage[]> {
@@ -95,11 +109,14 @@ export class AssistantService {
     return [
       'Você é o assistente financeiro pessoal dentro do app "Ferramentas do Mauro".',
       `Hoje é ${hoje}.`,
-      "Responda em português do Brasil, de forma direta e objetiva — sem enrolação.",
+      "Responda em português do Brasil impecável, com gramática, concordância e acentuação corretas, de forma direta e objetiva, sem enrolação.",
+      "Suas respostas costumam ser lidas em voz alta por um sintetizador de fala, então escreva sempre pensando em fluidez de fala, nunca em texto formatado para tela:",
+      "Não use nenhum tipo de marcação: sem asteriscos, sem hífen ou marcador de lista, sem cerquilha, sem numeração de lista, sem tabela. Escreva só em frases corridas, como se estivesse falando com a pessoa.",
+      "Escreva todo número por extenso, nunca como numeral ou símbolo: valores em dinheiro, quantidades, percentuais, datas e horas sempre em palavras (por exemplo, cento e vinte e três reais e quarenta centavos em vez de R$ 123,40; três vírgula cinco por cento em vez de 3,5%; quinze de agosto em vez de 15/08; duas e meia da tarde em vez de 14:30).",
       "Use as ferramentas disponíveis pra consultar dados reais do usuário antes de responder qualquer pergunta sobre valores, cartões, contas ou investimentos. Nunca invente número.",
       "Se nenhuma ferramenta responder exatamente o que foi perguntado, diga isso claramente em vez de chutar.",
-      "Valores monetários sempre em reais, formatados como 1.234,56.",
       'No Parcelamento, o "mês" de uma parcela é a competência (mês em que a fatura fecha, convenção dos bancos) — pode ser diferente do mês em que ela realmente vence. Não precisa explicar essa diferença a menos que o usuário pergunte especificamente sobre isso.',
+      "Pra perguntas sobre uma ação, FII ou criptomoeda específica (cotação, preço sobre lucro, dividend yield, indicadores, próximos proventos), use as ferramentas de cotação e análise de ativos mesmo que o usuário não tenha esse ativo na carteira — elas consultam qualquer ativo do mercado. Pra cotação do dólar, use a ferramenta de cotação do dólar.",
     ].join("\n");
   }
 
@@ -157,6 +174,49 @@ export class AssistantService {
           "Dashboard do módulo Horas (controle de ponto/trabalhos): horas trabalhadas hoje e no mês, receita de trabalhos fixos/freelance/outras entradas, valor médio da hora, dias trabalhados, próximo pagamento, comparação com o mês anterior. Use pra perguntas sobre horas trabalhadas, faturamento de trabalho/freela ou valor da hora.",
         input_schema: { type: "object", properties: {}, required: [] },
       },
+      {
+        name: "cotacao_dolar",
+        description: "Cotação atual do dólar (USD/BRL) e o fechamento do pregão anterior, pra comparar se subiu ou caiu.",
+        input_schema: { type: "object", properties: {}, required: [] },
+      },
+      {
+        name: "cotacao_ativo",
+        description:
+          "Cotação atual e indicadores básicos (preço, variação do dia, preço sobre lucro, dividend yield, volume) de uma ação, FII ou criptomoeda específica pelo ticker/símbolo — funciona pra qualquer ativo do mercado, esteja ou não na carteira do usuário. Use pra perguntas como 'quanto está a PETR4' ou 'qual o preço do bitcoin agora'.",
+        input_schema: {
+          type: "object",
+          properties: {
+            ticker: { type: "string", description: "Ticker/símbolo do ativo, ex: PETR4, MXRF11, BTC" },
+            classe: { type: "string", enum: ["ACAO", "FII", "CRIPTO"], description: "Classe do ativo" },
+          },
+          required: ["ticker", "classe"],
+        },
+      },
+      {
+        name: "analise_ativo",
+        description:
+          "Indicadores fundamentalistas completos de uma ação ou FII pelo ticker: preço sobre lucro, preço sobre valor patrimonial, dividend yield, margens, ROE, endividamento, preço-teto de Graham e de Bazin, e os próximos proventos anunciados desse ativo. Não se aplica a criptomoeda. Use pra perguntas sobre se um ativo está caro/barato ou sobre seus indicadores fundamentalistas.",
+        input_schema: {
+          type: "object",
+          properties: {
+            ticker: { type: "string", description: "Ticker do ativo, ex: PETR4, MXRF11" },
+            classe: { type: "string", enum: ["ACAO", "FII"], description: "Classe do ativo" },
+          },
+          required: ["ticker", "classe"],
+        },
+      },
+      {
+        name: "proventos_futuros",
+        description:
+          "Lista dos próximos dividendos/proventos ainda não pagos. Com escopo 'carteira' (padrão), traz só os ativos que o usuário possui, já com a quantidade em posição e o valor estimado a receber. Com escopo 'mercado', traz os próximos proventos anunciados pelas principais ações e FIIs da bolsa, independente do que o usuário possui. Use pra perguntas como 'quando cai o próximo dividendo' ou 'quanto vou receber de provento'.",
+        input_schema: {
+          type: "object",
+          properties: {
+            escopo: { type: "string", enum: ["carteira", "mercado"], description: "carteira = só ativos do usuário; mercado = principais ativos da bolsa" },
+          },
+          required: [],
+        },
+      },
     ];
   }
 
@@ -174,9 +234,86 @@ export class AssistantService {
         return this.investmentsDashboard.summary(userId);
       case "resumo_horas":
         return this.trackingDashboard.summary(userId);
+      case "cotacao_dolar":
+        return this.cotacaoDolar();
+      case "cotacao_ativo":
+        return this.cotacaoAtivo(userId, String(input.ticker), input.classe as AssetClasseUsuario);
+      case "analise_ativo":
+        return this.analiseAtivo(String(input.ticker), input.classe as AssetClasseUsuario);
+      case "proventos_futuros":
+        return this.proventosFuturos(userId, (input.escopo as "carteira" | "mercado" | undefined) ?? "carteira");
       default:
         return { error: `Ferramenta desconhecida: ${name}` };
     }
+  }
+
+  private async cotacaoDolar() {
+    const [usd] = await this.quotes.ticker();
+    if (!usd || usd.rate === null) return { error: "Cotação do dólar indisponível no momento." };
+    return { moeda: "USD/BRL", cotacao: usd.rate, fechamentoAnterior: usd.previousClose };
+  }
+
+  private async cotacaoAtivo(userId: string, ticker: string, classe: AssetClasseUsuario) {
+    const classeInterna = CLASSE_USUARIO_PARA_INTERNA[classe];
+    if (!classeInterna) return { error: `Classe de ativo inválida: ${classe}` };
+
+    const result = await this.marketExplorer.getQuoteDetail(userId, classeInterna, ticker);
+    if (!result.detail) return { error: `Não encontrei cotação pra ${ticker}.` };
+
+    return {
+      ticker: result.ticker,
+      classe,
+      preco: result.detail.price,
+      moeda: result.detail.currency,
+      variacaoPercentualHoje: result.detail.changePercent,
+      aproximado: result.detail.approximate ?? false,
+      indicadores: result.detail.fundamentals,
+      naCarteiraDoUsuario: result.ownedAssetId !== null,
+    };
+  }
+
+  private async analiseAtivo(ticker: string, classe: AssetClasseUsuario) {
+    if (classe !== "ACAO" && classe !== "FII") return { error: "Análise fundamentalista só está disponível pra ações e FIIs." };
+    const classeInterna = CLASSE_USUARIO_PARA_INTERNA[classe];
+
+    const analysis = await this.marketExplorer.getAnalysis(classeInterna, ticker);
+    if (!analysis) return { error: `Não encontrei dados pra ${ticker}.` };
+
+    return {
+      ticker: analysis.ticker,
+      classe,
+      precoAtual: analysis.currentPrice,
+      variacaoPercentualHoje: analysis.changePercent,
+      indicadores: analysis.indicators,
+      precoTetoGraham: analysis.graham,
+      precoTetoBazin: analysis.bazin,
+      rentabilidade: analysis.profitability,
+      proximosProventos: analysis.dividendsUpcoming.slice(0, 10),
+    };
+  }
+
+  private async proventosFuturos(userId: string, escopo: "carteira" | "mercado") {
+    const hoje = new Date();
+    const calendar = escopo === "mercado" ? await this.dividends.getMarketCalendar() : await this.dividends.getPortfolioCalendar(userId);
+
+    const futuros = calendar
+      .filter((e) => (e.paymentDate ?? e.exDate ?? "") >= hoje.toISOString().slice(0, 10))
+      .slice(0, 25)
+      .map((e) => ({
+        ticker: e.ticker,
+        nome: e.name,
+        tipo: e.type,
+        dataCom: e.exDate,
+        dataPagamento: e.paymentDate,
+        valorPorAcaoOuCota: e.rate,
+        quantidadeEmPosicao: e.quantityHeld,
+        valorEstimadoAReceber: e.estimatedAmount,
+      }));
+
+    if (futuros.length === 0) {
+      return { escopo, proventos: [], observacao: escopo === "carteira" ? "Nenhum provento futuro anunciado pros ativos da carteira." : "Nenhum provento futuro anunciado." };
+    }
+    return { escopo, proventos: futuros };
   }
 
   private async resumoParcelamentoMes(userId: string, year: number, month: number) {

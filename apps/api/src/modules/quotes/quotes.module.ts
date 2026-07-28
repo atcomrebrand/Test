@@ -7,5 +7,6 @@ import { QuotesService } from "./quotes.service";
   imports: [TrackingModule],
   controllers: [QuotesController],
   providers: [QuotesService],
+  exports: [QuotesService],
 })
 export class QuotesModule {}
