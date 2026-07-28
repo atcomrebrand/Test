@@ -199,14 +199,59 @@ function getAudioContext(): AudioContext | null {
   return sharedAudioContext;
 }
 
-/** iOS only lets an AudioContext actually produce sound once it's been resumed synchronously
- *  inside a genuine user-gesture handler — but that unlock persists for the rest of the page
- *  session on the same AudioContext instance, so later async playback (after the Claude + then
- *  ElevenLabs network round-trips) doesn't need a fresh gesture. Same idea as
- *  primeSpeechSynthesis(), call this from the same click/submit handler. */
+/** Closes and drops the shared AudioContext so the next primeAudioPlayback() creates a fresh one.
+ *  iOS Safari's audio session gets flaky after interleaving microphone capture (SpeechRecognition)
+ *  with playback across several call turns — reusing the same context indefinitely across an
+ *  entire hang-up-and-call-again cycle risks carrying that stuck state into the next call. Call
+ *  this when the Jarvis call mode ends so each new call starts from a clean slate. */
+export function closeAudioContext(): void {
+  if (sharedAudioContext) {
+    sharedAudioContext.close().catch(() => {});
+    sharedAudioContext = null;
+  }
+}
+
+/** A ~50ms silent WAV, embedded as a data: URI — small enough that iOS Safari's documented
+ *  data:/blob: <audio> unreliability (see playAudioBlob() above) doesn't apply; that problem is
+ *  specific to larger dynamically-fetched clips like real spoken replies, not a clip this size. */
+const SILENT_WAV_DATA_URI =
+  "data:audio/wav;base64,UklGRrQBAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YZABAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICA";
+
+let sharedSilentAudioEl: HTMLAudioElement | null = null;
+
+/**
+ * iOS Safari treats the Web Audio API and <audio>/<video> elements as separate "channels" for the
+ * hardware mute (silent) switch: by default WebKit's audio session starts out "ambient", which
+ * means AudioContext-driven sound (what playAudioBlob() above uses for ElevenLabs replies) is
+ * muted whenever the switch is flipped to silent — confirmed, documented WebKit behavior, not
+ * something a Promise/resume() call alone can fix. The known workaround (used by libraries like
+ * feross/unmute-ios-audio) is to actually play a short silent clip through BOTH an <audio> element
+ * and the AudioContext at the same time, inside a genuine user gesture — that dual playback nudges
+ * WebKit's audio session out of "ambient" for the rest of the page session, so later AudioContext
+ * playback (the real ElevenLabs reply, which arrives asynchronously after this gesture has ended)
+ * is no longer silenced by the switch. Call this synchronously inside the same click/submit
+ * handler as primeSpeechSynthesis() — resuming alone (the old implementation) doesn't trigger this
+ * unlock, only actually playing sound does.
+ */
 export function primeAudioPlayback(): void {
+  if (!sharedSilentAudioEl) {
+    sharedSilentAudioEl = new Audio(SILENT_WAV_DATA_URI);
+  }
+  sharedSilentAudioEl.currentTime = 0;
+  sharedSilentAudioEl.play().catch(() => {});
+
   const ctx = getAudioContext();
-  if (ctx?.state === "suspended") ctx.resume().catch(() => {});
+  if (!ctx) return;
+  const resumeIfNeeded = ctx.state === "suspended" ? ctx.resume() : Promise.resolve();
+  resumeIfNeeded
+    .then(() => {
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.05, ctx.sampleRate);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    })
+    .catch(() => {});
 }
 
 /** Decodes and plays an audio Blob. Returns a stop() you can call to cancel playback early —

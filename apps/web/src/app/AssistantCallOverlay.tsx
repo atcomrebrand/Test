@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { Loader2, Mic, PhoneOff, Volume2 } from "lucide-react";
 import { useAssistantChat, ChatMessage } from "@/features/useAssistant";
 import { useSpeakAssistantReply } from "@/features/useAssistantSpeech";
-import { createSpeechRecognition, extractLatestResult, SpeechRecognitionLike } from "@/lib/speech";
+import { closeAudioContext, createSpeechRecognition, extractLatestResult, SpeechRecognitionLike } from "@/lib/speech";
 
 type CallState = "listening" | "thinking" | "speaking" | "error";
 
@@ -53,6 +53,11 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
     } else {
       recognitionRef.current?.stop();
       stopSpeaking();
+      // Drop the shared AudioContext when a call ends — iOS Safari's audio session can get stuck
+      // after interleaving mic capture (SpeechRecognition) with playback across several turns, so
+      // a call that hung up cleanly could otherwise leave the next call unable to speak. Starting
+      // the next call fresh (primeAudioPlayback() below recreates it) is cheap insurance.
+      closeAudioContext();
     }
     return () => {
       recognitionRef.current?.stop();
