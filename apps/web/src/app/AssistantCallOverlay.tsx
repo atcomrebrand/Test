@@ -21,6 +21,8 @@ const STATE_LABEL: Record<CallState, string> = {
   error: "Deu ruim",
 };
 
+const GREETING = "Oi, Mauro! Como posso te ajudar hoje?";
+
 /**
  * Full-screen hands-free "call" mode: listen -> send -> speak -> listen again, on a loop, until
  * the user hangs up. There's no real-time speech-to-speech model behind this — each turn is a
@@ -47,9 +49,9 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
 
   useEffect(() => {
     if (open) {
-      setCallState("listening");
-      setCaption("");
-      startListening();
+      // Greet first, then start listening once the greeting finishes speaking — mirrors the
+      // listen/thinking/speaking turn structure below (mic off while something is being spoken).
+      respondAndListen(GREETING);
     } else {
       stopRecognitionHard();
       stopSpeaking();
@@ -120,6 +122,11 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
   }
 
   function sendTurn(content: string) {
+    // The recognition that captured this turn already ended on its own (continuous: false stops
+    // it after the user goes quiet), but iOS Safari doesn't always release the microphone hardware
+    // just because the recognition object considers itself done — force it now so the mic is
+    // truly off for the whole thinking + speaking stretch, not just from the UI's point of view.
+    stopRecognitionHard();
     setCallState("thinking");
     setCaption(content);
     const next = [...messagesRef.current, { role: "user" as const, content }];
