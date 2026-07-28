@@ -51,7 +51,7 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
       setCaption("");
       startListening();
     } else {
-      recognitionRef.current?.stop();
+      stopRecognitionHard();
       stopSpeaking();
       // Drop the shared AudioContext when a call ends — iOS Safari's audio session can get stuck
       // after interleaving mic capture (SpeechRecognition) with playback across several turns, so
@@ -60,13 +60,28 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
       closeAudioContext();
     }
     return () => {
-      recognitionRef.current?.stop();
+      stopRecognitionHard();
       stopSpeaking();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  /** stop() on iOS Safari's webkitSpeechRecognition is unreliable about actually releasing the
+   *  microphone — it can leave the recording session (and the mic permission prompt) stuck
+   *  active. abort() plus tearing down the handlers first (so a delayed onend can't sneak in a
+   *  fresh startListening() after we've already torn down) releases it immediately instead. */
+  function stopRecognitionHard() {
+    const recognition = recognitionRef.current;
+    if (!recognition) return;
+    recognition.onresult = null;
+    recognition.onerror = null;
+    recognition.onend = null;
+    recognition.abort();
+    recognitionRef.current = null;
+  }
+
   function startListening() {
+    stopRecognitionHard();
     const recognition = createSpeechRecognition({ continuous: false, interimResults: true });
     if (!recognition) {
       setCallState("error");
@@ -136,7 +151,7 @@ export function AssistantCallOverlay({ open, onClose, messages, setMessages }: A
   }
 
   function handleHangUp() {
-    recognitionRef.current?.stop();
+    stopRecognitionHard();
     stopSpeaking();
     onClose();
   }
