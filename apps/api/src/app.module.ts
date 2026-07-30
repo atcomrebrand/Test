@@ -26,6 +26,7 @@ import { TrackingModule } from "./modules/tracking/tracking.module";
 import { QuotesModule } from "./modules/quotes/quotes.module";
 import { HouseholdModule } from "./modules/household/household.module";
 import { AssistantModule } from "./modules/assistant/assistant.module";
+import { HomeModule } from "./modules/home/home.module";
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { AssistantModule } from "./modules/assistant/assistant.module";
     QuotesModule,
     HouseholdModule,
     AssistantModule,
+    HomeModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

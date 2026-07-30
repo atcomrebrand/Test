@@ -8,5 +8,6 @@ import { PurchasesModule } from "../purchases/purchases.module";
   imports: [InstallmentsModule, PurchasesModule],
   controllers: [DashboardController],
   providers: [DashboardService],
+  exports: [DashboardService],
 })
 export class DashboardModule {}

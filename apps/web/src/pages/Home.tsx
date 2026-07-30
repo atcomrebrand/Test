@@ -1,8 +1,24 @@
+import { useRef } from "react";
 import { Link } from "react-router-dom";
-import { LogOut, Moon, Settings, Sun, Wrench, CreditCard, LineChart, Clock, Home as HomeIcon, type LucideIcon } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  LogOut,
+  Moon,
+  Settings,
+  Sun,
+  Wrench,
+  CreditCard,
+  LineChart,
+  Clock,
+  Home as HomeIcon,
+  ChevronLeft,
+  ChevronRight,
+  type LucideIcon,
+} from "lucide-react";
 import { useThemeStore } from "@/store/theme";
 import { useAuthStore } from "@/store/auth";
 import { QuotesTicker } from "@/app/QuotesTicker";
+import { HomeDashboardSection } from "@/app/HomeDashboardSection";
 
 interface AppCard {
   to: string;
@@ -43,6 +59,65 @@ const APPS: AppCard[] = [
     color: "bg-amber-500",
   },
 ];
+
+function AppCarousel() {
+  const scrollerRef = useRef<HTMLDivElement>(null);
+
+  function scrollByAmount(direction: 1 | -1) {
+    const el = scrollerRef.current;
+    if (!el) return;
+    el.scrollBy({ left: direction * el.clientWidth * 0.9, behavior: "smooth" });
+  }
+
+  return (
+    <div className="relative">
+      <div
+        ref={scrollerRef}
+        className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
+        {APPS.map((app, i) => (
+          <motion.div
+            key={app.to}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: i * 0.05 }}
+            className="w-[85%] shrink-0 snap-center sm:w-[46%] lg:w-[30%]"
+          >
+            <Link
+              to={app.to}
+              className="group flex h-full flex-col gap-4 rounded-2xl border border-[rgb(var(--border))] surface p-6 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+            >
+              <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-white ${app.color}`}>
+                <app.icon className="h-6 w-6" />
+              </div>
+              <div>
+                <p className="font-semibold">{app.title}</p>
+                <p className="mt-1 text-sm text-muted">{app.description}</p>
+              </div>
+            </Link>
+          </motion.div>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => scrollByAmount(-1)}
+        className="absolute -left-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[rgb(var(--border))] surface shadow-soft md:flex"
+        aria-label="Anterior"
+      >
+        <ChevronLeft className="h-4 w-4" />
+      </button>
+      <button
+        type="button"
+        onClick={() => scrollByAmount(1)}
+        className="absolute -right-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[rgb(var(--border))] surface shadow-soft md:flex"
+        aria-label="Próximo"
+      >
+        <ChevronRight className="h-4 w-4" />
+      </button>
+    </div>
+  );
+}
 
 export default function Home() {
   const { mode, toggle } = useThemeStore();
@@ -88,27 +163,15 @@ export default function Home() {
       <QuotesTicker />
 
       <main className="flex flex-1 flex-col items-center px-4 py-12 md:py-20">
-        <div className="w-full max-w-3xl">
+        <div className="w-full max-w-6xl">
           <h1 className="text-2xl font-bold">Olá{user?.name ? `, ${user.name.split(" ")[0]}` : ""}</h1>
           <p className="mt-1 text-sm text-muted">Escolha uma ferramenta pra continuar.</p>
 
-          <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {APPS.map((app) => (
-              <Link
-                key={app.to}
-                to={app.to}
-                className="group flex flex-col gap-4 rounded-2xl border border-[rgb(var(--border))] surface p-6 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
-              >
-                <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-white ${app.color}`}>
-                  <app.icon className="h-6 w-6" />
-                </div>
-                <div>
-                  <p className="font-semibold">{app.title}</p>
-                  <p className="mt-1 text-sm text-muted">{app.description}</p>
-                </div>
-              </Link>
-            ))}
+          <div className="mt-8">
+            <AppCarousel />
           </div>
+
+          <HomeDashboardSection />
         </div>
       </main>
     </div>
