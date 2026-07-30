@@ -26,6 +26,8 @@ export interface HomeDashboard {
   percentages: {
     limitUsagePct: number;
     investmentReturnPct: number;
+    fixedIncomeReturnPct: number;
+    variableReturnPct: number;
     savingsRatePct: number | null;
     hoursGrowthPct: number | null;
   };

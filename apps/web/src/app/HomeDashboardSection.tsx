@@ -88,9 +88,26 @@ export function HomeDashboardSection() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Limite de cartão usado" value={formatPercent(percentages.limitUsagePct)} delay={0.1} />
-        <StatTile label="Rentabilidade dos investimentos" value={formatPercent(percentages.investmentReturnPct)} delay={0.15} />
-        <StatTile label="Crescimento de horas" value={formatPercent(percentages.hoursGrowthPct)} delay={0.2} />
-        <StatTile label="Dívida de financiamento sobre patrimônio" value={formatPercent(netWorth.debtToAssetPct)} delay={0.25} />
+        <StatTile
+          label="Rentabilidade Renda Fixa"
+          value={formatPercent(percentages.fixedIncomeReturnPct)}
+          sublabel="Sobre total investido"
+          delay={0.15}
+        />
+        <StatTile
+          label="Rentabilidade Variável"
+          value={formatPercent(percentages.variableReturnPct)}
+          sublabel="Sobre total investido"
+          delay={0.2}
+        />
+        <StatTile
+          label="Rentabilidade Investimentos"
+          value={formatPercent(percentages.investmentReturnPct)}
+          sublabel="Sobre total investido"
+          delay={0.25}
+        />
+        <StatTile label="Crescimento de horas" value={formatPercent(percentages.hoursGrowthPct)} delay={0.3} />
+        <StatTile label="Dívida de financiamento sobre patrimônio" value={formatPercent(netWorth.debtToAssetPct)} delay={0.35} />
       </div>
 
       {spendingEvolution.length > 0 && (

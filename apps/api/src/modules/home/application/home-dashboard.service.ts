@@ -154,7 +154,11 @@ export class HomeDashboardService {
       },
       percentages: {
         limitUsagePct: parcelamentoSummary.limitUsage.usagePct,
+        // Rentabilidade sempre sobre o total investido (não sobre o valor atual) — mesmo critério
+        // nos três, só muda a base: renda fixa, variável (ações/FIIs/cripto) e a carteira inteira.
         investmentReturnPct: investmentsSummary.cards.rentabilidadePercent,
+        fixedIncomeReturnPct: investmentsSummary.cards.rendaFixaRentabilidadePercent,
+        variableReturnPct: investmentsSummary.cards.variavelRentabilidadePercent,
         savingsRatePct: householdMonth.savingsRate,
         hoursGrowthPct: trackingSummary.productivityGrowthPercent,
       },

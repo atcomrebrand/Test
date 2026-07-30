@@ -56,6 +56,13 @@ export class InvestmentsDashboardService {
     const lucroLiquido = assetsUnrealizedProfit + assetsRealizedProfit + fixedIncomeNetYield;
     const rentabilidadePercent = valorInvestido > 0 ? (lucroLiquido / valorInvestido) * 100 : 0;
 
+    // Rentabilidade por classe — sempre sobre o total investido daquela classe (não sobre o valor
+    // atual), pro mesmo critério de rentabilidadePercent acima. "Variável" agrupa ações/FIIs/cripto
+    // (tudo que passa por enrichedAssets); caixa não entra em nenhuma das duas (não rende).
+    const variavelLucro = assetsUnrealizedProfit + assetsRealizedProfit;
+    const variavelRentabilidadePercent = assetsInvested > 0 ? (variavelLucro / assetsInvested) * 100 : 0;
+    const rendaFixaRentabilidadePercent = fixedIncomeInvested > 0 ? (fixedIncomeNetYield / fixedIncomeInvested) * 100 : 0;
+
     const [dividendosRecebidos, jurosRecebidos, aportesDoMes] = await Promise.all([
       this.sumAssetIncome(userId),
       this.sumIncomeByType(userId, ["JUROS"]),
@@ -69,6 +76,12 @@ export class InvestmentsDashboardService {
         valorAtual,
         lucroLiquido,
         rentabilidadePercent,
+        rendaFixaInvestido: fixedIncomeInvested,
+        rendaFixaLucro: fixedIncomeNetYield,
+        rendaFixaRentabilidadePercent,
+        variavelInvestido: assetsInvested,
+        variavelLucro,
+        variavelRentabilidadePercent,
         dividendosRecebidos,
         jurosRecebidos,
         aportesDoMes,
