@@ -5,12 +5,14 @@ import { HouseholdModule } from "../household/household.module";
 import { InvestmentsModule } from "../investments/investments.module";
 import { TrackingModule } from "../tracking/tracking.module";
 import { QuotesModule } from "../quotes/quotes.module";
+import { FinancingsModule } from "../financings/financings.module";
+import { HomeModule } from "../home/home.module";
 import { AssistantController } from "./interface/assistant.controller";
 import { AssistantService } from "./application/assistant.service";
 import { ElevenLabsProvider } from "./infrastructure/elevenlabs.provider";
 
 @Module({
-  imports: [CardsModule, CalendarModule, HouseholdModule, InvestmentsModule, TrackingModule, QuotesModule],
+  imports: [CardsModule, CalendarModule, HouseholdModule, InvestmentsModule, TrackingModule, QuotesModule, FinancingsModule, HomeModule],
   controllers: [AssistantController],
   providers: [AssistantService, ElevenLabsProvider],
 })

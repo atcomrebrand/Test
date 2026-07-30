@@ -12,5 +12,6 @@ import { HomeDashboardService } from "./application/home-dashboard.service";
   imports: [DashboardModule, HouseholdModule, InvestmentsModule, TrackingModule, FinancingsModule, QuotesModule],
   controllers: [HomeDashboardController],
   providers: [HomeDashboardService],
+  exports: [HomeDashboardService],
 })
 export class HomeModule {}

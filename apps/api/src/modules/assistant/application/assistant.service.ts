@@ -8,6 +8,8 @@ import { MarketExplorerService } from "../../investments/application/market-expl
 import { DividendsService } from "../../investments/application/dividends.service";
 import { TrackingDashboardService } from "../../tracking/application/tracking-dashboard.service";
 import { QuotesService } from "../../quotes/quotes.service";
+import { FinancingsService } from "../../financings/application/financings.service";
+import { HomeDashboardService } from "../../home/application/home-dashboard.service";
 
 type AssetClasseUsuario = "ACAO" | "FII" | "CRIPTO";
 
@@ -45,6 +47,8 @@ export class AssistantService {
     private readonly dividends: DividendsService,
     private readonly trackingDashboard: TrackingDashboardService,
     private readonly quotes: QuotesService,
+    private readonly financings: FinancingsService,
+    private readonly homeDashboard: HomeDashboardService,
   ) {}
 
   async chat(userId: string, history: ChatMessage[]): Promise<ChatMessage[]> {
@@ -117,6 +121,7 @@ export class AssistantService {
       "Se nenhuma ferramenta responder exatamente o que foi perguntado, diga isso claramente em vez de chutar.",
       'No Parcelamento, o "mês" de uma parcela é a competência (mês em que a fatura fecha, convenção dos bancos) — pode ser diferente do mês em que ela realmente vence. Não precisa explicar essa diferença a menos que o usuário pergunte especificamente sobre isso.',
       "Pra perguntas sobre uma ação, FII ou criptomoeda específica (cotação, preço sobre lucro, dividend yield, indicadores, próximos proventos), use as ferramentas de cotação e análise de ativos mesmo que o usuário não tenha esse ativo na carteira — elas consultam qualquer ativo do mercado. Pra cotação do dólar, use a ferramenta de cotação do dólar.",
+      "Pra perguntas que cruzam vários assuntos de uma vez (por exemplo, comparar quitar um financiamento usando os investimentos, decidir entre refinanciar ou não, ou entender a saúde financeira geral), comece pela ferramenta de visão geral financeira e complemente com resumo_financiamentos e/ou resumo_investimentos pra ter os números certos antes de opinar. Depois de ter os dados, dê sua opinião fundamentada nos números — o usuário quer sua análise, não só os números de volta.",
     ].join("\n");
   }
 
@@ -206,6 +211,18 @@ export class AssistantService {
         },
       },
       {
+        name: "resumo_financiamentos",
+        description:
+          "Financiamentos do usuário (carro, moto, imóvel etc, fora do Parcelamento): lista completa com valor total do contrato, valor e quantidade de parcelas, quantas já foram pagas, quanto ainda falta em parcelas, e a última cotação de quitação à vista (quanto o banco cobraria pra quitar hoje) quando o usuário já registrou uma. Use pra qualquer pergunta sobre financiamento, empréstimo, quitação antecipada ou refinanciamento.",
+        input_schema: { type: "object", properties: {}, required: [] },
+      },
+      {
+        name: "visao_geral_financeira",
+        description:
+          "Visão cruzada de todos os módulos: patrimônio investido menos dívida de financiamento (pela cotação de quitação à vista), renda/comprometido/sobra do mês (baseados na Casa), rentabilidade de renda fixa/variável/total, uso de limite de cartão, e uma previsão simples pro próximo mês. Use como ponto de partida pra perguntas que cruzam vários assuntos de uma vez — por exemplo, comparar quitar um financiamento usando os investimentos, ou entender a saúde financeira geral —, e complemente com resumo_investimentos ou resumo_financiamentos se precisar de mais detalhe.",
+        input_schema: { type: "object", properties: {}, required: [] },
+      },
+      {
         name: "proventos_futuros",
         description:
           "Lista dos próximos dividendos/proventos ainda não pagos. Com escopo 'carteira' (padrão), traz só os ativos que o usuário possui, já com a quantidade em posição e o valor estimado a receber. Com escopo 'mercado', traz os próximos proventos anunciados pelas principais ações e FIIs da bolsa, independente do que o usuário possui. Use pra perguntas como 'quando cai o próximo dividendo' ou 'quanto vou receber de provento'.",
@@ -242,6 +259,10 @@ export class AssistantService {
         return this.analiseAtivo(String(input.ticker), input.classe as AssetClasseUsuario);
       case "proventos_futuros":
         return this.proventosFuturos(userId, (input.escopo as "carteira" | "mercado" | undefined) ?? "carteira");
+      case "resumo_financiamentos":
+        return this.resumoFinanciamentos(userId);
+      case "visao_geral_financeira":
+        return this.visaoGeralFinanceira(userId);
       default:
         return { error: `Ferramenta desconhecida: ${name}` };
     }
@@ -314,6 +335,63 @@ export class AssistantService {
       return { escopo, proventos: [], observacao: escopo === "carteira" ? "Nenhum provento futuro anunciado pros ativos da carteira." : "Nenhum provento futuro anunciado." };
     }
     return { escopo, proventos: futuros };
+  }
+
+  private async resumoFinanciamentos(userId: string) {
+    const [financings, summary] = await Promise.all([this.financings.findAll(userId), this.financings.summary(userId)]);
+
+    if (financings.length === 0) {
+      return { observacao: "Nenhum financiamento cadastrado.", financiamentos: [] };
+    }
+
+    return {
+      resumo: {
+        totalAtivos: summary.totalActive,
+        comprometidoMesAtual: summary.committedThisMonth,
+        totalRestanteEmParcelas: summary.totalRemaining,
+        totalJaPago: summary.totalPaid,
+        proximaParcela: summary.nextInstallment,
+      },
+      financiamentos: financings.map((f) => {
+        const pendentes = f.installments.filter((i) => i.status === "PENDING" || i.status === "LATE");
+        const pagas = f.installments.filter((i) => i.status === "PAID");
+        return {
+          nome: f.name,
+          tipo: f.kind,
+          instituicao: f.institution,
+          ativo: f.active,
+          valorTotalContrato: Number(f.totalAmount),
+          valorParcela: Number(f.installmentAmount),
+          totalParcelas: f.installmentsCount,
+          parcelasPagas: pagas.length,
+          parcelasRestantes: pendentes.length,
+          totalRestanteSomandoParcelas: Math.round(pendentes.reduce((sum, i) => sum + Number(i.amount), 0) * 100) / 100,
+          cotacaoQuitacaoAVista: f.payoffAmount !== null ? Number(f.payoffAmount) : null,
+          dataCotacaoQuitacao: f.payoffQuotedAt,
+          observacoes: f.notes,
+        };
+      }),
+    };
+  }
+
+  private async visaoGeralFinanceira(userId: string) {
+    const d = await this.homeDashboard.summary(userId);
+    return {
+      patrimonioInvestidoMenosDividaDeFinanciamento: d.netWorth.netWorth,
+      totalInvestido: d.netWorth.assets,
+      dividaDeFinanciamentoPelaQuitacaoAVista: d.netWorth.debts,
+      rendaDoMes: d.monthly.income,
+      comprometidoNoMes: d.monthly.committed,
+      sobraNoMes: d.monthly.freeBalance,
+      taxaDePoupancaPercent: d.monthly.savingsRatePct,
+      usoDeLimiteDeCartaoPercent: d.percentages.limitUsagePct,
+      rentabilidadeRendaFixaPercent: d.percentages.fixedIncomeReturnPct,
+      rentabilidadeVariavelPercent: d.percentages.variableReturnPct,
+      rentabilidadeTotalPercent: d.percentages.investmentReturnPct,
+      previsaoProximoMes: d.forecast.nextMonth,
+      observacao:
+        "Comprometido/sobra do mês são baseados só na Casa. Parcelas do cartão e financiamento não entram nessa soma — use resumo_parcelamento_mes e resumo_financiamentos pra detalhes deles.",
+    };
   }
 
   private async resumoParcelamentoMes(userId: string, year: number, month: number) {
