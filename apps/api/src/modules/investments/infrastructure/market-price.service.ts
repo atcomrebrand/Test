@@ -227,10 +227,19 @@ export class MarketPriceService {
       }
     }
 
+    const live = await this.fetchStockHistory(symbol, options);
+    if (!this.isDeepRange(options)) return live;
+
+    const archived = await this.getArchivedHistory(symbol, options, live[0]?.date);
+    if (archived.length === 0) return live;
+    return [...archived, ...live];
+  }
+
+  private async fetchStockHistory(symbol: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]> {
     try {
       return await this.stockProvider.fetchHistory(symbol, options);
     } catch (err) {
-      this.logger.warn(`History fetch failed for ${assetClass} ${symbol} via BRAPI (${options.range}), trying Yahoo Finance: ${(err as Error).message}`);
+      this.logger.warn(`History fetch failed for STOCK/FII ${symbol} via BRAPI (${options.range}), trying Yahoo Finance: ${(err as Error).message}`);
       try {
         return await this.yahooProvider.fetchHistory(symbol, options);
       } catch (fallbackErr) {
@@ -238,6 +247,26 @@ export class MarketPriceService {
         return [];
       }
     }
+  }
+
+  /** "MAX"/"CUSTOM" are the only ranges where the COTAHIST backfill (apps/api/scripts/import-
+   *  cotahist.ts) can add anything — 3M/6M/12M are already fully covered by the live provider. */
+  private isDeepRange(options: ChartRangeOptions): boolean {
+    return options.range === "MAX" || options.range === "CUSTOM";
+  }
+
+  /** Older daily closes backfilled once from B3's public COTAHIST series (see historical_prices
+   *  in schema.prisma) — extends charts further back than BRAPI/Yahoo's free-tier history goes.
+   *  Only returns dates strictly before whatever the live provider already covers, so the two
+   *  series never overlap when concatenated. Empty (not an error) if the backfill was never run
+   *  or has nothing for this ticker — charts fall back to just the live window either way. */
+  private async getArchivedHistory(symbol: string, options: ChartRangeOptions, liveEarliestDate?: string): Promise<HistoricalPricePoint[]> {
+    const where: { ticker: string; date?: { gte?: Date; lt?: Date } } = { ticker: symbol.toUpperCase() };
+    if (options.range === "CUSTOM" && options.from) where.date = { gte: new Date(options.from) };
+    if (liveEarliestDate) where.date = { ...where.date, lt: new Date(liveEarliestDate) };
+
+    const rows = await this.prisma.historicalPrice.findMany({ where, orderBy: { date: "asc" } });
+    return rows.map((r) => ({ date: r.date.toISOString().slice(0, 10), close: Number(r.close) }));
   }
 
   private fetchQuoteFromProvider(assetClass: InvestmentAssetClass, symbol: string) {

@@ -637,6 +637,23 @@ model InvestmentPriceCache {
   @@map("investment_price_cache")
 }
 
+/// Deep historical daily closing prices backfilled once from B3's public COTAHIST series
+/// (mercado à vista only — no options/futures/forwards), not user-scoped and never refetched
+/// automatically like InvestmentPriceCache above. Populated by the one-off
+/// `pnpm run import:cotahist` script (apps/api/scripts/import-cotahist.ts), not by the running
+/// app. MarketPriceService.getHistory() merges this in for "MAX"/"CUSTOM" chart ranges to extend
+/// charts further back than BRAPI/Yahoo's free-tier history windows go.
+model HistoricalPrice {
+  id     String   @id @default(cuid())
+  ticker String
+  date   DateTime @db.Date
+  close  Decimal  @db.Decimal(18, 4)
+
+  @@unique([ticker, date])
+  @@index([ticker])
+  @@map("historical_prices")
+}
+
 model InvestmentAuditLog {
   id        String   @id @default(cuid())
   userId    String
