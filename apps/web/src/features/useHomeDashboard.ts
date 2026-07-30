@@ -37,7 +37,6 @@ export interface HomeDashboard {
       openInstallmentsCount: number;
       limitUsage: { totalLimit: number; totalSpent: number; usagePct: number };
       nextDue: { cardId: string; cardName: string; date: string } | null;
-      includeFinancingInTotals: boolean;
     };
     casa: {
       totalIncome: number;

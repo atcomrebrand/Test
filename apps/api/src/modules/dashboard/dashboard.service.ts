@@ -96,6 +96,7 @@ export class DashboardService {
       financing: {
         activeCount: financingActiveCount,
         committedThisMonth: financingAmounts.thisMonth,
+        committedNextMonth: financingAmounts.nextMonth,
         totalRemaining: financingAmounts.remaining,
         lateCount: financingLateCount,
       },

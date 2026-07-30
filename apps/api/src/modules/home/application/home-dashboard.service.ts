@@ -51,31 +51,42 @@ export class HomeDashboardService {
         this.quotes.ticker(),
       ]);
 
-    // O Parcelamento já embute a dívida de financiamento em committedThisMonth/totalRemaining
-    // quando Setting.includeFinancingInTotals está ligado (padrão). Só somamos os números "crus"
-    // do FinancingsService por fora quando o toggle estiver desligado — senão a dívida de
-    // financiamento conta duas vezes no total combinado.
-    const financingAlreadyIncluded = parcelamentoSummary.includeFinancingInTotals;
-    const standaloneFinancingDebt = financingAlreadyIncluded ? 0 : financingsSummary.totalRemaining;
-    const standaloneFinancingThisMonth = financingAlreadyIncluded ? 0 : financingsSummary.committedThisMonth;
+    // O Parcelamento já embute a dívida de financiamento em committedThisMonth/committedNextMonth/
+    // totalRemaining quando Setting.includeFinancingInTotals está ligado (padrão) — o sub-objeto
+    // `financing` sempre traz os números crus de financiamento nele embutidos, então dá pra
+    // subtrair e isolar "só cartão" independente do estado do toggle.
+    const financingWithinParcelamento = parcelamentoSummary.includeFinancingInTotals;
+    const financingPortion = {
+      thisMonth: financingWithinParcelamento ? parcelamentoSummary.financing.committedThisMonth : 0,
+      nextMonth: financingWithinParcelamento ? parcelamentoSummary.financing.committedNextMonth : 0,
+      remaining: financingWithinParcelamento ? parcelamentoSummary.financing.totalRemaining : 0,
+    };
+    const parcelamentoCardsOnly = {
+      committedThisMonth: parcelamentoSummary.committedThisMonth - financingPortion.thisMonth,
+      committedNextMonth: parcelamentoSummary.committedNextMonth - financingPortion.nextMonth,
+      totalRemaining: parcelamentoSummary.totalRemaining - financingPortion.remaining,
+    };
 
+    // Patrimônio líquido aqui é especificamente "investimentos menos dívida de financiamento" —
+    // NÃO entra dívida de cartão (Parcelas), por instrução explícita: cartão é gasto já
+    // comprometido/conhecido, não uma dívida de longo prazo pra abater do patrimônio do mesmo jeito
+    // que financiamento. Por isso o card no front chama "Patrimônio + Financiamentos", não
+    // "Patrimônio líquido" genérico.
     const netWorth = calculateNetWorth({
       investedAssets: investmentsSummary.cards.patrimonioTotal,
-      totalDebt: parcelamentoSummary.totalRemaining + standaloneFinancingDebt,
+      totalDebt: financingsSummary.totalRemaining,
     });
 
-    // Renda combinada usa só a Casa (Contas da Casa é "o real incontestável", por instrução
-    // explícita) — a receita rastreada em Horas é controle pessoal e não entra aqui, pra não
-    // contar o mesmo salário duas vezes.
+    // Visão mensal combinada usa só a Casa — Parcelas e Financiamento têm cada um seu próprio card
+    // (abaixo) com os números só deles, sem entrar nessa soma. Misturá-los aqui duplicaria: a Casa
+    // já reflete "quanto preciso ter em mãos esse mês" incluindo fatura de cartão (via fatura
+    // presumida de cartões vinculados) e eventuais parcelas de financiamento lançadas manualmente
+    // como conta — somar Parcelamento/Financiamento por cima contaria essas parcelas duas vezes.
+    // Contas da Casa é "o real incontestável" (mesma instrução que já vale pra renda: Horas não
+    // entra aqui, é só controle pessoal).
     const combinedIncome = householdMonth.totalIncome;
-    // Cartões próprios da Casa são intencionalmente separados dos cartões do Parcelamento (ver
-    // CLAUDE.md) — quando um cartão da Casa está vinculado a um cartão do Parcelamento e usando
-    // fatura presumida, o valor presumido já reflete parcelas do Parcelamento, então pode haver
-    // alguma sobreposição pontual nesse caso específico. Não vale a pena resolver isso agora
-    // (exigiria consultar vínculos de cartão que nenhum serviço hoje expõe) — mesma ressalva que
-    // já existe entre "mês no Parcelamento" x "mês na Casa" por causa de competência x vencimento.
-    const combinedCommitted = parcelamentoSummary.committedThisMonth + householdMonth.totalCommitted + standaloneFinancingThisMonth;
-    const freeBalance = combinedIncome - combinedCommitted;
+    const combinedCommitted = householdMonth.totalCommitted;
+    const freeBalance = householdMonth.freeBalance;
 
     const committedHistory = householdHistory.map((h) => h.totalCommitted);
     const incomeHistory = householdHistory.map((h) => h.totalIncome);
@@ -127,16 +138,15 @@ export class HomeDashboardService {
       },
       modules: {
         parcelamento: {
-          committedThisMonth: parcelamentoSummary.committedThisMonth,
-          committedNextMonth: parcelamentoSummary.committedNextMonth,
-          totalRemaining: parcelamentoSummary.totalRemaining,
+          // Só cartão — financiamento já foi retirado daqui em cima (financingPortion), pra este
+          // card mostrar exclusivamente os números do Parcelamento, sem se misturar com o card de
+          // Financiamentos abaixo.
+          committedThisMonth: parcelamentoCardsOnly.committedThisMonth,
+          committedNextMonth: parcelamentoCardsOnly.committedNextMonth,
+          totalRemaining: parcelamentoCardsOnly.totalRemaining,
           openInstallmentsCount: parcelamentoSummary.openInstallmentsCount,
           limitUsage: parcelamentoSummary.limitUsage,
           nextDue: parcelamentoSummary.nextDue,
-          // Diz ao front se o financiamento já está embutido nos números acima — necessário pra
-          // montar qualquer breakdown visual (ex: "pra onde vai o dinheiro") sem contar a dívida
-          // de financiamento duas vezes, mesma regra aplicada em combinedCommitted acima.
-          includeFinancingInTotals: parcelamentoSummary.includeFinancingInTotals,
         },
         casa: {
           totalIncome: householdMonth.totalIncome,

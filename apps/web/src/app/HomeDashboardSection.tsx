@@ -15,7 +15,6 @@ import { StatTile } from "@/components/ui/StatTile";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { SpendingEvolutionChart } from "@/components/charts/SpendingEvolutionChart";
-import { CategoryChart } from "@/components/charts/CategoryChart";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
 import { useHomeDashboard, HomeUpcomingEvent } from "@/features/useHomeDashboard";
 
@@ -48,16 +47,6 @@ export function HomeDashboardSection() {
 
   const { netWorth, monthly, percentages, modules, upcomingEvents, forecast, spendingEvolution } = data;
 
-  // O breakdown "pra onde vai o dinheiro" só soma financiamento à parte quando ele NÃO já está
-  // embutido no total do Parcelamento — mesma regra usada no backend pra não contar a mesma
-  // dívida duas vezes (ver HomeDashboardService).
-  const financingSlice = modules.parcelamento.includeFinancingInTotals ? 0 : modules.financiamentos.committedThisMonth;
-  const committedBreakdown = [
-    { name: "Parcelas", color: "#6D5BFF", total: modules.parcelamento.committedThisMonth },
-    { name: "Casa", color: "#F59E0B", total: modules.casa.totalCommitted },
-    { name: "Financiamentos", color: "#F43F5E", total: financingSlice },
-  ].filter((entry) => entry.total > 0);
-
   return (
     <div className="mt-10 space-y-8">
       <div>
@@ -66,7 +55,13 @@ export function HomeDashboardSection() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Patrimônio líquido" value={formatCurrency(netWorth.netWorth)} icon={<Wallet className="h-4 w-4" />} delay={0} />
+        <StatTile
+          label="Patrimônio + Financiamentos"
+          value={formatCurrency(netWorth.netWorth)}
+          sublabel="Investimentos menos dívida de financiamento"
+          icon={<Wallet className="h-4 w-4" />}
+          delay={0}
+        />
         <StatTile
           label="Renda do mês"
           value={formatCurrency(monthly.income)}
@@ -77,6 +72,7 @@ export function HomeDashboardSection() {
         <StatTile
           label="Comprometido no mês"
           value={formatCurrency(monthly.committed)}
+          sublabel="Contas da Casa"
           icon={<CreditCard className="h-4 w-4" />}
           delay={0.1}
         />
@@ -94,32 +90,18 @@ export function HomeDashboardSection() {
         <StatTile label="Limite de cartão usado" value={formatPercent(percentages.limitUsagePct)} delay={0.1} />
         <StatTile label="Rentabilidade dos investimentos" value={formatPercent(percentages.investmentReturnPct)} delay={0.15} />
         <StatTile label="Crescimento de horas" value={formatPercent(percentages.hoursGrowthPct)} delay={0.2} />
-        <StatTile label="Dívida sobre patrimônio" value={formatPercent(netWorth.debtToAssetPct)} delay={0.25} />
+        <StatTile label="Dívida de financiamento sobre patrimônio" value={formatPercent(netWorth.debtToAssetPct)} delay={0.25} />
       </div>
 
-      {(spendingEvolution.length > 0 || committedBreakdown.length > 0) && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {spendingEvolution.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Evolução do comprometido (Parcelas)</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <SpendingEvolutionChart data={spendingEvolution} />
-              </CardContent>
-            </Card>
-          )}
-          {committedBreakdown.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Pra onde vai o dinheiro este mês</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CategoryChart data={committedBreakdown} />
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      {spendingEvolution.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Evolução do comprometido (Parcelas)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <SpendingEvolutionChart data={spendingEvolution} />
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

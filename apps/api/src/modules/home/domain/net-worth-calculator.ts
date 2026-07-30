@@ -1,7 +1,9 @@
 export interface NetWorthInput {
   /** Valor atual da carteira de investimentos (ações/FIIs/cripto/renda fixa + caixa). */
   investedAssets: number;
-  /** Dívidas totais já livres de dupla contagem — cartões do Parcelamento + financiamentos. */
+  /** Dívida a abater do patrimônio — hoje só financiamento (dívida de longo prazo). Gasto de
+   *  cartão (Parcelas) fica de fora de propósito: é comprometido/já conhecido do mês, não uma
+   *  dívida pra abater do patrimônio do mesmo jeito que financiamento. */
   totalDebt: number;
 }
 
