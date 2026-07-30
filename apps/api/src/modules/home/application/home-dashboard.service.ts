@@ -6,6 +6,7 @@ import { TrackingDashboardService } from "../../tracking/application/tracking-da
 import { FinancingsService } from "../../financings/application/financings.service";
 import { QuotesService } from "../../quotes/quotes.service";
 import { calculateNetWorth } from "../domain/net-worth-calculator";
+import { computeFinancingPayoffDebt } from "../domain/financing-payoff-debt";
 import { computeTrailingForecast, generateForecastInsight } from "../domain/spending-forecast";
 import { mergeUpcomingEvents, UpcomingEvent } from "../domain/upcoming-events-merger";
 
@@ -39,17 +40,27 @@ export class HomeDashboardService {
     // onde uma previsão baseada em histórico realmente agrega algo novo.
     const closedMonths = Array.from({ length: FORECAST_HISTORY_MONTHS }, (_, i) => shiftMonth(year, month, -(FORECAST_HISTORY_MONTHS - i)));
 
-    const [parcelamentoSummary, spendingEvolution, householdMonth, householdHistory, investmentsSummary, trackingSummary, financingsSummary, ticker] =
-      await Promise.all([
-        this.parcelamento.summary(userId),
-        this.parcelamento.spendingEvolution(userId),
-        this.household.month(userId, year, month),
-        Promise.all(closedMonths.map((m) => this.household.month(userId, m.year, m.month))),
-        this.investments.summary(userId),
-        this.tracking.summary(userId),
-        this.financings.summary(userId),
-        this.quotes.ticker(),
-      ]);
+    const [
+      parcelamentoSummary,
+      spendingEvolution,
+      householdMonth,
+      householdHistory,
+      investmentsSummary,
+      trackingSummary,
+      financingsSummary,
+      financingsList,
+      ticker,
+    ] = await Promise.all([
+      this.parcelamento.summary(userId),
+      this.parcelamento.spendingEvolution(userId),
+      this.household.month(userId, year, month),
+      Promise.all(closedMonths.map((m) => this.household.month(userId, m.year, m.month))),
+      this.investments.summary(userId),
+      this.tracking.summary(userId),
+      this.financings.summary(userId),
+      this.financings.findAll(userId),
+      this.quotes.ticker(),
+    ]);
 
     // O Parcelamento já embute a dívida de financiamento em committedThisMonth/committedNextMonth/
     // totalRemaining quando Setting.includeFinancingInTotals está ligado (padrão) — o sub-objeto
@@ -72,9 +83,20 @@ export class HomeDashboardService {
     // comprometido/conhecido, não uma dívida de longo prazo pra abater do patrimônio do mesmo jeito
     // que financiamento. Por isso o card no front chama "Patrimônio + Financiamentos", não
     // "Patrimônio líquido" genérico.
+    //
+    // A dívida usada é a quitação à vista (Financing.payoffAmount), não a soma nominal das
+    // parcelas restantes — essa soma embute juros futuros que ainda nem venceram, superestimando
+    // a dívida real. Só cai pra soma de parcelas quando o financiamento nunca foi cotado.
+    const financingPayoffDebt = computeFinancingPayoffDebt(
+      financingsList.map((f) => ({
+        active: f.active,
+        payoffAmount: f.payoffAmount !== null ? Number(f.payoffAmount) : null,
+        installments: f.installments.map((i) => ({ status: i.status, amount: Number(i.amount) })),
+      })),
+    );
     const netWorth = calculateNetWorth({
       investedAssets: investmentsSummary.cards.patrimonioTotal,
-      totalDebt: financingsSummary.totalRemaining,
+      totalDebt: financingPayoffDebt,
     });
 
     // Visão mensal combinada usa só a Casa — Parcelas e Financiamento têm cada um seu próprio card
