@@ -56,9 +56,9 @@ export function HomeDashboardSection() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
-          label="Patrimônio + Financiamentos"
-          value={formatCurrency(netWorth.netWorth)}
-          sublabel="Investimentos menos dívida de financiamento"
+          label="Patrimônio"
+          value={formatCurrency(modules.investimentos.patrimonioTotal)}
+          sublabel="Investimentos"
           icon={<Wallet className="h-4 w-4" />}
           delay={0}
         />
@@ -184,24 +184,32 @@ export function HomeDashboardSection() {
         </Card>
 
         {modules.financiamentos.totalActive > 0 && (
-          <Card className="lg:col-span-2">
-            <CardContent className="flex flex-wrap items-center gap-4 py-4">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
-                <Landmark className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold">Financiamentos</p>
-                <p className="text-xs text-muted">{modules.financiamentos.totalActive} ativo(s)</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs text-muted">Restante</p>
-                <p className="font-semibold">{formatCurrency(modules.financiamentos.totalRemaining)}</p>
-              </div>
-              <Link to="/financing" className="flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
-                Ver <ArrowRight className="h-3.5 w-3.5" />
-              </Link>
-            </CardContent>
-          </Card>
+          <div className="flex flex-col gap-4 lg:col-span-2">
+            <StatTile
+              label="Patrimônio + Financiamentos"
+              value={formatCurrency(netWorth.netWorth)}
+              sublabel="Investimentos menos dívida de financiamento"
+              icon={<Wallet className="h-4 w-4" />}
+            />
+            <Card>
+              <CardContent className="flex flex-wrap items-center gap-4 py-4">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
+                  <Landmark className="h-5 w-5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">Financiamentos</p>
+                  <p className="text-xs text-muted">{modules.financiamentos.totalActive} ativo(s)</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-muted">Restante</p>
+                  <p className="font-semibold">{formatCurrency(modules.financiamentos.totalRemaining)}</p>
+                </div>
+                <Link to="/financing" className="flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
+                  Ver <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
         )}
       </div>
 
