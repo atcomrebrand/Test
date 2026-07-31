@@ -10,6 +10,7 @@ import { TrackingDashboardService } from "../../tracking/application/tracking-da
 import { QuotesService } from "../../quotes/quotes.service";
 import { FinancingsService } from "../../financings/application/financings.service";
 import { HomeDashboardService } from "../../home/application/home-dashboard.service";
+import { AssistantMemoryService } from "../../assistant-memory/application/assistant-memory.service";
 
 type AssetClasseUsuario = "ACAO" | "FII" | "CRIPTO";
 
@@ -49,6 +50,7 @@ export class AssistantService {
     private readonly quotes: QuotesService,
     private readonly financings: FinancingsService,
     private readonly homeDashboard: HomeDashboardService,
+    private readonly assistantMemory: AssistantMemoryService,
   ) {}
 
   async chat(userId: string, history: ChatMessage[]): Promise<ChatMessage[]> {
@@ -58,6 +60,12 @@ export class AssistantService {
 
     const messages: Anthropic.MessageParam[] = history.map((m) => ({ role: m.role, content: m.content }));
     const tools = this.buildTools();
+    // Buscado uma vez por conversa (não a cada rodada) — memórias criadas por essa mesma conversa
+    // via lembrar/esquecer só passam a valer na próxima vez que o usuário mandar mensagem, o que é
+    // aceitável: dentro da mesma rodada de tool use o assistente já sabe o que acabou de salvar
+    // pelo próprio tool_result, não precisa reler do banco.
+    const memories = await this.assistantMemory.findAll(userId);
+    const system = this.buildSystemPrompt(memories);
 
     try {
       let finalText = "";
@@ -66,7 +74,7 @@ export class AssistantService {
         const response = await this.client.messages.create({
           model: MODEL,
           max_tokens: 2048,
-          system: this.buildSystemPrompt(),
+          system,
           tools,
           messages,
         });
@@ -108,8 +116,11 @@ export class AssistantService {
     }
   }
 
-  private buildSystemPrompt(): string {
+  private buildSystemPrompt(memories: { id: string; content: string }[]): string {
     const hoje = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
+    const memoriasTexto =
+      memories.length > 0 ? memories.map((m) => `- (id: ${m.id}) ${m.content}`).join("\n") : "Nenhuma memória salva ainda pra esse usuário.";
+
     return [
       'Você é o assistente financeiro pessoal dentro do app "Ferramentas do Mauro".',
       `Hoje é ${hoje}.`,
@@ -122,6 +133,10 @@ export class AssistantService {
       'No Parcelamento, o "mês" de uma parcela é a competência (mês em que a fatura fecha, convenção dos bancos) — pode ser diferente do mês em que ela realmente vence. Não precisa explicar essa diferença a menos que o usuário pergunte especificamente sobre isso.',
       "Pra perguntas sobre uma ação, FII ou criptomoeda específica (cotação, preço sobre lucro, dividend yield, indicadores, próximos proventos), use as ferramentas de cotação e análise de ativos mesmo que o usuário não tenha esse ativo na carteira — elas consultam qualquer ativo do mercado. Pra cotação do dólar, use a ferramenta de cotação do dólar.",
       "Pra perguntas que cruzam vários assuntos de uma vez (por exemplo, comparar quitar um financiamento usando os investimentos, decidir entre refinanciar ou não, ou entender a saúde financeira geral), comece pela ferramenta de visão geral financeira e complemente com resumo_financiamentos e/ou resumo_investimentos pra ter os números certos antes de opinar. Depois de ter os dados, dê sua opinião fundamentada nos números — o usuário quer sua análise, não só os números de volta.",
+      "",
+      "Memórias que esse usuário já pediu pra você guardar sobre ele — fatos, crenças, valores, prioridades, jeito que prefere ser tratado. Leve sempre em conta ao responder e ao dar opiniões, sem precisar que ele repita:",
+      memoriasTexto,
+      "Use a ferramenta lembrar sempre que o usuário disser algo sobre si mesmo que vale guardar pra sempre — uma crença, um valor, uma prioridade financeira, uma forma que ele prefere que você trate certos assuntos — mesmo que ele não peça explicitamente pra você lembrar. Não guarde fatos financeiros que já vivem nos dados do app (esses você já consulta pelas outras ferramentas) nem coisas triviais de uma pergunta só. Use esquecer quando o usuário disser que uma memória não vale mais ou pedir explicitamente pra esquecer algo — use o id exato listado acima.",
     ].join("\n");
   }
 
@@ -234,6 +249,27 @@ export class AssistantService {
           required: [],
         },
       },
+      {
+        name: "lembrar",
+        description:
+          "Salva permanentemente um fato, crença, valor ou preferência do usuário, pra levar em conta em toda conversa futura, não só nessa. Use sempre que o usuário disser algo sobre si mesmo que vale guardar — por exemplo como prefere ser tratado, uma prioridade financeira, uma crença ou valor pessoal — mesmo sem ele pedir explicitamente.",
+        input_schema: {
+          type: "object",
+          properties: {
+            conteudo: { type: "string", description: "O fato/crença/preferência a guardar, escrito de forma clara e independente de contexto, ex: 'prefere respostas diretas, sem rodeio' ou 'prioriza quitar dívidas rápido em vez de maximizar investimento'." },
+          },
+          required: ["conteudo"],
+        },
+      },
+      {
+        name: "esquecer",
+        description: "Apaga uma memória salva anteriormente, pelo id exato listado nas memórias do usuário. Use quando o usuário disser que algo não vale mais ou pedir explicitamente pra esquecer.",
+        input_schema: {
+          type: "object",
+          properties: { id: { type: "string", description: "id exato da memória, como listado no prompt do sistema" } },
+          required: ["id"],
+        },
+      },
     ];
   }
 
@@ -263,6 +299,10 @@ export class AssistantService {
         return this.resumoFinanciamentos(userId);
       case "visao_geral_financeira":
         return this.visaoGeralFinanceira(userId);
+      case "lembrar":
+        return this.lembrar(userId, String(input.conteudo));
+      case "esquecer":
+        return this.esquecer(userId, String(input.id));
       default:
         return { error: `Ferramenta desconhecida: ${name}` };
     }
@@ -392,6 +432,21 @@ export class AssistantService {
       observacao:
         "Comprometido/sobra do mês são baseados só na Casa. Parcelas do cartão e financiamento não entram nessa soma — use resumo_parcelamento_mes e resumo_financiamentos pra detalhes deles.",
     };
+  }
+
+  private async lembrar(userId: string, conteudo: string) {
+    if (!conteudo.trim()) return { error: "Conteúdo vazio — nada pra lembrar." };
+    const memory = await this.assistantMemory.create(userId, conteudo);
+    return { ok: true, id: memory.id, conteudo: memory.content };
+  }
+
+  private async esquecer(userId: string, id: string) {
+    try {
+      await this.assistantMemory.delete(userId, id);
+      return { ok: true };
+    } catch {
+      return { error: "Não encontrei essa memória — confira o id." };
+    }
   }
 
   private async resumoParcelamentoMes(userId: string, year: number, month: number) {

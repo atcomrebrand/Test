@@ -27,6 +27,7 @@ import { QuotesModule } from "./modules/quotes/quotes.module";
 import { HouseholdModule } from "./modules/household/household.module";
 import { AssistantModule } from "./modules/assistant/assistant.module";
 import { HomeModule } from "./modules/home/home.module";
+import { AssistantMemoryModule } from "./modules/assistant-memory/assistant-memory.module";
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { HomeModule } from "./modules/home/home.module";
     HouseholdModule,
     AssistantModule,
     HomeModule,
+    AssistantMemoryModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
