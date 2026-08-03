@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Injectable } from "@nestjs/common";
 import { InvestmentFixedIncome } from "@prisma/client";
 import { FixedIncomeRepository } from "../domain/fixed-income.repository";
@@ -53,12 +53,63 @@ export class FixedIncomesService {
     return { id };
   }
 
-  /** Marks the application as redeemed today (or a given date), locking in the net value at that moment. */
+  /**
+   * Marks the application as redeemed at a given date (today by default), locking in the net
+   * value at that moment. `dto.amount` lets this be a partial redemption: instead of redeeming
+   * the whole principal, it splits off a new application record for just that amount (redeemed
+   * immediately, same terms/dates as the original) and reduces the original's principal by the
+   * same amount, leaving it active and still accruing. The math holds because
+   * calculateFixedIncome's gross/net value is linear in principalAmount — splitting the principal
+   * splits the value the same way, cent for cent.
+   */
   async redeem(userId: string, id: string, dto: RedeemFixedIncomeDto) {
     const fixedIncome = await this.getOwned(userId, id);
+    if (fixedIncome.redeemedAt) throw new BadRequestException("Essa aplicação já foi resgatada.");
+
     const redeemedAt = dto.redeemedAt ? new Date(dto.redeemedAt) : new Date();
-    const calc = await this.calculate(fixedIncome, redeemedAt);
-    const updated = await this.fixedIncomes.redeem(id, redeemedAt, calc.netValue);
+    const principal = Number(fixedIncome.principalAmount);
+    const redeemAmount = dto.amount ?? principal;
+
+    if (redeemAmount > principal) {
+      throw new BadRequestException("O valor do resgate não pode ser maior que o valor aplicado.");
+    }
+
+    if (redeemAmount >= principal) {
+      const calc = await this.calculate(fixedIncome, redeemedAt);
+      const updated = await this.fixedIncomes.redeem(id, redeemedAt, calc.netValue);
+      return this.enrich(updated);
+    }
+
+    // Resgate parcial: a parte resgatada vira uma aplicação própria, já resgatada, com os mesmos
+    // termos e datas da original — só o principal muda. A original continua ativa com o principal
+    // reduzido, rendendo normalmente a partir de agora.
+    const redeemedCalc = await this.calculate(fixedIncome, redeemedAt, redeemAmount);
+    const redeemedCopy = await this.fixedIncomes.create({
+      userId,
+      institution: fixedIncome.institution,
+      type: fixedIncome.type,
+      principalAmount: redeemAmount,
+      applicationDate: fixedIncome.applicationDate,
+      maturityDate: fixedIncome.maturityDate,
+      liquidity: fixedIncome.liquidity,
+      indexer: fixedIncome.indexer,
+      fixedRatePercent: fixedIncome.fixedRatePercent ? Number(fixedIncome.fixedRatePercent) : undefined,
+      cdiPercent: fixedIncome.cdiPercent ? Number(fixedIncome.cdiPercent) : undefined,
+      notes: fixedIncome.notes ?? undefined,
+    });
+    await this.fixedIncomes.redeem(redeemedCopy.id, redeemedAt, redeemedCalc.netValue);
+
+    const updatedOriginal = await this.fixedIncomes.update(id, { principalAmount: principal - redeemAmount });
+    return this.enrich(updatedOriginal);
+  }
+
+  /** Reverts a redemption made by mistake — clears redeemedAt/redeemedNetAmount, making the
+   *  application active again. Doesn't touch a sibling record created by a partial redemption
+   *  (if any); undo that one separately if it was also wrong. */
+  async unredeem(userId: string, id: string) {
+    const fixedIncome = await this.getOwned(userId, id);
+    if (!fixedIncome.redeemedAt) throw new BadRequestException("Essa aplicação não está resgatada.");
+    const updated = await this.fixedIncomes.unredeem(id);
     return this.enrich(updated);
   }
 
@@ -80,7 +131,9 @@ export class FixedIncomesService {
     return { ...fixedIncome, calculation: calc };
   }
 
-  private async calculate(fixedIncome: InvestmentFixedIncome, asOfDate: Date) {
+  /** `principalOverride` lets a caller price a hypothetical slice of the position (partial
+   *  redemption) without needing a separate DB row first — same terms/dates, different amount. */
+  private async calculate(fixedIncome: InvestmentFixedIncome, asOfDate: Date, principalOverride?: number) {
     const needsCdi = fixedIncome.indexer === "POS_FIXADO_CDI";
     const needsIpca = fixedIncome.indexer === "IPCA_MAIS";
 
@@ -90,7 +143,7 @@ export class FixedIncomesService {
     ]);
 
     return calculateFixedIncome({
-      principalAmount: Number(fixedIncome.principalAmount),
+      principalAmount: principalOverride ?? Number(fixedIncome.principalAmount),
       applicationDate: fixedIncome.applicationDate,
       asOfDate,
       type: fixedIncome.type,

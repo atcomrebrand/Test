@@ -89,6 +89,19 @@ export class FixedIncomePrismaRepository extends FixedIncomeRepository {
     });
   }
 
+  async unredeem(id: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const fixedIncome = await tx.investmentFixedIncome.update({
+        where: { id },
+        data: { redeemedAt: null, redeemedNetAmount: null },
+      });
+      await tx.investmentAuditLog.create({
+        data: { userId: fixedIncome.userId, entity: "InvestmentFixedIncome", entityId: id, action: "UNDO_REDEMPTION" },
+      });
+      return fixedIncome;
+    });
+  }
+
   async addIncome(data: { userId: string; fixedIncomeId: string; type: string; amount: number; paymentDate: Date; notes?: string }) {
     return this.prisma.$transaction(async (tx) => {
       const income = await tx.investmentIncome.create({

@@ -311,10 +311,23 @@ export function useDeleteFixedIncome() {
 export function useRedeemFixedIncome() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => api.post<InvestmentFixedIncome>(`/investments/fixed-incomes/${id}/redeem`, {}),
+    mutationFn: ({ id, redeemedAt, amount }: { id: string; redeemedAt?: string; amount?: number }) =>
+      api.post<InvestmentFixedIncome>(`/investments/fixed-incomes/${id}/redeem`, { redeemedAt, amount }),
     onSuccess: () => {
       invalidateAll(qc);
       toast.success("Resgate registrado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUnredeemFixedIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post<InvestmentFixedIncome>(`/investments/fixed-incomes/${id}/unredeem`, {}),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Resgate desfeito.");
     },
     onError: (e: Error) => toast.error(e.message),
   });

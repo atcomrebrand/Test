@@ -58,6 +58,13 @@ export class RedeemFixedIncomeDto {
   @IsOptional()
   @IsDateString()
   redeemedAt?: string;
+
+  /** Partial redemption amount, in reais — omit to redeem the full principal (existing behavior). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @IsPositive()
+  amount?: number;
 }
 
 export class AddFixedIncomeInterestDto {

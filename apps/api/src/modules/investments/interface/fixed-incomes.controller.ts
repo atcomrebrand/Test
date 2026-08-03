@@ -39,6 +39,11 @@ export class FixedIncomesController {
     return this.service.redeem(user.userId, id, dto);
   }
 
+  @Post(":id/unredeem")
+  unredeem(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.service.unredeem(user.userId, id);
+  }
+
   @Post(":id/interest")
   addInterest(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: AddFixedIncomeInterestDto) {
     return this.service.addInterest(user.userId, id, dto);

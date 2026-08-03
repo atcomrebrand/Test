@@ -21,6 +21,7 @@ export abstract class FixedIncomeRepository {
   abstract update(id: string, data: Record<string, unknown>): Promise<InvestmentFixedIncome>;
   abstract softDelete(id: string): Promise<void>;
   abstract redeem(id: string, redeemedAt: Date, redeemedNetAmount: number): Promise<InvestmentFixedIncome>;
+  abstract unredeem(id: string): Promise<InvestmentFixedIncome>;
   abstract addIncome(data: {
     userId: string;
     fixedIncomeId: string;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, LineChart, Trash2, ArrowLeftRight, Coins, RefreshCw, Percent, Star, ArrowDownCircle } from "lucide-react";
+import { Plus, LineChart, Trash2, ArrowLeftRight, Coins, RefreshCw, Percent, Star, ArrowDownCircle, Undo2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -17,8 +17,9 @@ import {
   useFixedIncomes,
   useDeleteFixedIncome,
   useRedeemFixedIncome,
+  useUnredeemFixedIncome,
 } from "../api";
-import { AssetClass, InvestmentAsset } from "../types";
+import { AssetClass, InvestmentAsset, InvestmentFixedIncome } from "../types";
 import { AssetFormModal } from "../components/AssetFormModal";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
@@ -26,6 +27,7 @@ import { StakingConfigModal } from "../components/StakingConfigModal";
 import { YieldingIndicator } from "../components/YieldingIndicator";
 import { FixedIncomeFormModal } from "../components/FixedIncomeFormModal";
 import { AddInterestModal } from "../components/AddInterestModal";
+import { RedeemFixedIncomeModal } from "../components/RedeemFixedIncomeModal";
 
 type PortfolioTab = AssetClass | "RENDA_FIXA";
 
@@ -59,7 +61,7 @@ export default function Portfolio() {
   const toggleFavorite = useToggleFavorite();
 
   const { data: fixedIncomes, isLoading: fixedIncomesLoading } = useFixedIncomes();
-  const redeemFixedIncome = useRedeemFixedIncome();
+  const unredeemFixedIncome = useUnredeemFixedIncome();
   const removeFixedIncome = useDeleteFixedIncome();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -67,6 +69,7 @@ export default function Portfolio() {
   const [incomeTarget, setIncomeTarget] = useState<string | null>(null);
   const [stakingTarget, setStakingTarget] = useState<InvestmentAsset | null>(null);
   const [interestTarget, setInterestTarget] = useState<string | null>(null);
+  const [redeemTarget, setRedeemTarget] = useState<InvestmentFixedIncome | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -202,11 +205,23 @@ export default function Portfolio() {
                           <Coins className="h-4 w-4" />
                           Registrar juros
                         </Button>
-                        <Button variant="outline" size="sm" onClick={() => redeemFixedIncome.mutate(f.id)} loading={redeemFixedIncome.isPending}>
+                        <Button variant="outline" size="sm" onClick={() => setRedeemTarget(f)}>
                           <ArrowDownCircle className="h-4 w-4" />
-                          Resgatar hoje
+                          Resgatar
                         </Button>
                       </div>
+                    )}
+
+                    {f.redeemedAt && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => unredeemFixedIncome.mutate(f.id)}
+                        loading={unredeemFixedIncome.isPending}
+                      >
+                        <Undo2 className="h-4 w-4" />
+                        Desfazer resgate
+                      </Button>
                     )}
                   </CardContent>
                 </Card>
@@ -352,6 +367,7 @@ export default function Portfolio() {
       <AssetIncomeModal assetId={incomeTarget} onClose={() => setIncomeTarget(null)} />
       <StakingConfigModal asset={stakingTarget} onClose={() => setStakingTarget(null)} />
       <AddInterestModal fixedIncomeId={interestTarget} onClose={() => setInterestTarget(null)} />
+      <RedeemFixedIncomeModal fixedIncome={redeemTarget} onClose={() => setRedeemTarget(null)} />
     </div>
   );
 }
