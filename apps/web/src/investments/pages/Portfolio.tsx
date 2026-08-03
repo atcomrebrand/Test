@@ -28,6 +28,7 @@ import { YieldingIndicator } from "../components/YieldingIndicator";
 import { FixedIncomeFormModal } from "../components/FixedIncomeFormModal";
 import { AddInterestModal } from "../components/AddInterestModal";
 import { RedeemFixedIncomeModal } from "../components/RedeemFixedIncomeModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 
 type PortfolioTab = AssetClass | "RENDA_FIXA";
 
@@ -70,6 +71,7 @@ export default function Portfolio() {
   const [stakingTarget, setStakingTarget] = useState<InvestmentAsset | null>(null);
   const [interestTarget, setInterestTarget] = useState<string | null>(null);
   const [redeemTarget, setRedeemTarget] = useState<InvestmentFixedIncome | null>(null);
+  const [unredeemTarget, setUnredeemTarget] = useState<InvestmentFixedIncome | null>(null);
 
   return (
     <div className="flex flex-col gap-4">
@@ -213,12 +215,7 @@ export default function Portfolio() {
                     )}
 
                     {f.redeemedAt && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => unredeemFixedIncome.mutate(f.id)}
-                        loading={unredeemFixedIncome.isPending}
-                      >
+                      <Button variant="outline" size="sm" onClick={() => setUnredeemTarget(f)}>
                         <Undo2 className="h-4 w-4" />
                         Desfazer resgate
                       </Button>
@@ -368,6 +365,36 @@ export default function Portfolio() {
       <StakingConfigModal asset={stakingTarget} onClose={() => setStakingTarget(null)} />
       <AddInterestModal fixedIncomeId={interestTarget} onClose={() => setInterestTarget(null)} />
       <RedeemFixedIncomeModal fixedIncome={redeemTarget} onClose={() => setRedeemTarget(null)} />
+      <ConfirmModal
+        open={!!unredeemTarget}
+        onClose={() => setUnredeemTarget(null)}
+        title="Desfazer resgate"
+        confirmLabel="Desfazer resgate"
+        loading={unredeemFixedIncome.isPending}
+        onConfirm={() => {
+          if (!unredeemTarget) return;
+          unredeemFixedIncome.mutate(unredeemTarget.id, { onSuccess: () => setUnredeemTarget(null) });
+        }}
+        description={
+          unredeemTarget && (
+            <div className="flex flex-col gap-1">
+              <p>Isso vai voltar esta aplicação pro estado ativo, desfazendo o resgate abaixo:</p>
+              <div className="mt-1 rounded-xl surface-2 p-3">
+                <p className="font-semibold">{unredeemTarget.institution}</p>
+                <p>
+                  Valor resgatado: {formatCurrency(unredeemTarget.redeemedNetAmount ?? 0)} em{" "}
+                  {unredeemTarget.redeemedAt ? formatDate(unredeemTarget.redeemedAt) : "-"}
+                </p>
+                <p>Valor aplicado: {formatCurrency(unredeemTarget.principalAmount)}</p>
+              </div>
+              <p className="mt-1 text-xs">
+                Confira se é essa a aplicação certa antes de confirmar — se o resgate foi parcial, a fatia resgatada vira um registro
+                separado, então tem que desfazer o registro certo.
+              </p>
+            </div>
+          )
+        }
+      />
     </div>
   );
 }
