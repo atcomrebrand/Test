@@ -59,7 +59,8 @@ export class RedeemFixedIncomeDto {
   @IsDateString()
   redeemedAt?: string;
 
-  /** Partial redemption amount, in reais — omit to redeem the full principal (existing behavior). */
+  /** Partial redemption target, in reais — the net cash the user wants to receive today, not a
+   *  slice of principal. Omit to redeem everything (full net value). */
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

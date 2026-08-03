@@ -15,9 +15,10 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-/** Amount is optional — leaving it blank redeems the full principal (the original one-click
- *  behavior). Filling in less than the full principal does a partial redemption: that slice
- *  becomes its own redeemed record and the rest keeps accruing normally. */
+/** Amount is optional — leaving it blank redeems everything (the original one-click behavior).
+ *  Filling in a value does a partial redemption: it's the net cash you want to receive today (what
+ *  actually lands in the bank account), not a slice of the original principal — the backend works
+ *  out how much principal needs to come out so the numbers match, and the rest keeps accruing. */
 export function RedeemFixedIncomeModal({ fixedIncome, onClose }: Props) {
   const redeem = useRedeemFixedIncome();
   const [redeemedAt, setRedeemedAt] = useState(todayISO());
@@ -31,7 +32,7 @@ export function RedeemFixedIncomeModal({ fixedIncome, onClose }: Props) {
   }, [fixedIncome]);
 
   if (!fixedIncome) return null;
-  const principal = Number(fixedIncome.principalAmount);
+  const availableNet = Number(fixedIncome.calculation.netValue);
 
   function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -47,16 +48,16 @@ export function RedeemFixedIncomeModal({ fixedIncome, onClose }: Props) {
     <Modal open={!!fixedIncome} onClose={onClose} title="Resgatar aplicação">
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <p className="text-sm text-muted">
-          Valor aplicado: {formatCurrency(principal)}. Deixe o valor em branco pra resgatar tudo, ou informe um valor menor pra resgatar só uma
-          parte — o restante continua rendendo normalmente.
+          Valor líquido disponível hoje: {formatCurrency(availableNet)}. Deixe o valor em branco pra resgatar tudo, ou informe quanto você quer
+          receber na conta — o restante continua rendendo normalmente.
         </p>
         <Input
-          label="Valor a resgatar (R$) — opcional"
+          label="Valor que você quer receber (R$) — opcional"
           type="number"
           step="0.01"
           min="0.01"
-          max={principal}
-          placeholder={`Deixar em branco = tudo (${formatCurrency(principal)})`}
+          max={availableNet}
+          placeholder={`Deixar em branco = tudo (${formatCurrency(availableNet)})`}
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
         />

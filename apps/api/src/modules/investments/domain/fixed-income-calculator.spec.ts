@@ -1,4 +1,4 @@
-import { calculateFixedIncome } from "./fixed-income-calculator";
+import { calculateFixedIncome, principalForTargetNetValue } from "./fixed-income-calculator";
 
 function daysAfter(base: Date, days: number): Date {
   return new Date(base.getTime() + days * 86_400_000);
@@ -170,5 +170,28 @@ describe("calculateFixedIncome", () => {
     expect(result.daysElapsed).toBe(0);
     expect(result.grossYield).toBeCloseTo(0, 6);
     expect(result.netValue).toBeCloseTo(5000, 6);
+  });
+});
+
+describe("principalForTargetNetValue", () => {
+  it("scales principal proportionally to the target net value", () => {
+    expect(principalForTargetNetValue(1000, 1100, 550)).toBeCloseTo(500, 6);
+  });
+
+  it("returns the full principal when the target equals the full net value", () => {
+    expect(principalForTargetNetValue(10000, 10092.95, 10092.95)).toBeCloseTo(10000, 6);
+  });
+
+  it("returns more than the full principal when the target exceeds what's available (caller must reject)", () => {
+    expect(principalForTargetNetValue(1000, 1100, 1200)).toBeGreaterThan(1000);
+  });
+
+  it("returns 0 when there's no principal to split", () => {
+    expect(principalForTargetNetValue(0, 0, 100)).toBe(0);
+  });
+
+  it("matches the real BV 130% CDI case from production: R$2.009,65 desired net out of a R$10.048,27 net position", () => {
+    const requiredPrincipal = principalForTargetNetValue(10000, 10048.27, 2009.65);
+    expect(requiredPrincipal).toBeCloseTo(2000, 0);
   });
 });

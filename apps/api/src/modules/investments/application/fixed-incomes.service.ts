@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from "@nes
 import { Injectable } from "@nestjs/common";
 import { InvestmentFixedIncome } from "@prisma/client";
 import { FixedIncomeRepository } from "../domain/fixed-income.repository";
-import { calculateFixedIncome } from "../domain/fixed-income-calculator";
+import { calculateFixedIncome, principalForTargetNetValue } from "../domain/fixed-income-calculator";
 import { EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
 import { AddFixedIncomeInterestDto, CreateFixedIncomeDto, RedeemFixedIncomeDto, UpdateFixedIncomeDto } from "./dto/fixed-income.dto";
 
@@ -55,12 +55,13 @@ export class FixedIncomesService {
 
   /**
    * Marks the application as redeemed at a given date (today by default), locking in the net
-   * value at that moment. `dto.amount` lets this be a partial redemption: instead of redeeming
-   * the whole principal, it splits off a new application record for just that amount (redeemed
-   * immediately, same terms/dates as the original) and reduces the original's principal by the
-   * same amount, leaving it active and still accruing. The math holds because
-   * calculateFixedIncome's gross/net value is linear in principalAmount — splitting the principal
-   * splits the value the same way, cent for cent.
+   * value at that moment. `dto.amount` lets this be a partial redemption — and it means the net
+   * cash the user actually wants to walk away with today (what lands in the bank account), not a
+   * slice of the original principal. We back-solve how much principal needs to be split off so its
+   * net value matches that target (calculateFixedIncome's net value is linear in principalAmount,
+   * so this is a simple proportion — see principalForTargetNetValue). That slice becomes its own
+   * application record, already resgatada, with the same terms/dates as the original; the original
+   * keeps the remaining principal, still active and accruing.
    */
   async redeem(userId: string, id: string, dto: RedeemFixedIncomeDto) {
     const fixedIncome = await this.getOwned(userId, id);
@@ -68,27 +69,33 @@ export class FixedIncomesService {
 
     const redeemedAt = dto.redeemedAt ? new Date(dto.redeemedAt) : new Date();
     const principal = Number(fixedIncome.principalAmount);
-    const redeemAmount = dto.amount ?? principal;
+    const fullCalc = await this.calculate(fixedIncome, redeemedAt);
 
-    if (redeemAmount > principal) {
-      throw new BadRequestException("O valor do resgate não pode ser maior que o valor aplicado.");
+    if (dto.amount === undefined) {
+      const updated = await this.fixedIncomes.redeem(id, redeemedAt, fullCalc.netValue);
+      return this.enrich(updated);
     }
 
-    if (redeemAmount >= principal) {
-      const calc = await this.calculate(fixedIncome, redeemedAt);
-      const updated = await this.fixedIncomes.redeem(id, redeemedAt, calc.netValue);
+    if (dto.amount > fullCalc.netValue) {
+      throw new BadRequestException("O valor do resgate não pode ser maior que o valor líquido disponível agora.");
+    }
+
+    const requiredPrincipal = Math.round(principalForTargetNetValue(principal, fullCalc.netValue, dto.amount) * 100) / 100;
+
+    if (requiredPrincipal >= principal) {
+      const updated = await this.fixedIncomes.redeem(id, redeemedAt, fullCalc.netValue);
       return this.enrich(updated);
     }
 
     // Resgate parcial: a parte resgatada vira uma aplicação própria, já resgatada, com os mesmos
     // termos e datas da original — só o principal muda. A original continua ativa com o principal
     // reduzido, rendendo normalmente a partir de agora.
-    const redeemedCalc = await this.calculate(fixedIncome, redeemedAt, redeemAmount);
+    const redeemedCalc = await this.calculate(fixedIncome, redeemedAt, requiredPrincipal);
     const redeemedCopy = await this.fixedIncomes.create({
       userId,
       institution: fixedIncome.institution,
       type: fixedIncome.type,
-      principalAmount: redeemAmount,
+      principalAmount: requiredPrincipal,
       applicationDate: fixedIncome.applicationDate,
       maturityDate: fixedIncome.maturityDate,
       liquidity: fixedIncome.liquidity,
@@ -99,7 +106,7 @@ export class FixedIncomesService {
     });
     await this.fixedIncomes.redeem(redeemedCopy.id, redeemedAt, redeemedCalc.netValue);
 
-    const updatedOriginal = await this.fixedIncomes.update(id, { principalAmount: principal - redeemAmount });
+    const updatedOriginal = await this.fixedIncomes.update(id, { principalAmount: principal - requiredPrincipal });
     return this.enrich(updatedOriginal);
   }
 

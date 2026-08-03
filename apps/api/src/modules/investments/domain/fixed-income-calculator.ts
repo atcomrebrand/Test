@@ -118,3 +118,15 @@ export function calculateFixedIncome(input: FixedIncomeCalculationInput): FixedI
     netProfitabilityPercent: input.principalAmount > 0 ? (netYield / input.principalAmount) * 100 : 0,
   };
 }
+
+/**
+ * Inverts calculateFixedIncome's linearity for a partial redemption: given the full position's
+ * current principal and net value, finds how much principal needs to be split off so that slice's
+ * net value equals `targetNetValue` — the cash the user actually wants to walk away with today,
+ * not a slice of the original principal. May return a value greater than `fullPrincipal` when the
+ * target exceeds what's available; callers must guard that case (nothing to redeem against).
+ */
+export function principalForTargetNetValue(fullPrincipal: number, fullNetValue: number, targetNetValue: number): number {
+  if (fullPrincipal <= 0 || fullNetValue <= 0) return 0;
+  return (targetNetValue / fullNetValue) * fullPrincipal;
+}
