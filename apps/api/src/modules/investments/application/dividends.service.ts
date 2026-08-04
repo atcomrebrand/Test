@@ -22,7 +22,10 @@ export interface DividendCalendarEntry extends DividendEvent {
  *  BRAPI's dividends endpoint rejects a ticker sent to the wrong one of its two class-specific
  *  routes outright (confirmed 2026-07-20: FIIs get a 400 off /api/v2/stocks/dividends). */
 const MARKET_CALENDAR_TICKERS: { ticker: string; class: DividendAssetClass }[] = [
-  ...["ITSA4", "BBAS3", "TAEE11", "VALE3", "PETR4", "PETR3", "BBDC4", "ITUB4", "VIVT3", "CPLE6", "EGIE3", "CMIG4", "TRPL4", "CSMG3", "BBSE3"].map(
+  // ISAE4 was TRPL4 until ISA CTEEP rebranded to ISA Energia Brasil and retickered — the old code
+  // 404s on Yahoo and has no proventos page on Fundamentus (confirmed in production logs
+  // 2026-08-04), so it burned a fetch on every calendar load and reached no source at all.
+  ...["ITSA4", "BBAS3", "TAEE11", "VALE3", "PETR4", "PETR3", "BBDC4", "ITUB4", "VIVT3", "CPLE6", "EGIE3", "CMIG4", "ISAE4", "CSMG3", "BBSE3"].map(
     (ticker) => ({ ticker, class: "STOCK" as const }),
   ),
   ...["KNRI11", "HGLG11", "MXRF11", "XPML11", "VISC11", "BCFF11", "HGRU11", "VILG11"].map((ticker) => ({ ticker, class: "FII" as const })),
