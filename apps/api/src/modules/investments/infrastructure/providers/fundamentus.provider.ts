@@ -1,5 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { FundamentusIndicators, parseFundamentusIndicators } from "../../domain/fundamentus-parser";
+import { parseFundamentusProventos } from "../../domain/fundamentus-proventos-parser";
+import { DividendAssetClass, DividendEvent } from "../../domain/market-data.provider";
 
 /** Chrome's UA — same reasoning as YahooDividendsProvider: an obviously non-browser client can get
  *  blocked/served a stripped page. */
@@ -36,5 +38,33 @@ export class FundamentusProvider {
       this.logger.warn(`No Fundamentus indicators for ${ticker}: ${(err as Error).message}`);
       return null;
     }
+  }
+
+  /** Per-event proventos (data-com, payment date, tipo, per-share value) — the same event-level
+   *  detail the app gets from BRAPI when its free tier allows, which for most stocks it doesn't.
+   *  Stocks and FIIs live on different Fundamentus pages with different table layouts (the parser
+   *  resolves columns by header text, so either page's table parses correctly); the FII page is
+   *  tried second for a FII ticker only if the stock-page URL yields nothing, since some units
+   *  ("11" suffix but not FIIs) are served by the stock page. Throws on total failure so
+   *  DividendsCacheService can fall through to the next source, mirroring how the BRAPI leg
+   *  behaves there. */
+  async fetchProventos(ticker: string, assetClass: DividendAssetClass): Promise<DividendEvent[]> {
+    const key = ticker.toUpperCase();
+    const urls = [`https://www.fundamentus.com.br/proventos.php?papel=${encodeURIComponent(key)}&tipo=2`];
+    if (assetClass === "FII") urls.push(`https://www.fundamentus.com.br/fii_proventos.php?papel=${encodeURIComponent(key)}&tipo=2`);
+
+    let lastError: Error | null = null;
+    for (const url of urls) {
+      try {
+        const res = await fetch(url, { signal: AbortSignal.timeout(8000), headers: { "User-Agent": FUNDAMENTUS_USER_AGENT } });
+        if (!res.ok) throw new Error(`Fundamentus proventos request failed for ${key}: ${res.status}`);
+        const html = Buffer.from(await res.arrayBuffer()).toString("latin1");
+        const events = parseFundamentusProventos(html, key);
+        if (events.length > 0) return events;
+      } catch (err) {
+        lastError = err as Error;
+      }
+    }
+    throw lastError ?? new Error(`Fundamentus returned no proventos for ${key}`);
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { DividendAssetClass, DividendEvent, StockQuoteProvider } from "../domain/market-data.provider";
+import { FundamentusProvider } from "./providers/fundamentus.provider";
 import { YahooDividendsProvider } from "./providers/yahoo-dividends.provider";
 
 /** Corporate actions (dividends/JCP) are declared/paid at most a few times a year, so a day-long
@@ -7,10 +8,17 @@ import { YahooDividendsProvider } from "./providers/yahoo-dividends.provider";
  *  request. In-memory only — losing it on restart just costs one extra fetch per ticker. */
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-/** Also the resilience layer for dividend lookups, not just a cache: when the primary provider
+/** Also the resilience layer for dividend lookups, not just a cache. Source order when the primary
  *  (BRAPI) fails — most commonly its free plan's 403 on stock dividends beyond a couple of sample
- *  tickers — this retries via Yahoo Finance before giving up. Never the other way around: Yahoo
- *  is unsupported/unofficial, so it's only ever a fallback, never tried first. */
+ *  tickers:
+ *
+ *  1. Fundamentus — full event detail (data-com, payment date, DIVIDENDO/JCP split), same shape
+ *     BRAPI provides, scraped from the same site the fundamentals fallback already fetches
+ *     successfully in production.
+ *  2. Yahoo Finance — sparse for B3 dividends (one undated-role date per event, no type), so it's
+ *     the last resort, never tried before Fundamentus.
+ *
+ *  Neither fallback is ever tried first: BRAPI is the only supported/official-ish source. */
 @Injectable()
 export class DividendsCacheService {
   private readonly logger = new Logger(DividendsCacheService.name);
@@ -18,6 +26,7 @@ export class DividendsCacheService {
 
   constructor(
     private readonly stockProvider: StockQuoteProvider,
+    private readonly fundamentusFallback: FundamentusProvider,
     private readonly yahooFallback: YahooDividendsProvider,
   ) {}
 
@@ -31,15 +40,24 @@ export class DividendsCacheService {
       this.cache.set(key, { events, fetchedAt: Date.now() });
       return events;
     } catch (err) {
-      this.logger.warn(`Dividend fetch failed for ${key} via BRAPI, trying Yahoo Finance fallback: ${(err as Error).message}`);
-      try {
-        const events = await this.yahooFallback.fetchDividends(key);
-        this.cache.set(key, { events, fetchedAt: Date.now() });
-        return events;
-      } catch (fallbackErr) {
-        this.logger.warn(`Yahoo Finance fallback also failed for ${key}: ${(fallbackErr as Error).message}`);
-        return cached?.events ?? [];
-      }
+      this.logger.warn(`Dividend fetch failed for ${key} via BRAPI, trying Fundamentus fallback: ${(err as Error).message}`);
+    }
+
+    try {
+      const events = await this.fundamentusFallback.fetchProventos(key, assetClass);
+      this.cache.set(key, { events, fetchedAt: Date.now() });
+      return events;
+    } catch (err) {
+      this.logger.warn(`Fundamentus fallback failed for ${key}, trying Yahoo Finance: ${(err as Error).message}`);
+    }
+
+    try {
+      const events = await this.yahooFallback.fetchDividends(key);
+      this.cache.set(key, { events, fetchedAt: Date.now() });
+      return events;
+    } catch (err) {
+      this.logger.warn(`Yahoo Finance fallback also failed for ${key}: ${(err as Error).message}`);
+      return cached?.events ?? [];
     }
   }
 }
