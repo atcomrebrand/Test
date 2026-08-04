@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { DividendAssetClass, DividendEvent, StockQuoteProvider } from "../domain/market-data.provider";
+import { B3DividendsProvider } from "./providers/b3-dividends.provider";
 import { FundamentusProvider } from "./providers/fundamentus.provider";
 import { YahooDividendsProvider } from "./providers/yahoo-dividends.provider";
 
@@ -15,10 +16,13 @@ const TTL_MS = 24 * 60 * 60 * 1000;
  *  1. Fundamentus — full event detail (data-com, payment date, DIVIDENDO/JCP split), same shape
  *     BRAPI provides, scraped from the same site the fundamentals fallback already fetches
  *     successfully in production.
- *  2. Yahoo Finance — sparse for B3 dividends (one undated-role date per event, no type), so it's
- *     the last resort, never tried before Fundamentus.
+ *  2. B3 (stocks only) — the exchange's own public listing; authoritative data-com/type/value but
+ *     no payment dates, so it only outranks Yahoo. FIIs skip this leg: they live on a different
+ *     B3 proxy, and BRAPI's dedicated FII route already covers them.
+ *  3. Yahoo Finance — sparse for B3 dividends (one undated-role date per event, no type): last
+ *     resort, never tried before the richer sources.
  *
- *  Neither fallback is ever tried first: BRAPI is the only supported/official-ish source. */
+ *  No fallback is ever tried first: BRAPI is the only supported/official-ish API source. */
 @Injectable()
 export class DividendsCacheService {
   private readonly logger = new Logger(DividendsCacheService.name);
@@ -27,6 +31,7 @@ export class DividendsCacheService {
   constructor(
     private readonly stockProvider: StockQuoteProvider,
     private readonly fundamentusFallback: FundamentusProvider,
+    private readonly b3Fallback: B3DividendsProvider,
     private readonly yahooFallback: YahooDividendsProvider,
   ) {}
 
@@ -48,7 +53,17 @@ export class DividendsCacheService {
       this.cache.set(key, { events, fetchedAt: Date.now() });
       return events;
     } catch (err) {
-      this.logger.warn(`Fundamentus fallback failed for ${key}, trying Yahoo Finance: ${(err as Error).message}`);
+      this.logger.warn(`Fundamentus fallback failed for ${key}: ${(err as Error).message}`);
+    }
+
+    if (assetClass === "STOCK") {
+      try {
+        const events = await this.b3Fallback.fetchDividends(key);
+        this.cache.set(key, { events, fetchedAt: Date.now() });
+        return events;
+      } catch (err) {
+        this.logger.warn(`B3 fallback failed for ${key}: ${(err as Error).message}`);
+      }
     }
 
     try {
