@@ -1,6 +1,19 @@
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, LineChart, Trash2, ArrowLeftRight, Coins, RefreshCw, Percent, Star, ArrowDownCircle, Undo2 } from "lucide-react";
+import {
+  Plus,
+  LineChart,
+  Trash2,
+  ArrowLeftRight,
+  Coins,
+  RefreshCw,
+  Percent,
+  Star,
+  ArrowDownCircle,
+  Undo2,
+  ChevronDown,
+  ChevronUp,
+} from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -52,6 +65,145 @@ const INDEXER_LABEL: Record<string, string> = {
   OUTRO: "Outro",
 };
 
+/** Same collapsible group pattern used in Contas ("Contas da casa" / "Faturas de cartão") — a
+ *  header with a count badge you can close instead of one long flat grid. */
+function AccordionSection({
+  title,
+  count,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center justify-between rounded-xl surface border border-[rgb(var(--border))] px-4 py-3 text-left transition-colors hover:surface-2"
+      >
+        <span className="flex items-center gap-2 font-semibold">
+          {title}
+          <Badge tone="neutral">{count}</Badge>
+        </span>
+        {open ? <ChevronUp className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
+      </button>
+      {open &&
+        (count > 0 ? (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>
+        ) : (
+          <p className="px-1 text-sm text-muted">Nada por aqui.</p>
+        ))}
+    </div>
+  );
+}
+
+function FixedIncomeCard({
+  f,
+  onRegisterInterest,
+  onRedeem,
+  onUnredeem,
+  onRemove,
+}: {
+  f: InvestmentFixedIncome;
+  onRegisterInterest: () => void;
+  onRedeem: () => void;
+  onUnredeem: () => void;
+  onRemove: () => void;
+}) {
+  const daysToMaturity = Math.ceil((new Date(f.maturityDate).getTime() - Date.now()) / 86400000);
+  return (
+    <Card>
+      <CardContent className="flex flex-col gap-4">
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <p className="font-semibold">{f.institution}</p>
+              {!f.redeemedAt && <YieldingIndicator />}
+            </div>
+            <div className="mt-1 flex items-center gap-2">
+              <Badge tone="accent">{f.type}</Badge>
+              <Badge tone="neutral">{INDEXER_LABEL[f.indexer]}</Badge>
+              {f.redeemedAt && <Badge tone="success">Resgatado</Badge>}
+            </div>
+          </div>
+          <button onClick={onRemove} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500" aria-label="Remover">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 rounded-xl surface-2 p-3">
+          <div className="min-w-0">
+            <p className="text-xs text-muted">Investido</p>
+            <p className="truncate text-sm font-bold">{formatCurrency(f.principalAmount)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted">Bruto</p>
+            <p className="truncate text-sm font-bold">{formatCurrency(f.calculation.grossValue)}</p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-xs text-muted">Líquido</p>
+            <p className="truncate text-sm font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(f.calculation.netValue)}</p>
+          </div>
+        </div>
+
+        <div
+          className={`rounded-xl p-3 text-sm font-semibold ${
+            f.calculation.netYield >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
+          }`}
+        >
+          {f.calculation.netYield >= 0 ? "+" : "-"}
+          {formatCurrency(Math.abs(f.calculation.netYield))} ({f.calculation.netProfitabilityPercent.toFixed(2)}%)
+        </div>
+
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          <div className="rounded-lg surface-2 p-2">
+            <p className="text-muted">IR ({f.calculation.irRate}%)</p>
+            <p className="font-semibold">{formatCurrency(f.calculation.irAmount)}</p>
+          </div>
+          <div className="rounded-lg surface-2 p-2">
+            <p className="text-muted">IOF ({f.calculation.iofRate}%)</p>
+            <p className="font-semibold">{formatCurrency(f.calculation.iofAmount)}</p>
+          </div>
+          <div className="rounded-lg surface-2 p-2">
+            <p className="text-muted">Rent. líquida</p>
+            <p className="font-semibold">{f.calculation.netProfitabilityPercent.toFixed(2)}%</p>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between text-xs text-muted">
+          <span>Aplicado em {formatDate(f.applicationDate)}</span>
+          <span>{f.redeemedAt ? `Resgatado em ${formatDate(f.redeemedAt)}` : daysToMaturity >= 0 ? `Vence em ${daysToMaturity} dias` : "Vencido"}</span>
+        </div>
+
+        {!f.redeemedAt && (
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={onRegisterInterest}>
+              <Coins className="h-4 w-4" />
+              Registrar juros
+            </Button>
+            <Button variant="outline" size="sm" onClick={onRedeem}>
+              <ArrowDownCircle className="h-4 w-4" />
+              Resgatar
+            </Button>
+          </div>
+        )}
+
+        {f.redeemedAt && (
+          <Button variant="outline" size="sm" onClick={onUnredeem}>
+            <Undo2 className="h-4 w-4" />
+            Desfazer resgate
+          </Button>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function Portfolio() {
   const [tab, setTab] = useState<PortfolioTab>("STOCK");
   const isFixedIncome = tab === "RENDA_FIXA";
@@ -64,6 +216,8 @@ export default function Portfolio() {
   const { data: fixedIncomes, isLoading: fixedIncomesLoading } = useFixedIncomes();
   const unredeemFixedIncome = useUnredeemFixedIncome();
   const removeFixedIncome = useDeleteFixedIncome();
+  const activeFixedIncomes = fixedIncomes?.filter((f) => !f.redeemedAt) ?? [];
+  const redeemedFixedIncomes = fixedIncomes?.filter((f) => f.redeemedAt) ?? [];
 
   const [formOpen, setFormOpen] = useState(false);
   const [transactionTarget, setTransactionTarget] = useState<string | null>(null);
@@ -72,6 +226,7 @@ export default function Portfolio() {
   const [interestTarget, setInterestTarget] = useState<string | null>(null);
   const [redeemTarget, setRedeemTarget] = useState<InvestmentFixedIncome | null>(null);
   const [unredeemTarget, setUnredeemTarget] = useState<InvestmentFixedIncome | null>(null);
+  const [openFixedIncomeSections, setOpenFixedIncomeSections] = useState({ active: true, redeemed: false });
 
   return (
     <div className="flex flex-col gap-4">
@@ -120,110 +275,42 @@ export default function Portfolio() {
             />
           )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {fixedIncomes?.map((f) => {
-              const daysToMaturity = Math.ceil((new Date(f.maturityDate).getTime() - Date.now()) / 86400000);
-              return (
-                <Card key={f.id}>
-                  <CardContent className="flex flex-col gap-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold">{f.institution}</p>
-                          {!f.redeemedAt && <YieldingIndicator />}
-                        </div>
-                        <div className="mt-1 flex items-center gap-2">
-                          <Badge tone="accent">{f.type}</Badge>
-                          <Badge tone="neutral">{INDEXER_LABEL[f.indexer]}</Badge>
-                          {f.redeemedAt && <Badge tone="success">Resgatado</Badge>}
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeFixedIncome.mutate(f.id)}
-                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
-                        aria-label="Remover"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
+          <div className="flex flex-col gap-4">
+            <AccordionSection
+              title="Ativos"
+              count={activeFixedIncomes.length}
+              open={openFixedIncomeSections.active}
+              onToggle={() => setOpenFixedIncomeSections((s) => ({ ...s, active: !s.active }))}
+            >
+              {activeFixedIncomes.map((f) => (
+                <FixedIncomeCard
+                  key={f.id}
+                  f={f}
+                  onRegisterInterest={() => setInterestTarget(f.id)}
+                  onRedeem={() => setRedeemTarget(f)}
+                  onUnredeem={() => setUnredeemTarget(f)}
+                  onRemove={() => removeFixedIncome.mutate(f.id)}
+                />
+              ))}
+            </AccordionSection>
 
-                    <div className="grid grid-cols-3 gap-2 rounded-xl surface-2 p-3">
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted">Investido</p>
-                        <p className="truncate text-sm font-bold">{formatCurrency(f.principalAmount)}</p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted">Bruto</p>
-                        <p className="truncate text-sm font-bold">{formatCurrency(f.calculation.grossValue)}</p>
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-xs text-muted">Líquido</p>
-                        <p className="truncate text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                          {formatCurrency(f.calculation.netValue)}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div
-                      className={`rounded-xl p-3 text-sm font-semibold ${
-                        f.calculation.netYield >= 0
-                          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
-                          : "bg-red-500/10 text-red-600 dark:text-red-400"
-                      }`}
-                    >
-                      {f.calculation.netYield >= 0 ? "+" : "-"}
-                      {formatCurrency(Math.abs(f.calculation.netYield))} ({f.calculation.netProfitabilityPercent.toFixed(2)}%)
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="rounded-lg surface-2 p-2">
-                        <p className="text-muted">IR ({f.calculation.irRate}%)</p>
-                        <p className="font-semibold">{formatCurrency(f.calculation.irAmount)}</p>
-                      </div>
-                      <div className="rounded-lg surface-2 p-2">
-                        <p className="text-muted">IOF ({f.calculation.iofRate}%)</p>
-                        <p className="font-semibold">{formatCurrency(f.calculation.iofAmount)}</p>
-                      </div>
-                      <div className="rounded-lg surface-2 p-2">
-                        <p className="text-muted">Rent. líquida</p>
-                        <p className="font-semibold">{f.calculation.netProfitabilityPercent.toFixed(2)}%</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-muted">
-                      <span>Aplicado em {formatDate(f.applicationDate)}</span>
-                      <span>
-                        {f.redeemedAt
-                          ? `Resgatado em ${formatDate(f.redeemedAt)}`
-                          : daysToMaturity >= 0
-                            ? `Vence em ${daysToMaturity} dias`
-                            : "Vencido"}
-                      </span>
-                    </div>
-
-                    {!f.redeemedAt && (
-                      <div className="flex gap-2">
-                        <Button variant="secondary" size="sm" onClick={() => setInterestTarget(f.id)}>
-                          <Coins className="h-4 w-4" />
-                          Registrar juros
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => setRedeemTarget(f)}>
-                          <ArrowDownCircle className="h-4 w-4" />
-                          Resgatar
-                        </Button>
-                      </div>
-                    )}
-
-                    {f.redeemedAt && (
-                      <Button variant="outline" size="sm" onClick={() => setUnredeemTarget(f)}>
-                        <Undo2 className="h-4 w-4" />
-                        Desfazer resgate
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+            <AccordionSection
+              title="Resgatados"
+              count={redeemedFixedIncomes.length}
+              open={openFixedIncomeSections.redeemed}
+              onToggle={() => setOpenFixedIncomeSections((s) => ({ ...s, redeemed: !s.redeemed }))}
+            >
+              {redeemedFixedIncomes.map((f) => (
+                <FixedIncomeCard
+                  key={f.id}
+                  f={f}
+                  onRegisterInterest={() => setInterestTarget(f.id)}
+                  onRedeem={() => setRedeemTarget(f)}
+                  onUnredeem={() => setUnredeemTarget(f)}
+                  onRemove={() => removeFixedIncome.mutate(f.id)}
+                />
+              ))}
+            </AccordionSection>
           </div>
         </>
       ) : (
