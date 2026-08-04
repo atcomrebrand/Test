@@ -8,6 +8,7 @@ function makeAssetRepo(overrides: Partial<AssetRepository> = {}): AssetRepositor
     listTransactions: jest.fn().mockResolvedValue([]),
     listIncomes: jest.fn().mockResolvedValue([]),
     addIncome: jest.fn().mockResolvedValue({}),
+    deleteIncome: jest.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as AssetRepository;
 }
@@ -67,6 +68,27 @@ describe("DividendAutoSyncService.syncAsset", () => {
     const created = await service.syncAsset("user-1", "a1");
 
     expect(created).toBe(0);
+    expect(assets.addIncome).not.toHaveBeenCalled();
+  });
+
+  it("repairs an existing duplicated pair: deletes the ex-dated auto row, keeps the payment-dated one, creates nothing", async () => {
+    const marker = "Calculado automaticamente (histórico BRAPI)";
+    const assets = makeAssetRepo({
+      findById: jest.fn().mockResolvedValue({ id: "a1", class: "STOCK", ticker: "ITSA4" }),
+      listTransactions: jest.fn().mockResolvedValue([tx("BUY", 10, "2026-01-01")]),
+      listIncomes: jest.fn().mockResolvedValue([
+        { id: "inc-old", amount: 15 as any, paymentDate: new Date("2026-03-01"), notes: marker },
+        { id: "inc-new", amount: 15 as any, paymentDate: new Date("2026-07-15"), notes: marker },
+      ]),
+    });
+    const dividends = makeDividendsCache([{ ticker: "ITSA4", type: "DIVIDENDO", rate: 1.5, exDate: "2026-03-01", paymentDate: "2026-07-15", relatedTo: null }]);
+
+    const service = new DividendAutoSyncService(assets, dividends);
+    const created = await service.syncAsset("user-1", "a1");
+
+    expect(created).toBe(0);
+    expect(assets.deleteIncome).toHaveBeenCalledWith("inc-old");
+    expect(assets.deleteIncome).toHaveBeenCalledTimes(1);
     expect(assets.addIncome).not.toHaveBeenCalled();
   });
 

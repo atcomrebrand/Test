@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { AssetRepository } from "../domain/asset.repository";
+import { findDuplicateAutoIncomes } from "../domain/dividend-duplicate-repair";
 import { isCloseMatch, isWithinTolerance } from "../domain/dividend-matching";
 import { calculatePosition } from "../domain/position-calculator";
 import { DividendsCacheService } from "../infrastructure/dividends-cache.service";
@@ -33,24 +34,39 @@ export class DividendAutoSyncService {
 
       const [transactions, existingIncomes] = await Promise.all([this.assets.listTransactions(assetId), this.assets.listIncomes(assetId)]);
       const txs = transactions.map((t) => ({ type: t.type, quantity: Number(t.quantity), unitPrice: Number(t.unitPrice), fees: Number(t.fees), transactionDate: t.transactionDate }));
-      const known = existingIncomes.map((i) => ({ amount: Number(i.amount), paymentDate: isoDate(i.paymentDate) }));
 
       const events = await this.dividendsCache.get(asset.ticker, asset.class);
 
+      // Value every event against the position actually held on its own ex-dividend date — the
+      // same reconstruction both the "should this be recorded?" pass and the duplicate repair
+      // below need, so it's computed once up front.
+      const valuedEvents = events
+        .map((event) => {
+          const positionAsOfDate = event.exDate ?? event.paymentDate;
+          const comparisonDate = event.paymentDate ?? event.exDate;
+          if (!positionAsOfDate || !comparisonDate) return null;
+          const heldAsOf = txs.filter((t) => isoDate(t.transactionDate) <= positionAsOfDate);
+          const quantityHeld = calculatePosition(heldAsOf).quantity;
+          if (quantityHeld <= 0) return null;
+          return { event, comparisonDate, estimatedAmount: Math.round(event.rate * quantityHeld * 100) / 100 };
+        })
+        .filter((v): v is NonNullable<typeof v> => v !== null);
+
+      // Repair pass: remove auto-created incomes that are redundant recordings of the same event
+      // (the 2026-08-04 source-switch duplication), keeping the correctly-dated row. Runs before
+      // the create pass so a freshly-repaired asset can't immediately re-create what was removed.
+      const repairCandidates = existingIncomes.map((i) => ({ id: i.id, amount: Number(i.amount), paymentDate: isoDate(i.paymentDate), notes: i.notes }));
+      const staleIds = findDuplicateAutoIncomes(
+        repairCandidates,
+        valuedEvents.map((v) => ({ estimatedAmount: v.estimatedAmount, exDate: v.event.exDate, paymentDate: v.event.paymentDate })),
+      );
+      for (const id of staleIds) await this.assets.deleteIncome(id);
+      if (staleIds.length > 0) this.logger.log(`Removed ${staleIds.length} duplicated auto-synced income(s) for asset ${assetId}`);
+
+      const known = repairCandidates.filter((i) => !staleIds.includes(i.id)).map((i) => ({ amount: i.amount, paymentDate: i.paymentDate }));
+
       let created = 0;
-      for (const event of events) {
-        // Same convention as the B3 import's suggestion logic: entitlement (and thus the position
-        // to value the event against) is determined at the ex-date; whether it's already on file
-        // is judged against the payment date, since those are typically weeks apart.
-        const positionAsOfDate = event.exDate ?? event.paymentDate;
-        const comparisonDate = event.paymentDate ?? event.exDate;
-        if (!positionAsOfDate || !comparisonDate) continue;
-
-        const heldAsOf = txs.filter((t) => isoDate(t.transactionDate) <= positionAsOfDate);
-        const quantityHeld = calculatePosition(heldAsOf).quantity;
-        if (quantityHeld <= 0) continue;
-
-        const estimatedAmount = Math.round(event.rate * quantityHeld * 100) / 100;
+      for (const { event, comparisonDate, estimatedAmount } of valuedEvents) {
         // An income counts as already-on-file if it sits near EITHER of the event's dates, not
         // just the payment date. The dividend source can change between syncs (BRAPI → Fundamentus
         // → Yahoo fallbacks), and Yahoo only reports one date per event — the ex-date — which past
