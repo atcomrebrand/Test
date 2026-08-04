@@ -9,7 +9,8 @@ import { JwtStrategy } from "./jwt.strategy";
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET ?? "dev-secret-change-me",
+      // main.ts's assertSecureEnv() refuses to boot if this isn't set to a real secret.
+      secret: process.env.JWT_SECRET!,
       signOptions: { expiresIn: process.env.JWT_EXPIRES_IN ?? "7d" },
     }),
   ],

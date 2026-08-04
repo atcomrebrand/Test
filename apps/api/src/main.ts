@@ -7,7 +7,26 @@ import { AppModule } from "./app.module";
 import { AllExceptionsFilter } from "./common/filters/all-exceptions.filter";
 import { TransformInterceptor } from "./common/interceptors/transform.interceptor";
 
+/** Known placeholder values from .env.example — if JWT_SECRET is missing or still one of these,
+ *  every token this process signs is forgeable by anyone who reads the (public) source. Fail loud
+ *  at boot instead of silently running with a guessable secret — this app now holds real financial
+ *  data, so there's no dev-convenience justification for letting that slip into production. */
+const INSECURE_JWT_SECRETS = new Set(["change-me-in-production", "dev-secret-change-me"]);
+
+function assertSecureEnv() {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret || INSECURE_JWT_SECRETS.has(jwtSecret)) {
+    throw new Error(
+      "JWT_SECRET não está configurado (ou ainda é o valor de exemplo do .env.example). " +
+        'Gere um valor forte com `node -e "console.log(require(\'crypto\').randomBytes(48).toString(\'hex\'))"` ' +
+        "e defina JWT_SECRET no .env antes de subir a API.",
+    );
+  }
+}
+
 async function bootstrap() {
+  assertSecureEnv();
+
   const app = await NestFactory.create(AppModule, { cors: false, bodyParser: false });
 
   // Express's default 100kb JSON limit is too small for the B3 statement import (a full year of
