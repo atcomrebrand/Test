@@ -51,7 +51,15 @@ export class DividendAutoSyncService {
         if (quantityHeld <= 0) continue;
 
         const estimatedAmount = Math.round(event.rate * quantityHeld * 100) / 100;
-        const alreadyOnFile = known.some((k) => isCloseMatch(k.paymentDate, comparisonDate) && isWithinTolerance(k.amount, estimatedAmount));
+        // An income counts as already-on-file if it sits near EITHER of the event's dates, not
+        // just the payment date. The dividend source can change between syncs (BRAPI → Fundamentus
+        // → Yahoo fallbacks), and Yahoo only reports one date per event — the ex-date — which past
+        // syncs recorded as the income's payment date. When a richer source later supplies the
+        // real payment date (often months after the data-com), comparing against the payment date
+        // alone re-created every one of those events as a duplicate (bug seen in production
+        // 2026-08-04, first sync after the Fundamentus source landed).
+        const eventDates = [event.paymentDate, event.exDate].filter((d): d is string => d !== null);
+        const alreadyOnFile = known.some((k) => eventDates.some((d) => isCloseMatch(k.paymentDate, d)) && isWithinTolerance(k.amount, estimatedAmount));
         if (alreadyOnFile) continue;
 
         await this.assets.addIncome({

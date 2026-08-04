@@ -52,6 +52,24 @@ describe("DividendAutoSyncService.syncAsset", () => {
     expect(assets.addIncome).not.toHaveBeenCalled();
   });
 
+  it("does not duplicate an income recorded under the event's EX-date by a poorer past source (Yahoo), when a richer source later adds the real payment date", async () => {
+    // Yahoo reports one date per event (the ex-date), so a past sync stored the income with that
+    // date. Fundamentus/BRAPI report the real payment date, often months later — well outside the
+    // 5-day date tolerance if compared against the payment date alone.
+    const assets = makeAssetRepo({
+      findById: jest.fn().mockResolvedValue({ id: "a1", class: "STOCK", ticker: "ITSA4" }),
+      listTransactions: jest.fn().mockResolvedValue([tx("BUY", 10, "2026-01-01")]),
+      listIncomes: jest.fn().mockResolvedValue([{ amount: 15 as any, paymentDate: new Date("2026-03-01") }]),
+    });
+    const dividends = makeDividendsCache([{ ticker: "ITSA4", type: "DIVIDENDO", rate: 1.5, exDate: "2026-03-01", paymentDate: "2026-07-15", relatedTo: null }]);
+
+    const service = new DividendAutoSyncService(assets, dividends);
+    const created = await service.syncAsset("user-1", "a1");
+
+    expect(created).toBe(0);
+    expect(assets.addIncome).not.toHaveBeenCalled();
+  });
+
   it("skips an event whose ex-date is before the asset was ever acquired", async () => {
     const assets = makeAssetRepo({
       findById: jest.fn().mockResolvedValue({ id: "a1", class: "STOCK", ticker: "VALE3" }),
