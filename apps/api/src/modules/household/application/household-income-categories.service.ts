@@ -45,6 +45,11 @@ export class HouseholdIncomeCategoriesService {
     return this.findAll(userId);
   }
 
+  /** Guard for HouseholdIncomesService — same reasoning as the bill categories' assertOwned. */
+  async assertOwned(userId: string, categoryId: string) {
+    await this.getOwned(userId, categoryId);
+  }
+
   private async getOwned(userId: string, id: string) {
     const category = await this.prisma.householdIncomeCategory.findUnique({ where: { id } });
     if (!category) throw new NotFoundException("Categoria não encontrada.");

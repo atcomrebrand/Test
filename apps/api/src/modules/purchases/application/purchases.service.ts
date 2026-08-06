@@ -9,6 +9,7 @@ import {
 } from "../domain/installment-generator";
 import { CreatePurchaseDto, PurchaseQueryDto, ScheduleCancellationDto, UpdatePurchaseDto } from "./dto/purchase.dto";
 import { NotificationsService } from "../../notifications/notifications.service";
+import { CategoriesService } from "../../categories/categories.service";
 
 /** How many months of a subscription we keep pre-generated ahead of "today". */
 const RECURRING_HORIZON_MONTHS = 6;
@@ -21,6 +22,7 @@ export class PurchasesService {
     private readonly purchases: PurchaseRepository,
     private readonly cards: CardRepository,
     private readonly notifications: NotificationsService,
+    private readonly categories: CategoriesService,
   ) {}
 
   async findAll(userId: string, query: PurchaseQueryDto) {
@@ -61,6 +63,10 @@ export class PurchasesService {
     const card = await this.cards.findById(dto.cardId);
     if (!card || card.userId !== userId) throw new NotFoundException("Cartão não encontrado.");
     if (!card.active) throw new BadRequestException("Não é possível lançar compras em um cartão inativo.");
+    // The categoryId comes from the client just like cardId does, and the saved purchase comes
+    // back with the category joined in — so an unchecked one hands the other user's category
+    // (name, colour) straight to whoever pointed at it.
+    if (dto.categoryId) await this.categories.assertUsable(userId, dto.categoryId);
 
     const kind = dto.kind ?? (dto.installmentsCount && dto.installmentsCount > 1 ? "INSTALLMENT" : "CASH");
     const anchorDate = new Date(dto.purchaseDate);
@@ -256,6 +262,8 @@ export class PurchasesService {
 
   async update(userId: string, id: string, dto: UpdatePurchaseDto) {
     await this.getOwned(userId, id);
+    // Owning the purchase says nothing about owning what it's being repointed at.
+    if (dto.categoryId) await this.categories.assertUsable(userId, dto.categoryId);
     await this.purchases.update(id, dto as Record<string, unknown>);
     return this.purchases.findByIdWithInstallments(id);
   }

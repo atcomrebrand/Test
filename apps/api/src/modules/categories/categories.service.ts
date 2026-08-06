@@ -40,6 +40,18 @@ export class CategoriesService {
     return { id };
   }
 
+  /**
+   * Guard for other modules that accept a categoryId straight from the client. Without it, a user
+   * can attach their own purchase to someone else's category — the row then comes back with the
+   * category joined in, leaking its name and colour to whoever asked.
+   *
+   * "Usable" is deliberately wider than "owned": a category with no userId is a system default,
+   * shared by everyone on purpose, and rejecting those would break categorisation for every user.
+   */
+  async assertUsable(userId: string, categoryId: string) {
+    await this.getOwned(userId, categoryId);
+  }
+
   private async getOwned(userId: string, id: string) {
     const category = await this.prisma.category.findUnique({ where: { id } });
     if (!category) throw new NotFoundException("Categoria não encontrada.");

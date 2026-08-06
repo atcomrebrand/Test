@@ -5,9 +5,10 @@ import { PurchaseRepository } from "./domain/purchase.repository";
 import { PurchasePrismaRepository } from "./infrastructure/purchase.prisma.repository";
 import { CardsModule } from "../cards/cards.module";
 import { NotificationsModule } from "../notifications/notifications.module";
+import { CategoriesModule } from "../categories/categories.module";
 
 @Module({
-  imports: [CardsModule, NotificationsModule],
+  imports: [CardsModule, NotificationsModule, CategoriesModule],
   controllers: [PurchasesController],
   providers: [PurchasesService, { provide: PurchaseRepository, useClass: PurchasePrismaRepository }],
   exports: [PurchaseRepository, PurchasesService],

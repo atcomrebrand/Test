@@ -45,6 +45,13 @@ export class HouseholdBillCategoriesService {
     return this.findAll(userId);
   }
 
+  /** Guard for HouseholdBillsService, which takes a categoryId straight from the client and joins
+   *  the category into every response. Unlike the Parcelamento categories, these always have an
+   *  owner — there are no shared defaults — so the rule is simply "yours or nothing". */
+  async assertOwned(userId: string, categoryId: string) {
+    await this.getOwned(userId, categoryId);
+  }
+
   private async getOwned(userId: string, id: string) {
     const category = await this.prisma.householdBillCategory.findUnique({ where: { id } });
     if (!category) throw new NotFoundException("Categoria não encontrada.");

@@ -5,6 +5,7 @@ import { computeBillEntryStatus } from "../domain/bill-entry-status";
 import { resolveDueDate } from "../domain/resolve-due-date";
 import { HouseholdAuditService } from "./household-audit.service";
 import { HouseholdMonthCompletionService } from "./household-month-completion.service";
+import { HouseholdBillCategoriesService } from "./household-bill-categories.service";
 import { CreateHouseholdBillDto, UpdateHouseholdBillDto, UpdateHouseholdBillEntryDto } from "./dto/household-bill.dto";
 
 @Injectable()
@@ -14,6 +15,7 @@ export class HouseholdBillsService {
     private readonly entries: HouseholdBillEntryRepository,
     private readonly audit: HouseholdAuditService,
     private readonly monthCompletion: HouseholdMonthCompletionService,
+    private readonly billCategories: HouseholdBillCategoriesService,
   ) {}
 
   findAll(userId: string) {
@@ -21,6 +23,10 @@ export class HouseholdBillsService {
   }
 
   async create(userId: string, dto: CreateHouseholdBillDto) {
+    // The category is joined into every response this module returns, so an unchecked categoryId
+    // is a way to read someone else's category by pointing a bill at it.
+    if (dto.categoryId) await this.billCategories.assertOwned(userId, dto.categoryId);
+
     const bill = await this.bills.create({
       userId,
       categoryId: dto.categoryId,
@@ -37,6 +43,7 @@ export class HouseholdBillsService {
 
   async update(userId: string, id: string, dto: UpdateHouseholdBillDto) {
     const before = await this.getOwnedBill(userId, id);
+    if (dto.categoryId) await this.billCategories.assertOwned(userId, dto.categoryId);
     const after = await this.bills.update(id, { ...dto });
     await this.audit.log(userId, "HouseholdBill", id, "UPDATE", before, after);
     return after;

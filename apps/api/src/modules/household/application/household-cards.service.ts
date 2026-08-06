@@ -4,6 +4,7 @@ import { HouseholdCardEntryRepository, HouseholdCardEntryWithCard } from "../dom
 import { HouseholdAuditService } from "./household-audit.service";
 import { HouseholdMonthCompletionService } from "./household-month-completion.service";
 import { InstallmentsService } from "../../installments/installments.service";
+import { CardRepository } from "../../cards/domain/card.repository";
 import { CreateHouseholdCardDto, UpdateHouseholdCardDto, UpdateHouseholdCardEntryDto } from "./dto/household-card.dto";
 
 @Injectable()
@@ -14,6 +15,7 @@ export class HouseholdCardsService {
     private readonly audit: HouseholdAuditService,
     private readonly monthCompletion: HouseholdMonthCompletionService,
     private readonly installments: InstallmentsService,
+    private readonly parcelamentoCards: CardRepository,
   ) {}
 
   findAll(userId: string) {
@@ -21,6 +23,7 @@ export class HouseholdCardsService {
   }
 
   async create(userId: string, dto: CreateHouseholdCardDto) {
+    await this.assertLinkable(userId, dto.linkedCardId);
     const card = await this.cards.create({ userId, ...dto });
     await this.audit.log(userId, "HouseholdCard", card.id, "CREATE", null, card);
     return card;
@@ -28,6 +31,7 @@ export class HouseholdCardsService {
 
   async update(userId: string, id: string, dto: UpdateHouseholdCardDto) {
     const before = await this.getOwnedCard(userId, id);
+    await this.assertLinkable(userId, dto.linkedCardId);
     const after = await this.cards.update(id, { ...dto });
     await this.audit.log(userId, "HouseholdCard", id, "UPDATE", before, after);
     return after;
@@ -119,6 +123,19 @@ export class HouseholdCardsService {
 
   private snapshotEntry(entry: HouseholdCardEntryWithCard) {
     return { totalInvoice: entry.totalInvoice, provisioned: entry.provisioned, paid: entry.paid };
+  }
+
+/**
+   * A linked Parcelamento card has to belong to the same user. Today nothing leaks if it doesn't —
+   * getMonthlyTotalsForCards filters by userId as well, so a forged link just yields no presumed
+   * invoice — but that leaves the only thing standing between a foreign card id and its invoice
+   * total in a query two modules away. Refusing the link here keeps the foreign id out of the
+   * database at all, instead of relying on every future reader remembering to scope by user.
+   */
+  private async assertLinkable(userId: string, linkedCardId: string | null | undefined) {
+    if (!linkedCardId) return;
+    const card = await this.parcelamentoCards.findById(linkedCardId);
+    if (!card || card.userId !== userId) throw new NotFoundException("Cartão do Parcelamento não encontrado.");
   }
 
   private async getOwnedCard(userId: string, id: string) {

@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { HouseholdIncomeRepository, HouseholdIncomeWithCategory } from "../domain/household-income.repository";
 import { HouseholdAuditService } from "./household-audit.service";
+import { HouseholdIncomeCategoriesService } from "./household-income-categories.service";
 import { CreateHouseholdIncomeDto, UpdateHouseholdIncomeDto } from "./dto/household-income.dto";
 
 @Injectable()
@@ -8,6 +9,7 @@ export class HouseholdIncomesService {
   constructor(
     private readonly incomes: HouseholdIncomeRepository,
     private readonly audit: HouseholdAuditService,
+    private readonly incomeCategories: HouseholdIncomeCategoriesService,
   ) {}
 
   findAll(userId: string) {
@@ -19,6 +21,9 @@ export class HouseholdIncomesService {
   }
 
   async create(userId: string, dto: CreateHouseholdIncomeDto) {
+    // Same exposure as the bills: the category comes back joined into the response.
+    if (dto.categoryId) await this.incomeCategories.assertOwned(userId, dto.categoryId);
+
     const isForeignCurrency = dto.isForeignCurrency ?? false;
 
     const income = await this.incomes.create({
@@ -38,6 +43,7 @@ export class HouseholdIncomesService {
 
   async update(userId: string, id: string, dto: UpdateHouseholdIncomeDto) {
     const before = await this.getOwned(userId, id);
+    if (dto.categoryId) await this.incomeCategories.assertOwned(userId, dto.categoryId);
 
     const isForeignCurrency = dto.isForeignCurrency ?? before.isForeignCurrency;
 
