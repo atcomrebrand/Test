@@ -74,7 +74,7 @@ function RangeSelector({ range, onRangeChange, customFrom, customTo }: Pick<Prop
               value={from}
               max={to || undefined}
               onChange={(e) => setFrom(e.target.value)}
-              className="rounded-lg surface-2 px-2 py-1 text-sm text-[rgb(var(--text))]"
+              className="rounded-lg surface-2 px-2 py-1 text-base sm:text-sm text-[rgb(var(--text))]"
             />
           </label>
           <label className="flex flex-col gap-1 text-xs text-muted">
@@ -84,7 +84,7 @@ function RangeSelector({ range, onRangeChange, customFrom, customTo }: Pick<Prop
               value={to}
               min={from || undefined}
               onChange={(e) => setTo(e.target.value)}
-              className="rounded-lg surface-2 px-2 py-1 text-sm text-[rgb(var(--text))]"
+              className="rounded-lg surface-2 px-2 py-1 text-base sm:text-sm text-[rgb(var(--text))]"
             />
           </label>
           <Button size="sm" disabled={!from || !to} onClick={() => onRangeChange("CUSTOM", from, to)}>

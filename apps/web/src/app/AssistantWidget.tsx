@@ -218,7 +218,7 @@ export function AssistantWidget() {
                 onChange={(e) => setInput(e.target.value)}
                 placeholder={listening ? "Ouvindo..." : "Escreva sua pergunta..."}
                 disabled={chat.isPending}
-                className="h-10 flex-1 rounded-xl border border-[rgb(var(--border))] surface px-3 text-sm outline-none focus:ring-2 focus:ring-accent-500/50"
+                className="h-10 flex-1 rounded-xl border border-[rgb(var(--border))] surface px-3 text-base sm:text-sm outline-none focus:ring-2 focus:ring-accent-500/50"
               />
               <Button type="submit" size="icon" disabled={!input.trim()} loading={chat.isPending} aria-label="Enviar">
                 <Send className="h-4 w-4" />

@@ -62,7 +62,7 @@ export function InlineAmountCell({ value, onSave, disabled, presumedValue }: Pro
           commit(true);
           e.currentTarget.blur();
         }}
-        className={`h-8 w-28 rounded-lg border border-[rgb(var(--border))] surface px-2 text-right text-sm outline-none transition-colors focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 ${
+        className={`h-8 w-28 rounded-lg border border-[rgb(var(--border))] surface px-2 text-right text-base outline-none transition-colors focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20 sm:text-sm ${
           isPresumed ? "text-blue-500 dark:text-blue-400" : ""
         }`}
       />

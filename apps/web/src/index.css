@@ -83,10 +83,19 @@ body {
  * as a safety net, on top of the shared Input/Select/Textarea components
  * already using text-base for the same reason.
  */
-@media (max-width: 640px) {
+/*
+ * O !important não é preguiça: sem ele esta regra não valia nada. `input` tem especificidade de
+ * elemento e perde de qualquer utilitário `.text-sm` do Tailwind, que é justamente o caso em que o
+ * zoom acontece — campo sem classe de tamanho nenhuma já não zoomava. A regra existia desde o
+ * começo e nunca chegou a proteger nada; nove campos passaram por baixo dela.
+ *
+ * 639.98px e não 640px porque o breakpoint `sm` do Tailwind é min-width 640px: em 640 exato as
+ * duas regras valiam ao mesmo tempo.
+ */
+@media (max-width: 639.98px) {
   input,
   select,
   textarea {
-    font-size: 16px;
+    font-size: 16px !important;
   }
 }

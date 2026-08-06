@@ -223,7 +223,7 @@ function PresumedSalaryCard() {
                   placeholder="0,00"
                   value={amountUsd}
                   onChange={(e) => setAmountUsd(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+                  className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-base sm:text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
                 />
                 <p className="text-xs text-muted">
                   {usdRate && livePreviewBrl !== null
@@ -240,7 +240,7 @@ function PresumedSalaryCard() {
                   placeholder="0,00"
                   value={amountBRL}
                   onChange={(e) => setAmountBRL(e.target.value)}
-                  className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
+                  className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-base sm:text-sm outline-none transition-colors focus:border-accent-500 focus:ring-2 focus:ring-accent-500/20"
                 />
               </div>
             )}

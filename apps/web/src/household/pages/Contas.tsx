@@ -713,7 +713,7 @@ export default function Contas() {
               value={payLessDraft}
               onChange={(e) => setPayLessDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && confirmPayLess()}
-              className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-sm outline-none transition-colors focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
+              className="h-10 w-full rounded-lg border border-[rgb(var(--border))] surface px-3 text-base sm:text-sm outline-none transition-colors focus:border-amber-500 focus:ring-2 focus:ring-amber-500/20"
             />
             <div className="flex justify-end gap-2">
               <Button variant="secondary" onClick={() => setPayLessTarget(null)}>

@@ -309,7 +309,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
                 value={dayOffFrom}
                 onChange={(e) => setDayOffFrom(e.target.value)}
                 aria-label="De"
-                className="rounded-lg border border-[rgb(var(--border))] bg-transparent px-3 py-1.5 text-sm"
+                className="rounded-lg border border-[rgb(var(--border))] bg-transparent px-3 py-1.5 text-base sm:text-sm"
               />
               <span className="text-xs text-muted">até</span>
               <input
@@ -318,7 +318,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
                 min={dayOffFrom || undefined}
                 onChange={(e) => setDayOffTo(e.target.value)}
                 aria-label="Até"
-                className="rounded-lg border border-[rgb(var(--border))] bg-transparent px-3 py-1.5 text-sm"
+                className="rounded-lg border border-[rgb(var(--border))] bg-transparent px-3 py-1.5 text-base sm:text-sm"
               />
               <Button type="button" variant="secondary" size="sm" onClick={addDaysOffRange} disabled={!dayOffFrom}>
                 Adicionar
