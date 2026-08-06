@@ -19,6 +19,14 @@ export interface ParsedNfce {
   purchaseDate: string | null;
   /** "Valor a pagar" when the page exposes it; null falls back to summing the items. */
   totalAmount: number | null;
+  /**
+   * "Valor aproximado dos tributos" — the total tax burden the store is required to disclose by
+   * Lei 12.741/2012. Approximate **by law**: it comes from IBPT reference tables looked up by the
+   * product's NCM, not from what the store actually collected, and it lumps federal, state and
+   * municipal together. Null when the nota doesn't print the line. Anything showing this number
+   * has to say it's approximate, otherwise it reads as tax paid, which it isn't.
+   */
+  taxAmount: number | null;
   items: ParsedNfceItem[];
 }
 
@@ -57,6 +65,15 @@ function parsePtBrNumber(raw: string | null): number | null {
   if (cleaned === "" || cleaned === "-") return null;
   const value = Number(cleaned);
   return Number.isFinite(value) ? value : null;
+}
+
+/** Pulls a pt-BR money amount out of text that may still carry its own label ("Valor aproximado dos
+ *  tributos R$ 129,68"), which parsePtBrNumber alone would mangle by gluing every digit together.
+ *  Takes the last amount-shaped token, since a label that leaks into the element comes before the
+ *  value — and a legal reference like "Lei 12.741/2012" has no ",dd" and so isn't a candidate. */
+function parsePtBrMoneyIn(text: string | null): number | null {
+  const tokens = text?.match(/-?\d+(?:\.\d{3})*,\d{2}(?!\d)/g);
+  return tokens ? parsePtBrNumber(tokens[tokens.length - 1]) : null;
 }
 
 /** "15/07/2026 18:32:11" → "2026-07-15". */
@@ -114,6 +131,47 @@ function itemRows(html: string): string[] {
   return Array.from(table.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi), (m) => m[1]);
 }
 
+/** Everything printed after the items table — where the totals live. The tax lookup anchors on the
+ *  word "tributo", and a product literally called "TRIBUTO" (or a store whose name contains it)
+ *  would otherwise drag the search onto the first total on the page. Falls back to the whole
+ *  document when the items table isn't recognizable, since then there are no item rows to confuse
+ *  it with anyway. */
+function totalsSection(html: string): string {
+  const table = html.match(/<table[^>]*id="tabResult"[^>]*>[\s\S]*?<\/table>/i);
+  return table ? html.slice(table.index! + table[0].length) : html;
+}
+
+/**
+ * The Lei 12.741 tax line, found by walking the totals and taking the first one whose label says
+ * "tributo". The wording varies by state and by ERP ("Valor aproximado dos tributos", "Informação
+ * dos Tributos Totais Incidentes", "Tributos Totais"), and so does where the label sits — usually
+ * in the text before the value, sometimes inside the same element — so both are checked. What is
+ * deliberately *not* used as the anchor is the CSS class the value lands in ("totalNumb txtObs" on
+ * SP): that's the observation slot in general, and reading whatever sits in it would silently
+ * report some other number as tax.
+ */
+function taxAmountFromTotals(html: string): number | null {
+  const section = totalsSection(html);
+
+  for (const match of section.matchAll(/<span[^>]*class="[^"]*\btotalNumb\b[^"]*"[^>]*>([\s\S]*?)<\/span>/gi)) {
+    const value = stripTags(match[1]);
+    if (/tribut/i.test(labelBefore(section, match.index)) || /tribut/i.test(value)) return parsePtBrMoneyIn(value);
+  }
+
+  return null;
+}
+
+/** The text belonging to the total at `offset` — i.e. what's left after the last block boundary
+ *  before it. Each total sits on its own line of the page, so cutting at the boundary keeps one
+ *  line's wording from being read as the next line's label: a "não há tributos a declarar" notice
+ *  printed above the totals must not turn the total below it into a tax figure. */
+function labelBefore(section: string, offset: number): string {
+  const preceding = section.slice(0, offset);
+  const boundaries = Array.from(preceding.matchAll(/<\/?(?:div|td|tr|li|p|table|section)\b[^>]*>/gi));
+  const last = boundaries[boundaries.length - 1];
+  return stripTags(last ? preceding.slice(last.index + last[0].length) : preceding);
+}
+
 function parseItem(row: string): ParsedNfceItem | null {
   const description = textByClass(row, "txtTit");
   if (!description) return null;
@@ -166,6 +224,7 @@ export function parseNfcePage(html: string): ParsedNfce {
     accessKey: accessKeyFromPage(html),
     purchaseDate: parsePtBrDate(emissionText),
     totalAmount: parsePtBrNumber(payableBlock ? stripTags(payableBlock) : null),
+    taxAmount: taxAmountFromTotals(html),
     items,
   };
 }

@@ -20,6 +20,7 @@ export class MarketPrismaRepository extends MarketRepository {
           accessKey: data.accessKey,
           purchaseDate: data.purchaseDate,
           totalAmount: data.totalAmount,
+          taxAmount: data.taxAmount,
           notes: data.notes,
         },
       });

@@ -31,6 +31,8 @@ def main() -> int:
     nota = body["data"]
     items = nota.get("items", [])
     confere = "NAO - alguma linha da nota nao foi lida" if nota.get("totalsMismatch") else "sim"
+    tributos = nota.get("taxAmount")
+    tributos_txt = "nao declarado nessa nota" if tributos is None else "{} (aproximado, Lei 12.741)".format(tributos)
 
     print("")
     print("  Loja        : {}".format(nota.get("storeName")))
@@ -39,6 +41,7 @@ def main() -> int:
     print("  Total da NF : {}".format(nota.get("totalAmount")))
     print("  Soma itens  : {}".format(nota.get("itemsTotal")))
     print("  Confere?    : {}".format(confere))
+    print("  Tributos    : {}".format(tributos_txt))
     print("  Itens lidos : {}".format(len(items)))
     print("")
 

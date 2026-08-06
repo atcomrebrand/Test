@@ -57,6 +57,13 @@ export class CommitNotaDto {
   @IsNumber()
   totalAmount!: number;
 
+  /** Carried over from the preview so the nota's own Lei 12.741 figure is what gets stored — it is
+   *  not recomputed from the items, because there's nothing to recompute it from. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  taxAmount?: number;
+
   @IsOptional()
   @IsString()
   notes?: string;

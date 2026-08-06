@@ -1148,6 +1148,10 @@ model MarketPurchase {
   accessKey    String?
   purchaseDate DateTime
   totalAmount  Decimal   @db.Decimal(12, 2)
+  /// "Valor aproximado dos tributos" (Lei 12.741/2012). Approximate by law — IBPT reference tables
+  /// by NCM, federal + estadual + municipal lumped together — so it must never be presented as the
+  /// tax actually collected. Null for notas that don't print the line and for manual entries.
+  taxAmount    Decimal?  @db.Decimal(12, 2)
   notes        String?
   deletedAt    DateTime?
   createdAt    DateTime  @default(now())

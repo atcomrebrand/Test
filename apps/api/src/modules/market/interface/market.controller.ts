@@ -28,6 +28,12 @@ export class MarketController {
     return this.importService.commit(user.userId, dto);
   }
 
+  /** Spending and tax totals for the same window as the purchases list. */
+  @Get("summary")
+  getSummary(@CurrentUser() user: AuthUser, @Query() query: ListPurchasesQueryDto) {
+    return this.market.getSpendingSummary(user.userId, query.from, query.to);
+  }
+
   @Get("purchases")
   listPurchases(@CurrentUser() user: AuthUser, @Query() query: ListPurchasesQueryDto) {
     return this.market.listPurchases(user.userId, query.from, query.to);

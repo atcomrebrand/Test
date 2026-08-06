@@ -1,6 +1,7 @@
 import { ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { MarketRepository } from "../domain/market.repository";
 import { ProductPricePoint, summarizeProductPrices } from "../domain/product-price-history";
+import { summarizeSpending } from "../domain/spending-summary";
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -17,9 +18,24 @@ export class MarketService {
       storeName: purchase.storeName,
       purchaseDate: purchase.purchaseDate,
       totalAmount: Number(purchase.totalAmount),
+      taxAmount: purchase.taxAmount === null ? null : Number(purchase.taxAmount),
       itemCount: purchase.items.length,
       accessKey: purchase.accessKey,
     }));
+  }
+
+  /** How much went to the supermarket over a period, and how much of that was tax — the answer to
+   *  "quanto eu paguei de imposto". Same window as listPurchases, so the screen showing the list
+   *  can show its totals without a second notion of what's in range. */
+  async getSpendingSummary(userId: string, from?: string, to?: string) {
+    const purchases = await this.market.listPurchases(userId, from ? new Date(from) : undefined, to ? new Date(to) : undefined);
+    return summarizeSpending(
+      purchases.map((purchase) => ({
+        purchaseDate: isoDate(purchase.purchaseDate),
+        totalAmount: Number(purchase.totalAmount),
+        taxAmount: purchase.taxAmount === null ? null : Number(purchase.taxAmount),
+      })),
+    );
   }
 
   async getPurchase(userId: string, id: string) {
@@ -29,6 +45,7 @@ export class MarketService {
     return {
       ...purchase,
       totalAmount: Number(purchase.totalAmount),
+      taxAmount: purchase.taxAmount === null ? null : Number(purchase.taxAmount),
       items: purchase.items.map((item) => ({
         id: item.id,
         productId: item.productId,

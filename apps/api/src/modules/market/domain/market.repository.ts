@@ -18,6 +18,8 @@ export interface CreatePurchaseData {
   accessKey: string | null;
   purchaseDate: Date;
   totalAmount: number;
+  /** Lei 12.741/2012 approximate tax total, when the nota disclosed one. */
+  taxAmount: number | null;
   notes?: string;
   items: CreatePurchaseItemData[];
 }

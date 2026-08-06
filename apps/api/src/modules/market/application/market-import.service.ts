@@ -14,6 +14,9 @@ export interface NotaPreview {
   totalAmount: number | null;
   /** Sum of the parsed lines — shown next to totalAmount so a partial parse is obvious. */
   itemsTotal: number;
+  /** "Valor aproximado dos tributos" (Lei 12.741/2012), when the nota printed it. Approximate by
+   *  law — never label this as tax paid. */
+  taxAmount: number | null;
   items: ParsedNfceItem[];
   /** True when the two totals disagree by more than a cent, i.e. some line failed to parse. */
   totalsMismatch: boolean;
@@ -73,6 +76,7 @@ export class MarketImportService {
       purchaseDate: parsed.purchaseDate,
       totalAmount: parsed.totalAmount,
       itemsTotal,
+      taxAmount: parsed.taxAmount,
       items: parsed.items,
       totalsMismatch: parsed.totalAmount !== null && Math.abs(parsed.totalAmount - itemsTotal) > 0.01,
     };
@@ -91,6 +95,7 @@ export class MarketImportService {
       accessKey: dto.accessKey ?? null,
       purchaseDate: new Date(`${dto.purchaseDate.slice(0, 10)}T12:00:00`),
       totalAmount: dto.totalAmount,
+      taxAmount: dto.taxAmount ?? null,
       notes: dto.notes,
       items: dto.items.map((item) => ({
         description: item.description,

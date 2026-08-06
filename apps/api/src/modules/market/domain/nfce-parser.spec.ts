@@ -34,6 +34,7 @@ const PAGE = `
     <div id="linhaTotal">Valor total R$:<span class="totalNumb">30,58</span></div>
     <div id="linhaTotal">Descontos R$:<span class="totalNumb">0,58</span></div>
     <div id="linhaTotal">Valor a pagar R$:<span class="totalNumb txtMax">30,00</span></div>
+    <div id="linhaTotal">Informa&ccedil;&atilde;o dos Tributos Totais Incidentes (Lei Federal 12.741 /2012)<span class="totalNumb txtObs">4,12</span></div>
   </div>
   <span class="chave">3524 0612 3456 7800 0199 6500 1000 0012 3410 0001 2345</span>
   <li><strong>Emiss&atilde;o:</strong> 15/07/2026 18:32:11 - Via Consumidor</li>
@@ -90,6 +91,38 @@ describe("parseNfcePage", () => {
 
   it('reads "Valor a pagar" rather than the gross total printed above it', () => {
     expect(parseNfcePage(PAGE).totalAmount).toBe(30);
+  });
+
+  it("reads the Lei 12.741 tax line regardless of how the nota words it", () => {
+    expect(parseNfcePage(PAGE).taxAmount).toBe(4.12);
+
+    // Same value, the wording other ERPs print, and the label sharing the element with it.
+    const outroTexto = PAGE.replace(
+      /Informa[\s\S]*?<span class="totalNumb txtObs">4,12<\/span>/,
+      '<span class="totalNumb txtObs">Valor aproximado dos tributos R$ 4,12</span>',
+    );
+    expect(parseNfcePage(outroTexto).taxAmount).toBe(4.12);
+  });
+
+  it("reports no tax rather than a wrong one when the nota omits the line", () => {
+    const semTributos = PAGE.replace(/<div id="linhaTotal">Informa[\s\S]*?<\/div>/, "");
+    expect(parseNfcePage(semTributos).taxAmount).toBeNull();
+  });
+
+  it("does not let the tax wording bleed onto a total printed after it", () => {
+    const semTributos = PAGE.replace(/<div id="linhaTotal">Informa[\s\S]*?<\/div>/, "").replace(
+      '<div id="linhaTotal">Valor total R$:<span class="totalNumb">30,58</span></div>',
+      '<div id="linhaTotal">Nenhum tributo a declarar</div><div id="linhaTotal">Valor total R$:<span class="totalNumb">30,58</span></div>',
+    );
+    // The label belongs to the line that has no value of its own — the total below it is not tax.
+    expect(parseNfcePage(semTributos).taxAmount).toBeNull();
+  });
+
+  it("does not mistake a product named after tax for the tax line", () => {
+    // Anchoring on the word alone across the whole page would walk from an item description
+    // forward to the first total below it — i.e. hand back the gross total as the tax.
+    const page = PAGE.replace("ARROZ TIO JOAO 5KG", "TRIBUTO CERVEJA 350ML").replace(/<div id="linhaTotal">Informa[\s\S]*?<\/div>/, "");
+    expect(parseNfcePage(page).taxAmount).toBeNull();
   });
 
   it("parses a whole-unit item", () => {
