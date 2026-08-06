@@ -104,6 +104,26 @@ describe("parseNfcePage", () => {
     expect(parseNfcePage(outroTexto).taxAmount).toBe(4.12);
   });
 
+  it("reads the tax line as SEFAZ-SP actually renders it", () => {
+    // Copied byte-for-byte off a real SP nota (2026-08), including the line break inside the label
+    // and the "Troco: NaN" the portal prints just above it. The label lives in its own <label>, not
+    // in the text preceding the <span> — which the first version of this parser assumed.
+    const trecho = `
+      <table id="tabResult"></table>
+      <div id="totalNota">
+        <div id="linhaTotal">
+          <label class="tx">Troco </label>
+          <span class="totalNumb">NaN</span>
+        </div>
+        <div id="linhaTotal" class="spcTop">
+          <label class="txtObs">Informa&ccedil;&atilde;o dos Tributos Totais Incidentes
+                                                     (Lei Federal 12.741/2012)&nbsp;R$</label>
+          <span class="totalNumb txtObs">455,40</span>
+        </div>
+      </div>`;
+    expect(parseNfcePage(trecho).taxAmount).toBe(455.4);
+  });
+
   it("reports no tax rather than a wrong one when the nota omits the line", () => {
     const semTributos = PAGE.replace(/<div id="linhaTotal">Informa[\s\S]*?<\/div>/, "");
     expect(parseNfcePage(semTributos).taxAmount).toBeNull();

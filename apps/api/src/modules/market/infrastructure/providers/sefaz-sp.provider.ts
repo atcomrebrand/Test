@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { decodeHtmlDocument } from "../../domain/html-charset";
 
 /** Same browser UA the other public-portal providers in this codebase send: the consulta page is
  *  public and unauthenticated, but an obviously non-browser client is the usual reason a state
@@ -17,9 +18,9 @@ const CONSULTA_URL = "https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Pag
  *   captcha or a reduced page, which the parser then reports as "no items" — hence the QR route is
  *   always preferred when available.
  *
- * The page is Latin-1, like Fundamentus: Node's fetch always decodes .text() as UTF-8 regardless
- * of the document's own charset, which would mangle every accented product name on the nota.
- * Reading raw bytes and decoding latin1 explicitly avoids that.
+ * The bytes are decoded by the charset the response actually declares (see decodeHtmlDocument), not
+ * by a fixed one. This started out hardcoded to Latin-1 by analogy with Fundamentus and was wrong:
+ * SEFAZ-SP serves UTF-8, so every "ç" in a product name was coming through as "Ã§".
  */
 @Injectable()
 export class SefazSpProvider {
@@ -39,8 +40,8 @@ export class SefazSpProvider {
     });
     if (!res.ok) throw new Error(`SEFAZ-SP respondeu ${res.status} para a nota ${input.accessKey}`);
 
-    const html = Buffer.from(await res.arrayBuffer()).toString("latin1");
-    this.logger.log(`Nota ${input.accessKey} recuperada da SEFAZ-SP (${html.length} bytes)`);
+    const html = decodeHtmlDocument(new Uint8Array(await res.arrayBuffer()), res.headers.get("content-type"));
+    this.logger.log(`Nota ${input.accessKey} recuperada da SEFAZ-SP (${html.length} caracteres)`);
     return html;
   }
 }

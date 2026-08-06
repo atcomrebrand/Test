@@ -23,8 +23,9 @@ UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Ge
 echo "==> Buscando a nota e procurando por '${TERMO}'"
 echo ""
 
-# A página é Latin-1; sem o iconv os acentos viram lixo e o grep erra o alvo.
+# Sem transcodificar: a página da SEFAZ-SP já vem em UTF-8 (confirmado em 2026-08). A versão
+# anterior deste script passava por `iconv -f ISO-8859-1`, e foi justamente isso que fez
+# "Informação" sair como "InformaÃ§Ã£o" no primeiro dump — reencodando UTF-8 que já estava certo.
 curl -sS "$QR" -H "User-Agent: ${UA}" \
-  | iconv -f ISO-8859-1 -t UTF-8 \
   | grep -i -B "$CONTEXTO" -A "$CONTEXTO" "$TERMO" \
   | head -80
