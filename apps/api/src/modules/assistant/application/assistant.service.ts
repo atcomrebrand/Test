@@ -11,6 +11,8 @@ import { QuotesService } from "../../quotes/quotes.service";
 import { FinancingsService } from "../../financings/application/financings.service";
 import { HomeDashboardService } from "../../home/application/home-dashboard.service";
 import { AssistantMemoryService } from "../../assistant-memory/application/assistant-memory.service";
+import { MarketService } from "../../market/application/market.service";
+import { searchProducts } from "../../market/domain/product-search";
 
 type AssetClasseUsuario = "ACAO" | "FII" | "CRIPTO";
 
@@ -51,6 +53,7 @@ export class AssistantService {
     private readonly financings: FinancingsService,
     private readonly homeDashboard: HomeDashboardService,
     private readonly assistantMemory: AssistantMemoryService,
+    private readonly market: MarketService,
   ) {}
 
   async chat(userId: string, history: ChatMessage[]): Promise<ChatMessage[]> {
@@ -132,6 +135,7 @@ export class AssistantService {
       "Se nenhuma ferramenta responder exatamente o que foi perguntado, diga isso claramente em vez de chutar.",
       'No Parcelamento, o "mês" de uma parcela é a competência (mês em que a fatura fecha, convenção dos bancos) — pode ser diferente do mês em que ela realmente vence. Não precisa explicar essa diferença a menos que o usuário pergunte especificamente sobre isso.',
       "Pra perguntas sobre uma ação, FII ou criptomoeda específica (cotação, preço sobre lucro, dividend yield, indicadores, próximos proventos), use as ferramentas de cotação e análise de ativos mesmo que o usuário não tenha esse ativo na carteira — elas consultam qualquer ativo do mercado. Pra cotação do dólar, use a ferramenta de cotação do dólar.",
+      "No Mercado, o valor de tributos vem da linha que a Lei 12.741 obriga o supermercado a imprimir na nota, calculada por tabela de referência — é aproximado, não é o imposto exato que a loja recolheu. Sempre que falar desse número, diga que é aproximado. E repare no campo que diz em quantas notas o tributo foi declarado: se não foi em todas, o total é um piso, não o imposto de tudo que foi comprado — deixe isso claro em vez de apresentar como se cobrisse tudo.",
       "Pra perguntas que cruzam vários assuntos de uma vez (por exemplo, comparar quitar um financiamento usando os investimentos, decidir entre refinanciar ou não, ou entender a saúde financeira geral), comece pela ferramenta de visão geral financeira e complemente com resumo_financiamentos e/ou resumo_investimentos pra ter os números certos antes de opinar. Depois de ter os dados, dê sua opinião fundamentada nos números — o usuário quer sua análise, não só os números de volta.",
       "",
       "Memórias que esse usuário já pediu pra você guardar sobre ele — fatos, crenças, valores, prioridades, jeito que prefere ser tratado. Leve sempre em conta ao responder e ao dar opiniões, sem precisar que ele repita:",
@@ -250,6 +254,42 @@ export class AssistantService {
         },
       },
       {
+        name: "resumo_mercado",
+        description:
+          "Gasto de supermercado no módulo Mercado: total gasto, total de tributos declarados nas notas, alíquota efetiva e quebra mês a mês. Use pra perguntas como 'quanto gastei de mercado', 'quanto paguei de imposto no supermercado' ou 'meu gasto de mercado subiu?'. Sem datas, devolve o histórico todo.",
+        input_schema: {
+          type: "object",
+          properties: {
+            de: { type: "string", description: "Data inicial no formato AAAA-MM-DD. Opcional." },
+            ate: { type: "string", description: "Data final no formato AAAA-MM-DD. Opcional." },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "compras_mercado",
+        description:
+          "Lista as compras de supermercado já importadas, da mais recente pra mais antiga: mercado, data, valor e quantidade de itens. Use pra perguntas como 'quando foi minha última compra' ou 'em que mercado eu compro mais'.",
+        input_schema: {
+          type: "object",
+          properties: {
+            de: { type: "string", description: "Data inicial no formato AAAA-MM-DD. Opcional." },
+            ate: { type: "string", description: "Data final no formato AAAA-MM-DD. Opcional." },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "preco_produto_mercado",
+        description:
+          "Histórico de preço de um produto de supermercado que o usuário já comprou: último preço, variação desde a primeira compra, preço médio, menor e maior preço, em que mercado saiu mais barato e cada compra individual. Use pra perguntas como 'quanto tá o arroz', 'o café subiu de preço?' ou 'onde compro leite mais barato'. Busca pelo nome, sem precisar acertar exatamente como está escrito na nota.",
+        input_schema: {
+          type: "object",
+          properties: { produto: { type: "string", description: "Nome ou parte do nome do produto, ex: 'café', 'arroz tio joão'" } },
+          required: ["produto"],
+        },
+      },
+      {
         name: "lembrar",
         description:
           "Salva permanentemente um fato, crença, valor ou preferência do usuário, pra levar em conta em toda conversa futura, não só nessa. Use sempre que o usuário disser algo sobre si mesmo que vale guardar — por exemplo como prefere ser tratado, uma prioridade financeira, uma crença ou valor pessoal — mesmo sem ele pedir explicitamente.",
@@ -299,6 +339,12 @@ export class AssistantService {
         return this.resumoFinanciamentos(userId);
       case "visao_geral_financeira":
         return this.visaoGeralFinanceira(userId);
+      case "resumo_mercado":
+        return this.market.getSpendingSummary(userId, input.de as string | undefined, input.ate as string | undefined);
+      case "compras_mercado":
+        return this.comprasMercado(userId, input.de as string | undefined, input.ate as string | undefined);
+      case "preco_produto_mercado":
+        return this.precoProdutoMercado(userId, String(input.produto));
       case "lembrar":
         return this.lembrar(userId, String(input.conteudo));
       case "esquecer":
@@ -306,6 +352,41 @@ export class AssistantService {
       default:
         return { error: `Ferramenta desconhecida: ${name}` };
     }
+  }
+
+  /** Recorta o que a lista de compras traz: id e chave da nota não ajudam a responder nada em voz
+   *  alta, e as 44 dígitos da chave sozinhas comeriam mais tokens que o resto da resposta. */
+  private async comprasMercado(userId: string, de?: string, ate?: string) {
+    const compras = await this.market.listPurchases(userId, de, ate);
+    if (compras.length === 0) return { compras: [], aviso: "Nenhuma compra de mercado importada nesse período." };
+    return {
+      compras: compras.map((c) => ({
+        mercado: c.storeName,
+        data: c.purchaseDate.toISOString().slice(0, 10),
+        total: c.totalAmount,
+        tributos: c.taxAmount,
+        itens: c.itemCount,
+      })),
+    };
+  }
+
+  private async precoProdutoMercado(userId: string, termo: string) {
+    const produtos = await this.market.listProducts(userId);
+    const achados = searchProducts(produtos, termo);
+
+    if (achados.length === 0) {
+      return { error: `Não achei nenhum produto parecido com "${termo}" nas compras de mercado importadas.` };
+    }
+
+    const detalhe = await this.market.getProduct(userId, achados[0].id);
+    return {
+      produto: detalhe.name,
+      unidade: detalhe.unit,
+      resumo: detalhe.summary,
+      historico: detalhe.history,
+      // O assistente precisa saber que houve escolha pra poder oferecer as outras se errou o alvo.
+      outrosParecidos: achados.slice(1).map((p) => p.name),
+    };
   }
 
   private async cotacaoDolar() {
