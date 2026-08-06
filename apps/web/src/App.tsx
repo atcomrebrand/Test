@@ -40,6 +40,13 @@ import Reports from "./tracking/pages/Reports";
 import Stats from "./tracking/pages/Stats";
 import TrackingHistory from "./tracking/pages/HistoryPage";
 import TrackingSearch from "./tracking/pages/Search";
+import { MarketLayout } from "./market/MarketLayout";
+import MercadoResumo from "./market/pages/Resumo";
+import MercadoImportar from "./market/pages/Importar";
+import MercadoCompras from "./market/pages/Compras";
+import MercadoCompraDetalhe from "./market/pages/CompraDetalhe";
+import MercadoProdutos from "./market/pages/Produtos";
+import MercadoProdutoDetalhe from "./market/pages/ProdutoDetalhe";
 import { HouseholdLayout } from "./household/HouseholdLayout";
 import HouseholdDashboard from "./household/pages/Dashboard";
 import HouseholdContas from "./household/pages/Contas";
@@ -97,6 +104,15 @@ export default function App() {
           <Route path="/horas/estatisticas" element={<Stats />} />
           <Route path="/horas/historico" element={<TrackingHistory />} />
           <Route path="/horas/busca" element={<TrackingSearch />} />
+        </Route>
+
+        <Route element={<MarketLayout />}>
+          <Route path="/mercado" element={<MercadoResumo />} />
+          <Route path="/mercado/importar" element={<MercadoImportar />} />
+          <Route path="/mercado/compras" element={<MercadoCompras />} />
+          <Route path="/mercado/compras/:id" element={<MercadoCompraDetalhe />} />
+          <Route path="/mercado/produtos" element={<MercadoProdutos />} />
+          <Route path="/mercado/produtos/:id" element={<MercadoProdutoDetalhe />} />
         </Route>
 
         <Route element={<HouseholdLayout />}>

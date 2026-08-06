@@ -11,6 +11,7 @@ import {
   LineChart,
   Clock,
   Home as HomeIcon,
+  ShoppingCart,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -57,6 +58,13 @@ const APPS: AppCard[] = [
     description: "Contas, cartões, entradas e quanto realmente sobra no mês.",
     icon: HomeIcon,
     color: "bg-amber-500",
+  },
+  {
+    to: "/mercado",
+    title: "Mercado",
+    description: "Escaneie a nota do supermercado e acompanhe preço e imposto.",
+    icon: ShoppingCart,
+    color: "bg-sky-500",
   },
 ];
 

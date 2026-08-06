@@ -1,0 +1,133 @@
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { Package, Search, TrendingDown, TrendingUp } from "lucide-react";
+import { PageHeader } from "@/components/PageHeader";
+import { Card, CardContent } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { formatCurrency, formatPercent } from "@/lib/format";
+import { useMarketProducts } from "../api";
+
+type SortKey = "gasto" | "alta" | "nome";
+
+const SORTS: { key: SortKey; label: string }[] = [
+  { key: "gasto", label: "Mais gasto" },
+  { key: "alta", label: "Maior alta" },
+  { key: "nome", label: "Nome" },
+];
+
+export default function Produtos() {
+  const { data: products, isLoading } = useMarketProducts();
+  const [query, setQuery] = useState("");
+  const [sort, setSort] = useState<SortKey>("gasto");
+
+  const visible = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const filtered = (products ?? []).filter((p) => !term || p.name.toLowerCase().includes(term));
+
+    return [...filtered].sort((a, b) => {
+      if (sort === "nome") return a.name.localeCompare(b.name, "pt-BR");
+      // Products with a single purchase have no changePercent; they sort last under "maior alta"
+      // rather than being treated as 0%, which would read as "não mudou de preço".
+      if (sort === "alta") {
+        const ca = a.summary?.changePercent;
+        const cb = b.summary?.changePercent;
+        if (ca === null || ca === undefined) return 1;
+        if (cb === null || cb === undefined) return -1;
+        return cb - ca;
+      }
+      return (b.summary?.totalSpent ?? 0) - (a.summary?.totalSpent ?? 0);
+    });
+  }, [products, query, sort]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-3">
+        {Array.from({ length: 5 }, (_, i) => (
+          <Skeleton key={i} className="h-20 rounded-2xl" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!products || products.length === 0) {
+    return (
+      <>
+        <PageHeader title="Produtos" description="Tudo que você já comprou, com o preço que pagou em cada nota." />
+        <EmptyState
+          icon={<Package className="h-7 w-7" />}
+          title="Nenhum produto ainda"
+          description="Os produtos entram sozinhos quando você importa uma nota — não precisa cadastrar nada à mão."
+          action={
+            <Link to="/mercado/importar" className="text-sm font-medium text-sky-500 hover:underline">
+              Importar uma nota
+            </Link>
+          }
+        />
+      </>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <PageHeader title="Produtos" description="Tudo que você já comprou, com o preço que pagou em cada nota." />
+
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative flex-1">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar produto" className="pl-9" />
+        </div>
+        <div className="flex gap-1 rounded-xl border border-[rgb(var(--border))] p-1">
+          {SORTS.map((option) => (
+            <button
+              key={option.key}
+              onClick={() => setSort(option.key)}
+              className={`flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                sort === option.key ? "bg-sky-500/10 text-sky-600 dark:text-sky-400" : "text-muted hover:surface-2"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {visible.length === 0 && <p className="py-10 text-center text-sm text-muted">Nenhum produto com “{query}”.</p>}
+
+      <div className="flex flex-col gap-3">
+        {visible.map((product) => {
+          const summary = product.summary;
+          const change = summary?.changePercent ?? null;
+
+          return (
+            <Card key={product.id}>
+              <Link to={`/mercado/produtos/${product.id}`}>
+                <CardContent className="flex items-center gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{product.name}</p>
+                    <p className="mt-0.5 text-sm text-muted">
+                      {summary
+                        ? `${formatCurrency(summary.lastPrice)}/${product.unit} · ${summary.timesBought} ${summary.timesBought === 1 ? "compra" : "compras"}`
+                        : "Sem compras"}
+                    </p>
+                    {summary && <p className="mt-0.5 text-xs text-muted">{formatCurrency(summary.totalSpent)} no total</p>}
+                  </div>
+
+                  {change !== null && (
+                    <span className={`flex shrink-0 items-center gap-1 text-sm font-semibold ${change > 0 ? "text-red-500" : change < 0 ? "text-emerald-500" : "text-muted"}`}>
+                      {change > 0 ? <TrendingUp className="h-4 w-4" /> : change < 0 ? <TrendingDown className="h-4 w-4" /> : null}
+                      {change > 0 ? "+" : ""}
+                      {formatPercent(change)}
+                    </span>
+                  )}
+                  {change === null && <span className="shrink-0 text-xs text-muted">1ª compra</span>}
+                </CardContent>
+              </Link>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

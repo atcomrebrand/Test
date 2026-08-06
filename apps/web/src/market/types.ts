@@ -1,0 +1,114 @@
+export interface NotaItem {
+  description: string;
+  storeCode: string | null;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+/** What /market/notas/scan returns: read from SEFAZ, nothing saved yet. */
+export interface NotaPreview {
+  accessKey: string;
+  storeName: string | null;
+  storeCnpj: string | null;
+  purchaseDate: string | null;
+  totalAmount: number | null;
+  /** Sum of the parsed lines. Shown next to totalAmount so a partial read is visible. */
+  itemsTotal: number;
+  /** Lei 12.741/2012 approximate tax. Never present this as tax actually paid. */
+  taxAmount: number | null;
+  items: NotaItem[];
+  totalsMismatch: boolean;
+}
+
+export interface MarketPurchaseSummary {
+  id: string;
+  storeName: string;
+  purchaseDate: string;
+  totalAmount: number;
+  taxAmount: number | null;
+  itemCount: number;
+  accessKey: string | null;
+}
+
+export interface MarketPurchaseItem {
+  id: string;
+  productId: string;
+  description: string;
+  quantity: number;
+  unit: string;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface MarketPurchaseDetail {
+  id: string;
+  storeName: string;
+  storeCnpj: string | null;
+  accessKey: string | null;
+  purchaseDate: string;
+  totalAmount: number;
+  taxAmount: number | null;
+  notes: string | null;
+  items: MarketPurchaseItem[];
+}
+
+export interface ProductPricePoint {
+  purchaseDate: string;
+  storeName: string;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+/** Mirrors ProductPriceSummary in the API's domain layer field for field — the names have to match
+ *  exactly, since nothing type-checks this boundary at runtime and a wrong name surfaces as
+ *  "undefined" on screen rather than as a compile error. */
+export interface ProductPriceSummary {
+  timesBought: number;
+  totalQuantity: number;
+  totalSpent: number;
+  lastPrice: number;
+  lastDate: string;
+  firstPrice: number;
+  firstDate: string;
+  minPrice: number;
+  maxPrice: number;
+  /** Quantity-weighted, not the mean of the prices — buying 10kg at one price and 1kg at another
+   *  are not equal evidence of what the product costs. */
+  averagePrice: number;
+  /** Null with a single purchase: one data point is no trend. */
+  changePercent: number | null;
+  cheapestStore: string | null;
+  cheapestStorePrice: number | null;
+}
+
+export interface MarketProduct {
+  id: string;
+  name: string;
+  unit: string;
+  summary: ProductPriceSummary | null;
+}
+
+export interface MarketProductDetail extends MarketProduct {
+  history: ProductPricePoint[];
+}
+
+export interface MonthlySpending {
+  month: string;
+  totalSpent: number;
+  totalTax: number;
+  purchaseCount: number;
+  purchasesWithTax: number;
+}
+
+export interface SpendingSummary {
+  totalSpent: number;
+  totalTax: number;
+  /** Measured over the purchases that disclosed tax, not over everything spent. */
+  taxSharePercent: number | null;
+  purchaseCount: number;
+  purchasesWithTax: number;
+  byMonth: MonthlySpending[];
+}
