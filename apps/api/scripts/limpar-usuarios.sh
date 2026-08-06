@@ -22,7 +22,10 @@ DB=$(grep -oP 'DATABASE_URL="postgresql://[^/]+/\K[^?"]+' .env)
 # Sem `command` aqui: ele é builtin do bash, e o sudo tentaria executar um programa com esse nome.
 # A recursão que o `command` costuma evitar não acontece — o sudo exec um processo novo, que não
 # enxerga esta função.
-psql() { sudo -u postgres psql -d "$DB" "$@"; }
+# -P pager=off: sem isso o psql joga a listagem no `less`, que para em "(END)" esperando um `q`.
+# Num terminal SSH isso parece a sessão ter travado, e impede rolar pra cima e copiar a tabela —
+# que é justamente o que se precisa fazer com ela antes de decidir apagar alguma coisa.
+psql() { sudo -u postgres psql -P pager=off -d "$DB" "$@"; }
 
 # Uma linha por usuário com o volume de dados de cada módulo, pra conta real não ser confundida
 # com conta de teste por causa do nome do e-mail.
