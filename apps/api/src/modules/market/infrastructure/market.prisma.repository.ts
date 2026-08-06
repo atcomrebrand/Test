@@ -50,7 +50,10 @@ export class MarketPrismaRepository extends MarketRepository {
       }
 
       return tx.marketPurchase.findUniqueOrThrow({ where: { id: purchase.id }, include: ITEMS_INCLUDE });
-    });
+      // A real grocery nota is big — a confirmed SP one carried 130 lines, i.e. ~260 statements in
+      // here — and Prisma's 5s interactive-transaction default would abort partway through on a VPS
+      // this size. The nota still commits atomically; it's just allowed to take its time.
+    }, { timeout: 60_000, maxWait: 15_000 });
   }
 
   findPurchaseByAccessKey(userId: string, accessKey: string) {
