@@ -176,6 +176,10 @@ model User {
 
   assistantMemories AssistantMemory[]
 
+  marketPurchases     MarketPurchase[]
+  marketProducts      MarketProduct[]
+  marketPurchaseItems MarketPurchaseItem[]
+
   @@map("users")
 }
 
@@ -248,8 +252,8 @@ model Card {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  purchases    Purchase[]
-  installments Installment[]
+  purchases          Purchase[]
+  installments       Installment[]
   /// Household cards ("Casa") that link to this one to show a fatura presumida based on this
   /// card's installments. Purely a read-side cross-module reference — this side is never written
   /// to, and this card's own data/behavior is completely unaffected by whether anything links here.
@@ -628,22 +632,22 @@ model InvestmentCashAccount {
 /// TTL cache for external market-data lookups (BRAPI/CoinGecko/Bacen) — the interface layer
 /// must never call those providers directly, only through this cache.
 model InvestmentPriceCache {
-  id            String               @id @default(cuid())
-  symbol        String
-  assetClass    InvestmentAssetClass
-  price         Decimal              @db.Decimal(20, 8)
-  currency      String               @default("BRL")
-  changePercent Decimal?             @db.Decimal(10, 4)
+  id                     String               @id @default(cuid())
+  symbol                 String
+  assetClass             InvestmentAssetClass
+  price                  Decimal              @db.Decimal(20, 8)
+  currency               String               @default("BRL")
+  changePercent          Decimal?             @db.Decimal(10, 4)
   /// True when this price is a substitute for an instrument BRAPI/CoinGecko can't price directly
   /// (e.g. a B3 fractional-lot ticker priced via its round-lot counterpart) — must stay disclosed
   /// across cache hits, not just on the first fetch.
-  approximate   Boolean              @default(false)
-  source        String
-  fetchedAt     DateTime             @default(now())
+  approximate            Boolean              @default(false)
+  source                 String
+  fetchedAt              DateTime             @default(now())
   /// Historical price series ({date, close}[]) — populated only when the detail view was fetched.
-  history       Json?
+  history                Json?
   /// Loose key/value fundamentals (P/L, market cap, 52w high/low, etc.) — provider-dependent.
-  fundamentals  Json?
+  fundamentals           Json?
   /// AdvancedFundamentals (P/VP, ROE, ROA, margens, payout, balanço/DRE histórico) — a separate,
   /// heavier fetch than `fundamentals` above, cached on its own timestamp/TTL so a slow advanced
   /// lookup never blocks the basic price/detail view.
@@ -834,20 +838,20 @@ model TrackingFxRateCache {
 /// may exist per user at a time — enforced in TrackingSessionsService, not a DB constraint (same
 /// convention as ownership checks elsewhere in this codebase).
 model TrackingSession {
-  id        String                @id @default(cuid())
-  userId    String
-  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobId     String
-  job       TrackingJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  checkIn   DateTime
-  checkOut  DateTime?
-  status    TrackingSessionStatus @default(RUNNING)
-  notes     String?
+  id                String                @id @default(cuid())
+  userId            String
+  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId             String
+  job               TrackingJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  checkIn           DateTime
+  checkOut          DateTime?
+  status            TrackingSessionStatus @default(RUNNING)
+  notes             String?
   /// Marca que o lembrete "hora de encerrar" já foi enviado pra essa sessão específica, pra não
   /// repetir a cada tick do cron depois que o limite (horário fixo ou expectedHoursPerDay) é cruzado.
   endReminderSentAt DateTime?
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
 
   pauses TrackingSessionPause[]
 
@@ -1021,18 +1025,18 @@ model HouseholdBillEntry {
 }
 
 model HouseholdCard {
-  id         String   @id @default(cuid())
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name       String
-  closingDay Int
-  dueDay     Int
-  color      String   @default("#6D5BFF")
-  icon       String   @default("credit-card")
-  active     Boolean  @default(true)
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  closingDay   Int
+  dueDay       Int
+  color        String   @default("#6D5BFF")
+  icon         String   @default("credit-card")
+  active       Boolean  @default(true)
   /// Posição de exibição, controlada pelo usuário arrastando os cards em Contas. Ordenado junto com
   /// id como desempate estável, pra nunca "pular" de lugar quando duas contas têm o mesmo order.
-  order      Int      @default(0)
+  order        Int      @default(0)
   /// Optional link to a Parcelamento Card — when set, a month whose fatura hasn't been entered yet
   /// (totalInvoice still 0) shows that card's installment total for the same competência as a
   /// "fatura presumida" instead, computed live and never written back. Nullable/SetNull so linking,
@@ -1074,24 +1078,24 @@ model HouseholdCardEntry {
 }
 
 model HouseholdIncome {
-  id          String                   @id @default(cuid())
-  userId      String
-  user        User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  categoryId  String?
-  category    HouseholdIncomeCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  date        DateTime
-  description String?
+  id                 String                   @id @default(cuid())
+  userId             String
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId         String?
+  category           HouseholdIncomeCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  date               DateTime
+  description        String?
   /// Sempre em BRL, sempre digitado pelo usuário — o valor líquido de fato recebido. Pra entrada em
   /// dólar (isForeignCurrency), grossAmountForeign/exchangeRate abaixo são só referência.
-  amount      Decimal                  @db.Decimal(12, 2)
+  amount             Decimal                  @db.Decimal(12, 2)
   /// "Dinheiro Gringo" — entrada recebida em dólar. grossAmountForeign e exchangeRate só existem
   /// quando true; amount continua sendo a única fonte de verdade pros totais em BRL do resto do app.
-  isForeignCurrency  Boolean           @default(false)
-  grossAmountForeign Decimal?          @db.Decimal(12, 2)
-  exchangeRate       Decimal?          @db.Decimal(12, 6)
-  notes       String?
-  createdAt   DateTime                 @default(now())
-  updatedAt   DateTime                 @updatedAt
+  isForeignCurrency  Boolean                  @default(false)
+  grossAmountForeign Decimal?                 @db.Decimal(12, 2)
+  exchangeRate       Decimal?                 @db.Decimal(12, 6)
+  notes              String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
 
   @@index([userId, date])
   @@index([categoryId])
@@ -1128,4 +1132,76 @@ model HouseholdAuditLog {
 
   @@index([userId, entity, entityId])
   @@map("household_audit_logs")
+}
+
+/// One grocery run — normally one NFC-e imported from its QR code, but a purchase typed by hand is
+/// equally valid (accessKey stays null then). The unique index on (userId, accessKey) is what makes
+/// re-scanning the same nota a no-op instead of a duplicate; Postgres treats NULLs as distinct, so
+/// it constrains imported notas without ever blocking manual entries.
+model MarketPurchase {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeName    String
+  storeCnpj    String?
+  /// 44-digit NFC-e access key, digits only.
+  accessKey    String?
+  purchaseDate DateTime
+  totalAmount  Decimal   @db.Decimal(12, 2)
+  notes        String?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  items MarketPurchaseItem[]
+
+  @@unique([userId, accessKey])
+  @@index([userId, purchaseDate])
+  @@map("market_purchases")
+}
+
+/// A product identity across purchases — the row price history hangs off of. Grouping is by
+/// normalizedKey (see market-product-key.ts) rather than by the store's own product code, which is
+/// internal to each supermarket and so differs for the identical item between stores.
+model MarketProduct {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Display name — the description from the nota that first introduced this product.
+  name          String
+  normalizedKey String
+  unit          String?
+  category      String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  items MarketPurchaseItem[]
+
+  @@unique([userId, normalizedKey])
+  @@map("market_products")
+}
+
+/// One line of a nota. quantity/unitPrice carry 4 decimals because produce is sold by weight
+/// (0,586 KG at 7,9900/KG) — rounding those to 2 would lose real money on the line total.
+model MarketPurchaseItem {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchaseId  String
+  purchase    MarketPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     MarketProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Verbatim description from the nota, kept so a mis-grouped product can be traced back to what
+  /// the store actually called it.
+  description String
+  storeCode   String?
+  quantity    Decimal        @db.Decimal(12, 4)
+  unit        String
+  unitPrice   Decimal        @db.Decimal(12, 4)
+  totalPrice  Decimal        @db.Decimal(12, 2)
+  createdAt   DateTime       @default(now())
+
+  @@index([userId, productId])
+  @@index([purchaseId])
+  @@map("market_purchase_items")
 }
