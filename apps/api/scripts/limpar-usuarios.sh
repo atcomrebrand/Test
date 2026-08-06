@@ -19,7 +19,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 DB=$(grep -oP 'DATABASE_URL="postgresql://[^/]+/\K[^?"]+' .env)
 [ -n "$DB" ] || { echo "!! Não achei o nome do banco na DATABASE_URL do .env" >&2; exit 1; }
 
-psql() { sudo -u postgres command psql -d "$DB" "$@"; }
+# Sem `command` aqui: ele é builtin do bash, e o sudo tentaria executar um programa com esse nome.
+# A recursão que o `command` costuma evitar não acontece — o sudo exec um processo novo, que não
+# enxerga esta função.
+psql() { sudo -u postgres psql -d "$DB" "$@"; }
 
 # Uma linha por usuário com o volume de dados de cada módulo, pra conta real não ser confundida
 # com conta de teste por causa do nome do e-mail.
