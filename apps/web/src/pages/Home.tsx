@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -70,6 +70,20 @@ const APPS: AppCard[] = [
 
 function AppCarousel() {
   const scrollerRef = useRef<HTMLDivElement>(null);
+  const [temOverflow, setTemOverflow] = useState(false);
+
+  // Com os cards pequenos as cinco ferramentas cabem numa linha só em tela grande, e aí as setas
+  // não rolam nada — botão que não faz nada é pior que botão nenhum. Medido em vez de decidido por
+  // breakpoint porque o que importa é quantos cards existem, e isso muda a cada ferramenta nova.
+  useEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const medir = () => setTemOverflow(el.scrollWidth > el.clientWidth + 1);
+    medir();
+    const observer = new ResizeObserver(medir);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   function scrollByAmount(direction: 1 | -1) {
     const el = scrollerRef.current;
@@ -89,40 +103,46 @@ function AppCarousel() {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: i * 0.05 }}
-            className="w-[85%] shrink-0 snap-center sm:w-[46%] lg:w-[30%]"
+            className="shrink-0 snap-center"
           >
+            {/* A descrição sai do card e vira title: sem ela cabem cinco ferramentas na tela em vez
+                de uma e meia, e quem não reconhecer o ícone ainda alcança o texto no hover. */}
             <Link
               to={app.to}
-              className="group flex h-full flex-col gap-4 rounded-2xl border border-[rgb(var(--border))] surface p-6 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated"
+              title={app.description}
+              className="group flex aspect-square w-28 flex-col items-center justify-center gap-2.5 rounded-2xl border border-[rgb(var(--border))] surface p-3 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-elevated sm:w-32"
             >
-              <div className={`flex h-12 w-12 items-center justify-center rounded-xl text-white ${app.color}`}>
-                <app.icon className="h-6 w-6" />
+              <div className={`flex h-11 w-11 items-center justify-center rounded-xl text-white sm:h-12 sm:w-12 ${app.color}`}>
+                <app.icon className="h-5 w-5 sm:h-6 sm:w-6" />
               </div>
-              <div>
-                <p className="font-semibold">{app.title}</p>
-                <p className="mt-1 text-sm text-muted">{app.description}</p>
-              </div>
+              {/* Duas linhas reservadas sempre: "Contas da Casa" quebra e os outros não, e sem a
+                  altura fixa o ícone dele sobe uns 10px e desalinha da fileira. */}
+              <p className="flex h-8 items-start justify-center text-center text-xs font-semibold leading-tight sm:text-sm">{app.title}</p>
             </Link>
           </motion.div>
         ))}
       </div>
 
-      <button
-        type="button"
-        onClick={() => scrollByAmount(-1)}
-        className="absolute -left-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[rgb(var(--border))] surface shadow-soft md:flex"
-        aria-label="Anterior"
-      >
-        <ChevronLeft className="h-4 w-4" />
-      </button>
-      <button
-        type="button"
-        onClick={() => scrollByAmount(1)}
-        className="absolute -right-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[rgb(var(--border))] surface shadow-soft md:flex"
-        aria-label="Próximo"
-      >
-        <ChevronRight className="h-4 w-4" />
-      </button>
+      {temOverflow && (
+        <>
+          <button
+            type="button"
+            onClick={() => scrollByAmount(-1)}
+            className="absolute -left-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[rgb(var(--border))] surface shadow-soft md:flex"
+            aria-label="Anterior"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollByAmount(1)}
+            className="absolute -right-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[rgb(var(--border))] surface shadow-soft md:flex"
+            aria-label="Próximo"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </>
+      )}
     </div>
   );
 }
