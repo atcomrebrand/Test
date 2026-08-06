@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { marketProductKey } from "../domain/market-product-key";
 import { MarketRepository } from "../domain/market.repository";
-import { extractAccessKey, parseNfcePage, ParsedNfceItem } from "../domain/nfce-parser";
+import { extractAccessKey, extractQrPayload, parseNfcePage, ParsedNfceItem } from "../domain/nfce-parser";
 import { SefazSpProvider } from "../infrastructure/providers/sefaz-sp.provider";
 import { CommitNotaDto } from "./dto/market.dto";
 
@@ -47,7 +47,7 @@ export class MarketImportService {
 
     // The scanned payload is only useful to the portal when it's the full "p=" string; a typed key
     // has no signature fields to pass along.
-    const qrPayload = code.includes("p=") ? decodeURIComponent(code.split("p=")[1].split("&")[0]) : undefined;
+    const qrPayload = extractQrPayload(code) ?? undefined;
 
     let html: string;
     try {

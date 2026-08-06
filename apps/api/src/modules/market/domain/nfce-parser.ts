@@ -77,9 +77,17 @@ function firstMatch(html: string, re: RegExp): string | null {
  * three forms resolve to the same 44 digits. Returns null when no 44-digit run is present at all,
  * which the caller surfaces as "isso não parece uma nota" instead of fetching a bogus URL.
  */
-export function extractAccessKey(input: string): string | null {
+/** The decoded `p=` payload of an NFC-e QR code — "chNFe|nVersao|tpAmb|cIdToken|cHashQRCode".
+ *  Matched as a query parameter rather than by splitting on the first "p=" found anywhere, so a
+ *  path segment that happens to contain those two characters can't be mistaken for the payload. */
+export function extractQrPayload(input: string): string | null {
   const pParam = firstMatch(input, /[?&]p=([^&\s]+)/i);
-  const candidate = pParam ? decodeURIComponent(pParam).split("|")[0] : input;
+  return pParam ? decodeURIComponent(pParam) : null;
+}
+
+export function extractAccessKey(input: string): string | null {
+  const payload = extractQrPayload(input);
+  const candidate = payload ? payload.split("|")[0] : input;
   const digits = candidate.replace(/\D/g, "");
   if (digits.length === 44) return digits;
 

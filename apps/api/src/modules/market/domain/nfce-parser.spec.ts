@@ -1,4 +1,4 @@
-import { extractAccessKey, parseNfcePage } from "./nfce-parser";
+import { extractAccessKey, extractQrPayload, parseNfcePage } from "./nfce-parser";
 
 const ACCESS_KEY = "35240612345678000199650010000012341000012345";
 
@@ -56,6 +56,26 @@ describe("extractAccessKey", () => {
     // A shorter and a longer run must both be rejected outright.
     expect(extractAccessKey("1".repeat(43))).toBeNull();
     expect(extractAccessKey("1".repeat(45))).toBeNull();
+  });
+});
+
+describe("extractQrPayload", () => {
+  it("decodes the percent-encoded pipes a real scanned URL arrives with", () => {
+    // Shape taken from an actual SP nota scanned in 2026-08: the camera hands over the
+    // ConsultaQRCode.aspx URL with every "|" as %7C.
+    const url = `https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaQRCode.aspx?p=${ACCESS_KEY}%7C2%7C1%7C1%7C7830d43c0e553f5b3e10e447006200a0`;
+    expect(extractQrPayload(url)).toBe(`${ACCESS_KEY}|2|1|1|7830d43c0e553f5b3e10e447006200a0`);
+    expect(extractAccessKey(url)).toBe(ACCESS_KEY);
+  });
+
+  it("takes p= as a query parameter, not as any two characters found in the path", () => {
+    // A path segment containing "p=" must not be mistaken for the payload.
+    const url = `https://exemplo.com/algo/p=lixo/pagina.aspx?p=${ACCESS_KEY}%7C2`;
+    expect(extractQrPayload(url)).toBe(`${ACCESS_KEY}|2`);
+  });
+
+  it("returns null when there is no p= parameter at all", () => {
+    expect(extractQrPayload("https://www.nfce.fazenda.sp.gov.br/consulta?chNFe=123")).toBeNull();
   });
 });
 

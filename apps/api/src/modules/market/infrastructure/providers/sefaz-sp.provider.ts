@@ -5,6 +5,8 @@ import { Injectable, Logger } from "@nestjs/common";
  *  portal serves a stripped page or a block instead of the nota. */
 const SEFAZ_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
+const CONSULTA_URL = "https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaQRCode.aspx";
+
 /**
  * Fetches SEFAZ-SP's public NFC-e consulta page. Two ways in, because a QR scan and a typed key
  * carry different amounts of information:
@@ -24,9 +26,12 @@ export class SefazSpProvider {
   private readonly logger = new Logger(SefazSpProvider.name);
 
   async fetchNotaPage(input: { qrPayload?: string; accessKey: string }): Promise<string> {
+    // ConsultaQRCode.aspx with the payload is the exact URL a phone's camera opens when it scans
+    // the nota — confirmed against a real 2026-08 SP nota. Going straight there avoids depending on
+    // the /qrcode endpoint's redirect behaving the same way for a server-side client.
     const url = input.qrPayload
-      ? `https://www.nfce.fazenda.sp.gov.br/qrcode?p=${encodeURIComponent(input.qrPayload)}`
-      : `https://www.nfce.fazenda.sp.gov.br/NFCeConsultaPublica/Paginas/ConsultaQRCode.aspx?chNFe=${input.accessKey}`;
+      ? `${CONSULTA_URL}?p=${encodeURIComponent(input.qrPayload)}`
+      : `${CONSULTA_URL}?chNFe=${input.accessKey}`;
 
     const res = await fetch(url, {
       signal: AbortSignal.timeout(15000),
