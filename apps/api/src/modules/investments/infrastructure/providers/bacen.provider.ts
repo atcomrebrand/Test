@@ -13,7 +13,7 @@ const IPCA_12M_ACCUMULATED_SERIES = 13522;
  * pode passar despercebido. Mantido perto do patamar atual justamente pra que, se um dia escapar,
  * o estrago seja pequeno.
  */
-const FALLBACK_CDI_RATE = 14.9;
+const FALLBACK_CDI_RATE = 14.1;
 const FALLBACK_IPCA_RATE = 4.5;
 
 /** A janela máxima que o SGS aceita por requisição é de 10 anos; períodos maiores vêm fatiados. */

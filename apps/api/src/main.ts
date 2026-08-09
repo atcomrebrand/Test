@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import * as dns from "node:dns";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import helmet from "helmet";
@@ -13,6 +14,23 @@ import { TransformInterceptor } from "./common/interceptors/transform.intercepto
  *  data, so there's no dev-convenience justification for letting that slip into production. */
 const INSECURE_JWT_SECRETS = new Set(["change-me-in-production", "dev-secret-change-me"]);
 
+/**
+ * A VPS resolve AAAA mas não tem rota IPv6 funcionando, então todo host que anuncia IPv6 — e o
+ * Bacen, atrás do Azure Front Door, anuncia — ficava esperando o timeout antes de tentar IPv4.
+ * Sob systemd isso passava do limite de 8s da chamada e virava um "fetch failed" silencioso, que
+ * é como o CDI ficou preso no valor de fallback. Pedir IPv4 primeiro resolve pra todas as
+ * integrações de saída de uma vez (Bacen, BRAPI, Yahoo, câmbio), sem depender da versão do Node.
+ *
+ * DNS_RESULT_ORDER permite voltar ao padrão ("verbatim") sem mexer no código, se um dia a VPS
+ * ganhar IPv6 de verdade.
+ */
+function preferIpv4() {
+  const order = process.env.DNS_RESULT_ORDER ?? "ipv4first";
+  if (order === "verbatim" || order === "ipv4first" || order === "ipv6first") {
+    dns.setDefaultResultOrder(order);
+  }
+}
+
 function assertSecureEnv() {
   const jwtSecret = process.env.JWT_SECRET;
   if (!jwtSecret || INSECURE_JWT_SECRETS.has(jwtSecret)) {
@@ -25,6 +43,7 @@ function assertSecureEnv() {
 }
 
 async function bootstrap() {
+  preferIpv4();
   assertSecureEnv();
 
   const app = await NestFactory.create(AppModule, { cors: false, bodyParser: false });
