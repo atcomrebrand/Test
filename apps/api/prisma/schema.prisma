@@ -129,6 +129,9 @@ enum FixedIncomeIndexer {
 model User {
   id           String   @id @default(cuid())
   name         String
+  /// Como o assistente deve chamar a pessoa, quando ela quer ser tratada por outro nome que não o
+  /// do cadastro (apelido, primeiro nome, o que for). Nulo = usa o `name`.
+  preferredName String?
   email        String   @unique
   passwordHash String
   createdAt    DateTime @default(now())

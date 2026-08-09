@@ -57,6 +57,6 @@ export class AuthService {
 
   async me(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    return { id: user.id, name: user.name, email: user.email };
+    return { id: user.id, name: user.name, preferredName: user.preferredName, email: user.email };
   }
 }

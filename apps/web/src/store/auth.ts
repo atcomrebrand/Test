@@ -4,6 +4,8 @@ import { getToken, setToken } from "@/lib/api";
 interface AuthUser {
   id: string;
   name: string;
+  /** Como o assistente chama a pessoa. Nulo = usa o `name`. */
+  preferredName?: string | null;
   email: string;
 }
 
@@ -15,6 +17,8 @@ interface AuthState {
    *  while still locking on a cold start where isAuthenticated came from a stored token instead. */
   justAuthenticated: boolean;
   login: (token: string, user: AuthUser) => void;
+  /** Depois de editar o perfil: atualiza o usuário na sessão sem forçar novo login. */
+  setUser: (user: AuthUser) => void;
   logout: () => void;
   consumeJustAuthenticated: () => boolean;
 }
@@ -27,6 +31,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     setToken(token);
     set({ user, isAuthenticated: true, justAuthenticated: true });
   },
+  setUser: (user) => set({ user }),
   logout: () => {
     setToken(null);
     set({ user: null, isAuthenticated: false, justAuthenticated: false });

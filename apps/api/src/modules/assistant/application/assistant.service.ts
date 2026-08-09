@@ -12,6 +12,7 @@ import { FinancingsService } from "../../financings/application/financings.servi
 import { HomeDashboardService } from "../../home/application/home-dashboard.service";
 import { AssistantMemoryService } from "../../assistant-memory/application/assistant-memory.service";
 import { MarketService } from "../../market/application/market.service";
+import { PrismaService } from "../../../prisma/prisma.service";
 import { searchProducts } from "../../market/domain/product-search";
 
 type AssetClasseUsuario = "ACAO" | "FII" | "CRIPTO";
@@ -54,6 +55,7 @@ export class AssistantService {
     private readonly homeDashboard: HomeDashboardService,
     private readonly assistantMemory: AssistantMemoryService,
     private readonly market: MarketService,
+    private readonly prisma: PrismaService,
   ) {}
 
   async chat(userId: string, history: ChatMessage[]): Promise<ChatMessage[]> {
@@ -68,7 +70,8 @@ export class AssistantService {
     // aceitável: dentro da mesma rodada de tool use o assistente já sabe o que acabou de salvar
     // pelo próprio tool_result, não precisa reler do banco.
     const memories = await this.assistantMemory.findAll(userId);
-    const system = this.buildSystemPrompt(memories);
+    const usuario = await this.prisma.user.findUnique({ where: { id: userId }, select: { name: true, preferredName: true } });
+    const system = this.buildSystemPrompt(memories, usuario?.preferredName?.trim() || usuario?.name || null);
 
     try {
       let finalText = "";
@@ -119,7 +122,7 @@ export class AssistantService {
     }
   }
 
-  private buildSystemPrompt(memories: { id: string; content: string }[]): string {
+  private buildSystemPrompt(memories: { id: string; content: string }[], comoChamar: string | null): string {
     const hoje = new Date().toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" });
     const memoriasTexto =
       memories.length > 0 ? memories.map((m) => `- (id: ${m.id}) ${m.content}`).join("\n") : "Nenhuma memória salva ainda pra esse usuário.";
@@ -127,6 +130,7 @@ export class AssistantService {
     return [
       'Você é o assistente financeiro pessoal dentro do app "Ferramentas do Mauro".',
       `Hoje é ${hoje}.`,
+      ...(comoChamar ? [`Trate a pessoa por "${comoChamar}" — é assim que ela escolheu ser chamada. Não use outro nome nem invente apelido.`] : []),
       "Responda em português do Brasil impecável, com gramática, concordância e acentuação corretas, de forma direta e objetiva, sem enrolação.",
       "Suas respostas costumam ser lidas em voz alta por um sintetizador de fala, então escreva sempre pensando em fluidez de fala, nunca em texto formatado para tela:",
       "Não use nenhum tipo de marcação: sem asteriscos, sem hífen ou marcador de lista, sem cerquilha, sem numeração de lista, sem tabela. Escreva só em frases corridas, como se estivesse falando com a pessoa.",
