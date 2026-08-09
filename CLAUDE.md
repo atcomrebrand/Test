@@ -58,6 +58,14 @@ Isso já foi mexido duas vezes por entender errado o que o usuário estava compa
 - Regra prática: qualquer número que o usuário vá comparar com o extrato usa `calculation.contributedAmount` e `calculation.netGain`/`netGainPercent`. `netYield`/`netProfitabilityPercent` medem contra a base de rendimento e só servem pro cálculo de imposto — depois de um resgate parcial eles **subestimam** o ganho.
 - O bruto e o líquido já estavam certos antes disso e continuam: `restante + sacado` sempre fecha com a posição inteira de antes do saque. Se a divergência com o banco for no *líquido* (e não no "Investido"), a causa é outra — provavelmente o CDI, que é lido "ao vivo" e reprecifica todo o período retroativamente (é a origem da diferença crônica de R$ 0,50–1,00).
 
+## Renda Fixa: como o CDI é calculado (armadilha recorrente)
+
+- **"130% do CDI" não é 130% da taxa anual.** O percentual incide sobre a taxa **diária** e capitaliza em **252 dias úteis**. Com CDI a 14,9%, um CDB de 130% rende 19,79% a.a., não os 19,37% da conta linear. Em 100% do CDI os dois caminhos dão o mesmo número — é o ponto onde a curva toca a reta —, então o erro só aparece em papéis fora de 100%. Ver `effectiveAnnualRateForCdi`.
+- **A fonte de verdade é a série diária** (SGS 12, `% ao dia`, só dias úteis), acumulada dia a dia por `accrueCdiFactor`. Isso resolve três coisas de uma vez: o percentual entra no lugar certo, os dias úteis vêm de graça (feriado não está na série, então não precisa de calendário), e mudança de Selic vale só dali pra frente em vez de reprecificar o passado inteiro.
+- A série vai pra tabela `economic_daily_rates` porque é **história imutável** — a taxa de um dia que passou nunca muda. Só a ponta vai à rede, com TTL de 1h. Sem isso, cada abertura de tela bateria no Bacen.
+- `cdiAnnualRate` (SGS 4392) continua existindo só como **fallback**: extrapola a taxa de hoje pro período inteiro. Quando é ele que entra, `cdiSource.official` vem `false` e a tela mostra um aviso âmbar de "valor estimado" — um CDI errado vira dezenas de reais numa posição grande e **não pode passar despercebido**.
+- Os valores em `FALLBACK_CDI_RATE`/`FALLBACK_IPCA_RATE` (bacen.provider.ts) são a última linha de defesa se o Bacen cair. Mantê-los perto do patamar corrente; o valor antigo de 10,75% ficou anos desatualizado e erraria centenas de reais em silêncio.
+
 ## Casa ↔ Parcelamento: fatura presumida
 
 `HouseholdCard.linkedCardId` (nullable, `onDelete: SetNull`) vincula opcionalmente um cartão da Casa a um cartão do Parcelamento. Quando a fatura do mês na Casa ainda está em R$0 (não editada) e há vínculo, `HouseholdCardsService.present()` mostra em azul (`presumedInvoice`) a soma das parcelas do Parcelamento que **vencem** naquele mês — nunca grava nada sozinho. Assim que o usuário confirma/edita, vira valor real e o presumido para de se aplicar pra aquela competência.

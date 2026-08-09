@@ -367,7 +367,19 @@ export interface InvestmentFixedIncome {
   redeemedNetAmount: string | null;
   notes: string | null;
   calculation: FixedIncomeCalculation;
+  /** Só em aplicações pós-fixadas ao CDI; null nas demais. */
+  cdiSource: CdiSource | null;
   incomeHistory?: InvestmentIncomeRow[];
+}
+
+/** De onde veio o CDI usado no cálculo — a diferença entre "bate com o banco" e "é estimativa". */
+export interface CdiSource {
+  /** true = série diária oficial do Bacen, dia útil por dia útil. false = extrapolado da taxa de hoje. */
+  official: boolean;
+  /** Quantos dias úteis da série entraram na conta. */
+  businessDays: number;
+  /** Último dia útil coberto pela série (ISO), ou null se ela não foi usada. */
+  lastDate: string | null;
 }
 
 export interface CashAccount {

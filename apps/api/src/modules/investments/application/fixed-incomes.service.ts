@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, NotFoundException } from "@nes
 import { Injectable } from "@nestjs/common";
 import { InvestmentFixedIncome } from "@prisma/client";
 import { FixedIncomeRepository } from "../domain/fixed-income.repository";
-import { calculateFixedIncome, principalForTargetNetValue, splitContribution } from "../domain/fixed-income-calculator";
+import { accrueCdiFactor, calculateFixedIncome, principalForTargetNetValue, splitContribution } from "../domain/fixed-income-calculator";
 import { EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
 import { AddFixedIncomeInterestDto, CreateFixedIncomeDto, RedeemFixedIncomeDto, UpdateFixedIncomeDto } from "./dto/fixed-income.dto";
 
@@ -78,7 +78,7 @@ export class FixedIncomesService {
 
     const redeemedAt = dto.redeemedAt ? new Date(dto.redeemedAt) : new Date();
     const principal = Number(fixedIncome.principalAmount);
-    const fullCalc = await this.calculate(fixedIncome, redeemedAt);
+    const { calc: fullCalc } = await this.calculate(fixedIncome, redeemedAt);
 
     if (dto.amount === undefined) {
       const updated = await this.fixedIncomes.redeem(id, redeemedAt, fullCalc.netValue);
@@ -101,7 +101,7 @@ export class FixedIncomesService {
     // reduzido, rendendo normalmente a partir de agora.
     const aporte = splitContribution(this.contributedOf(fixedIncome), dto.amount);
 
-    const redeemedCalc = await this.calculate(fixedIncome, redeemedAt, requiredPrincipal);
+    const { calc: redeemedCalc } = await this.calculate(fixedIncome, redeemedAt, requiredPrincipal);
     const redeemedCopy = await this.fixedIncomes.create({
       userId,
       institution: fixedIncome.institution,
@@ -149,10 +149,10 @@ export class FixedIncomesService {
 
   private async enrich(fixedIncome: InvestmentFixedIncome) {
     const asOfDate = fixedIncome.redeemedAt ?? new Date();
-    const calc = await this.calculate(fixedIncome, asOfDate);
+    const { calc, cdiSource } = await this.calculate(fixedIncome, asOfDate);
     // contributedAmount vai resolvido no topo também (não só dentro de calculation) porque é o que
     // as telas e o dashboard mostram como "Investido" — ninguém deveria ter que lembrar do fallback.
-    return { ...fixedIncome, contributedAmount: calc.contributedAmount, calculation: calc };
+    return { ...fixedIncome, contributedAmount: calc.contributedAmount, calculation: calc, cdiSource };
   }
 
   /** Aplicação que nunca sofreu resgate parcial tem a coluna nula, e aí o dinheiro aportado é o
@@ -167,12 +167,18 @@ export class FixedIncomesService {
     const needsCdi = fixedIncome.indexer === "POS_FIXADO_CDI";
     const needsIpca = fixedIncome.indexer === "IPCA_MAIS";
 
-    const [cdiAnnualRate, ipcaAnnualRate] = await Promise.all([
+    const [cdiAnnualRate, ipcaAnnualRate, janelaCdi] = await Promise.all([
       needsCdi ? this.indicators.getAnnualCdiRate() : Promise.resolve(null),
       needsIpca ? this.indicators.getAnnualIpcaRate() : Promise.resolve(null),
+      needsCdi ? this.indicators.getDailyCdiWindow(fixedIncome.applicationDate, asOfDate) : Promise.resolve(null),
     ]);
 
-    return calculateFixedIncome({
+    // Com a série diária o número é o mesmo que o banco calcula, dia útil por dia útil. Sem ela
+    // (Bacen fora do ar, ou aplicação com data anterior ao que a série cobre) o cálculo continua
+    // saindo pela taxa anual de hoje — só que aí é estimativa, e a tela precisa dizer isso.
+    const cdiAccrualFactor = janelaCdi ? accrueCdiFactor(janelaCdi.rates, Number(fixedIncome.cdiPercent ?? 100)) : null;
+
+    const calc = calculateFixedIncome({
       principalAmount: principalOverride ?? Number(fixedIncome.principalAmount),
       // Com principalOverride estamos precificando uma fatia hipotética que ainda não existe no
       // banco, então o aporte dela também não existe — cai no próprio override e o netGain sai
@@ -186,7 +192,20 @@ export class FixedIncomesService {
       cdiPercent: fixedIncome.cdiPercent ? Number(fixedIncome.cdiPercent) : null,
       cdiAnnualRate,
       ipcaAnnualRate,
+      cdiAccrualFactor,
     });
+
+    return {
+      calc,
+      cdiSource: needsCdi
+        ? {
+            /** true = veio da série diária oficial do Bacen; false = estimado pela taxa anual de hoje. */
+            official: cdiAccrualFactor !== null,
+            businessDays: janelaCdi?.rates.length ?? 0,
+            lastDate: janelaCdi?.lastDate ?? null,
+          }
+        : null,
+    };
   }
 
   private async getOwned(userId: string, id: string) {

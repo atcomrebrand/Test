@@ -1,4 +1,4 @@
-import { calculateFixedIncome, principalForTargetNetValue, splitContribution } from "./fixed-income-calculator";
+import { accrueCdiFactor, calculateFixedIncome, effectiveAnnualRateForCdi, principalForTargetNetValue, splitContribution } from "./fixed-income-calculator";
 
 function daysAfter(base: Date, days: number): Date {
   return new Date(base.getTime() + days * 86_400_000);
@@ -21,7 +21,7 @@ describe("calculateFixedIncome", () => {
     expect(result.grossYield).toBeCloseTo(1200, 0);
   });
 
-  it("applies POS_FIXADO_CDI using cdiPercent of the current CDI annual rate", () => {
+  it("applies POS_FIXADO_CDI compounding cdiPercent of the DAILY CDI rate, not of the annual one", () => {
     const result = calculateFixedIncome({
       principalAmount: 10000,
       applicationDate,
@@ -32,8 +32,11 @@ describe("calculateFixedIncome", () => {
       cdiAnnualRate: 10,
     });
 
-    // effective annual = 10 * 1.10 = 11%
-    expect(result.grossValue).toBeCloseTo(11100, 0);
+    // 110% do CDI não é 11% a.a. (a conta linear que este teste cobrava antes, e que deixava o app
+    // abaixo do banco): o percentual incide sobre a taxa diária e capitaliza em 252 dias úteis,
+    // dando 11,0533% a.a. Ver effectiveAnnualRateForCdi.
+    expect(result.grossValue).toBeCloseTo(11105.33, 1);
+    expect(result.grossValue).toBeGreaterThan(11100);
   });
 
   it("compounds IPCA and the fixed spread separately for IPCA_MAIS", () => {
@@ -283,5 +286,138 @@ describe("netGain: rendimento medido contra o dinheiro aportado", () => {
     const result = calculateFixedIncome({ ...base, principalAmount: 500, contributedAmount: 0 });
     expect(result.netGainPercent).toBe(0);
     expect(result.netGain).toBeCloseTo(result.netValue, 6);
+  });
+});
+
+describe("effectiveAnnualRateForCdi", () => {
+  it("em 100% do CDI devolve o próprio CDI, sem sobra nem falta", () => {
+    expect(effectiveAnnualRateForCdi(14.9, 100)).toBeCloseTo(14.9, 9);
+    expect(effectiveAnnualRateForCdi(10, 100)).toBeCloseTo(10, 9);
+  });
+
+  /**
+   * O erro que fazia o app ficar abaixo do banco: 130% do CDI não é 130% da taxa anual. O
+   * percentual incide sobre a taxa DIÁRIA, e é ela que capitaliza ao longo dos 252 dias úteis.
+   */
+  it("acima de 100% rende mais do que a conta linear sugere", () => {
+    const linear = 14.9 * 1.3;
+    expect(linear).toBeCloseTo(19.37, 2);
+    expect(effectiveAnnualRateForCdi(14.9, 130)).toBeCloseTo(19.787, 2);
+    expect(effectiveAnnualRateForCdi(14.9, 130)).toBeGreaterThan(linear);
+  });
+
+  it("abaixo de 100% rende menos do que a conta linear sugere", () => {
+    expect(effectiveAnnualRateForCdi(14.9, 80)).toBeLessThan(14.9 * 0.8);
+  });
+
+  it("não quebra com CDI zerado (indicador indisponível)", () => {
+    expect(effectiveAnnualRateForCdi(0, 130)).toBeCloseTo(0, 9);
+  });
+});
+
+describe("POS_FIXADO_CDI usa a convenção de 252 dias úteis", () => {
+  const applicationDate = new Date("2026-01-05T12:00:00Z");
+
+  it("um CDB de 130% do CDI rende acima do que a multiplicação direta daria", () => {
+    const params = {
+      principalAmount: 8000,
+      applicationDate,
+      asOfDate: daysAfter(applicationDate, 150),
+      type: "CDB" as const,
+      indexer: "POS_FIXADO_CDI" as const,
+      cdiPercent: 130,
+      cdiAnnualRate: 14.9,
+    };
+    const linear = 8000 * Math.pow(1 + (14.9 * 1.3) / 100, 150 / 365);
+
+    const result = calculateFixedIncome(params);
+    expect(result.grossValue).toBeGreaterThan(linear);
+    expect(result.grossValue - linear).toBeGreaterThan(10); // ordem de grandeza do que não batia
+  });
+
+  it("em 100% do CDI o resultado é o mesmo de antes da correção", () => {
+    const result = calculateFixedIncome({
+      principalAmount: 8000,
+      applicationDate,
+      asOfDate: daysAfter(applicationDate, 150),
+      type: "CDB",
+      indexer: "POS_FIXADO_CDI",
+      cdiPercent: 100,
+      cdiAnnualRate: 14.9,
+    });
+    expect(result.grossValue).toBeCloseTo(8000 * Math.pow(1.149, 150 / 365), 6);
+  });
+});
+
+describe("accrueCdiFactor — série diária oficial", () => {
+  // Taxa diária correspondente a um CDI de 14,9% a.a. na base 252.
+  const DIARIA = (Math.pow(1.149, 1 / 252) - 1) * 100;
+
+  it("período vazio não rende nada", () => {
+    expect(accrueCdiFactor([], 130)).toBe(1);
+  });
+
+  it("252 dias úteis a 100% do CDI reproduzem a taxa anual cheia", () => {
+    const factor = accrueCdiFactor(Array(252).fill(DIARIA), 100);
+    expect((factor - 1) * 100).toBeCloseTo(14.9, 6);
+  });
+
+  it("252 dias úteis a 130% batem com a taxa efetiva anual, não com a linear", () => {
+    const factor = accrueCdiFactor(Array(252).fill(DIARIA), 130);
+    expect((factor - 1) * 100).toBeCloseTo(effectiveAnnualRateForCdi(14.9, 130), 6);
+    expect((factor - 1) * 100).toBeGreaterThan(14.9 * 1.3);
+  });
+
+  /** O ponto de ter a série: uma mudança de taxa no meio do caminho vale só dali pra frente. */
+  it("cada dia usa a taxa que valia naquele dia, sem reescrever o passado", () => {
+    const baixa = Array(50).fill(0.04);
+    const alta = Array(50).fill(0.06);
+    const misto = accrueCdiFactor([...baixa, ...alta], 100);
+    const soAlta = accrueCdiFactor(Array(100).fill(0.06), 100);
+    const soBaixa = accrueCdiFactor(Array(100).fill(0.04), 100);
+
+    expect(misto).toBeLessThan(soAlta);
+    expect(misto).toBeGreaterThan(soBaixa);
+    // E a ordem dos dias não muda o total — multiplicação é comutativa, como no banco.
+    expect(accrueCdiFactor([...alta, ...baixa], 100)).toBeCloseTo(misto, 12);
+  });
+
+  it("um dia de CDI zero não mexe no acumulado", () => {
+    expect(accrueCdiFactor([0.05, 0, 0.05], 100)).toBeCloseTo(accrueCdiFactor([0.05, 0.05], 100), 12);
+  });
+});
+
+describe("calculateFixedIncome com o fator da série diária", () => {
+  const applicationDate = new Date("2026-01-05T12:00:00Z");
+  const base = {
+    principalAmount: 8000,
+    applicationDate,
+    asOfDate: daysAfter(applicationDate, 150),
+    type: "CDB" as const,
+    indexer: "POS_FIXADO_CDI" as const,
+    cdiPercent: 130,
+    cdiAnnualRate: 14.9,
+  };
+
+  it("quando o fator existe, é ele que manda — a taxa anual é ignorada", () => {
+    const comFator = calculateFixedIncome({ ...base, cdiAccrualFactor: 1.02 });
+    expect(comFator.grossValue).toBeCloseTo(8160, 6);
+
+    // Uma cdiAnnualRate absurda não pode mudar nada se o fator veio da série.
+    const outraTaxa = calculateFixedIncome({ ...base, cdiAnnualRate: 99, cdiAccrualFactor: 1.02 });
+    expect(outraTaxa.grossValue).toBeCloseTo(comFator.grossValue, 9);
+  });
+
+  it("sem o fator, cai na taxa anual — o resultado continua saindo, só menos exato", () => {
+    const semFator = calculateFixedIncome(base);
+    expect(semFator.grossValue).toBeGreaterThan(8000);
+  });
+
+  it("IR e IOF incidem igual, venha o rendimento de onde vier", () => {
+    const result = calculateFixedIncome({ ...base, asOfDate: daysAfter(applicationDate, 10), cdiAccrualFactor: 1.005 });
+    expect(result.grossYield).toBeCloseTo(40, 6);
+    expect(result.iofRate).toBe(66); // 10 dias
+    expect(result.irRate).toBe(22.5);
+    expect(result.netValue).toBeCloseTo(8000 + result.netYield, 9);
   });
 });

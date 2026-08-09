@@ -159,9 +159,24 @@ export abstract class CryptoQuoteProvider {
   abstract fetchHistory(coinId: string, options: ChartRangeOptions): Promise<HistoricalPricePoint[]>;
 }
 
+/** Uma linha da série diária do CDI: a taxa que valeu naquele dia útil, em % ao dia. */
+export interface DailyRatePoint {
+  /** Dia útil, à meia-noite UTC — a série do Bacen não tem hora. */
+  date: Date;
+  /** % ao dia, como o Bacen publica (ex.: 0.055131 = 0,055131%). */
+  value: number;
+}
+
 export abstract class EconomicIndicatorProvider {
   /** Current CDI rate, annualized, as a percentage (e.g. 10.75 for 10.75% a.a.). */
   abstract fetchAnnualCdiRate(): Promise<number>;
   /** IPCA accumulated over the last 12 months, as a percentage. */
   abstract fetchAnnualIpcaRate(): Promise<number>;
+  /**
+   * Série diária do CDI no intervalo [from, to], só dias úteis. É com ela que dá pra chegar no
+   * mesmo número do banco: cada dia rende a taxa que valeu naquele dia, e feriado/fim de semana
+   * ficam de fora por não estarem na série. Devolve `null` quando a fonte não respondeu — aí o
+   * chamador cai na taxa anual, que é aproximada.
+   */
+  abstract fetchDailyCdiSeries(from: Date, to: Date): Promise<DailyRatePoint[] | null>;
 }

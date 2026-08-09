@@ -698,6 +698,22 @@ model InvestmentAuditLog {
   @@map("investment_audit_logs")
 }
 
+/// Série diária de indicador do Bacen (SGS) — hoje só o CDI (série 12), em % ao dia, apenas dias
+/// úteis. Vale guardar porque é história imutável: a taxa de um dia que já passou nunca muda, então
+/// é buscada uma vez e reusada pra sempre; só a ponta mais recente precisa de rede. Não tem userId
+/// de propósito — é dado público, o mesmo pra todo mundo.
+model EconomicDailyRate {
+  id     String   @id @default(cuid())
+  series Int
+  date   DateTime @db.Date
+  /// % ao dia, como o Bacen publica (ex.: 0.05513100 = 0,055131%).
+  value  Decimal  @db.Decimal(12, 8)
+
+  @@unique([series, date])
+  @@index([series, date])
+  @@map("economic_daily_rates")
+}
+
 model InvestmentSetting {
   id                     String   @id @default(cuid())
   userId                 String   @unique

@@ -11,6 +11,9 @@ const IOF_TABLE_BY_DAY: Record<number, number> = {
 /** IR regressive table — types exempt from IR for individual investors (LCI/LCA) always return 0. */
 const IR_EXEMPT_TYPES: FixedIncomeType[] = ["LCI", "LCA"];
 
+/** Dias úteis num ano, a base sobre a qual o CDI é cotado no Brasil. */
+const DIAS_UTEIS_NO_ANO = 252;
+
 export interface FixedIncomeCalculationInput {
   principalAmount: number;
   /** Dinheiro que o usuário efetivamente aportou e ainda está aqui. Só difere do principalAmount
@@ -26,6 +29,13 @@ export interface FixedIncomeCalculationInput {
   cdiPercent?: number | null;
   /** Current annualized CDI rate (%), required for POS_FIXADO_CDI. */
   cdiAnnualRate?: number | null;
+  /**
+   * Fator de rendimento já acumulado da série diária oficial do CDI pro período (1 = nada rendeu).
+   * Quando vem preenchido é ele que manda: é o mesmo número que o banco usa, dia útil por dia útil,
+   * com as mudanças de taxa no dia em que aconteceram. Sem ele o cálculo cai na `cdiAnnualRate`,
+   * que é uma extrapolação da taxa de hoje pro passado inteiro — serve, mas não bate cent a cent.
+   */
+  cdiAccrualFactor?: number | null;
   /** Current 12-month accumulated IPCA rate (%), required for IPCA_MAIS. */
   ipcaAnnualRate?: number | null;
 }
@@ -59,6 +69,40 @@ function compound(principal: number, annualRatePercent: number, days: number): n
   return principal * Math.pow(1 + annualRatePercent / 100, days / 365);
 }
 
+/**
+ * Converte "X% do CDI" na taxa anual que o papel realmente rende.
+ *
+ * Não é `CDI × X%`, por mais que pareça. O CDI é cotado ao ano sobre 252 dias úteis, e o papel
+ * rende **X% da taxa diária**, capitalizada dia a dia — o percentual entra antes da capitalização,
+ * não depois. Com CDI a 14,9%, um CDB de 130% rende 19,79% a.a., não os 19,37% que a conta linear
+ * sugere; sobre R$ 8.000 isso são uns R$ 12 de diferença em ~150 dias, e cresce com o tempo.
+ *
+ * Em 100% do CDI os dois caminhos dão exatamente a mesma coisa (é o ponto onde a curva toca a
+ * reta); acima disso a linear rende de menos, abaixo rende de mais.
+ */
+export function effectiveAnnualRateForCdi(cdiAnnualPercent: number, cdiPercent: number): number {
+  const cdiDiario = Math.pow(1 + cdiAnnualPercent / 100, 1 / DIAS_UTEIS_NO_ANO) - 1;
+  const papelDiario = cdiDiario * (cdiPercent / 100);
+  return (Math.pow(1 + papelDiario, DIAS_UTEIS_NO_ANO) - 1) * 100;
+}
+
+/**
+ * Acumula a série diária oficial do CDI num único fator de rendimento — é assim que o banco faz.
+ *
+ * Cada dia útil rende `taxa_do_dia × percentual_do_papel`, e os dias se multiplicam entre si. Como
+ * a série só traz dia útil, feriado e fim de semana ficam de fora sozinhos, sem precisar de
+ * calendário nenhum; e como cada dia carrega a taxa que valia naquele dia, uma mudança de Selic no
+ * meio do caminho não reescreve o passado.
+ *
+ * `dailyRatesPercent` vem em % ao dia, do jeito que o Bacen publica (ex.: 0.055131 = 0,055131%).
+ */
+export function accrueCdiFactor(dailyRatesPercent: number[], cdiPercent: number): number {
+  const share = cdiPercent / 100;
+  let factor = 1;
+  for (const daily of dailyRatesPercent) factor *= 1 + (daily / 100) * share;
+  return factor;
+}
+
 function irRateForDays(days: number): number {
   if (days <= 180) return 22.5;
   if (days <= 360) return 20;
@@ -78,7 +122,8 @@ function grossValueFor(input: FixedIncomeCalculationInput, days: number): number
     case "PREFIXADO":
       return compound(principalAmount, fixedRatePercent ?? 0, days);
     case "POS_FIXADO_CDI": {
-      const effectiveAnnual = (cdiAnnualRate ?? 0) * ((cdiPercent ?? 100) / 100);
+      if (input.cdiAccrualFactor != null) return principalAmount * input.cdiAccrualFactor;
+      const effectiveAnnual = effectiveAnnualRateForCdi(cdiAnnualRate ?? 0, cdiPercent ?? 100);
       return compound(principalAmount, effectiveAnnual, days);
     }
     case "IPCA_MAIS": {

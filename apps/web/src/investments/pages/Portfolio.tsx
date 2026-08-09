@@ -13,6 +13,7 @@ import {
   Undo2,
   ChevronDown,
   ChevronUp,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -177,6 +178,15 @@ function FixedIncomeCard({
             <p className="font-semibold">{f.calculation.netGainPercent.toFixed(2)}%</p>
           </div>
         </div>
+
+        {/* Um CDI estimado erra dezenas de reais numa posição grande. Se o número não veio da série
+            oficial do Bacen, quem olha precisa saber antes de comparar com o extrato. */}
+        {f.cdiSource && !f.cdiSource.official && (
+          <p className="flex items-start gap-1.5 rounded-lg bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-400">
+            <AlertTriangle className="mt-px h-3.5 w-3.5 shrink-0" />
+            Valor estimado: não deu pra buscar o CDI diário do Banco Central, então a conta usou a taxa atual projetada pro período todo.
+          </p>
+        )}
 
         <div className="flex items-center justify-between text-xs text-muted">
           <span>Aplicado em {formatDate(f.applicationDate)}</span>
