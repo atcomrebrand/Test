@@ -48,6 +48,16 @@ Isso já causou bastante confusão em sessões anteriores — documentando pra n
 - **Casa (fatura presumida) agrupa por vencimento real** (`dueDate`), não por competência — porque pra orçamento doméstico o que importa é "quanto preciso ter em mãos esse mês", não o nome da fatura. Ver `InstallmentsService.getMonthlyTotalsForCards()`.
 - Consequência: comparar "mês X no Parcelamento" com "mês X na Casa" pra um cartão que fecha depois de vencer **não bate direto** — é preciso comparar com o mês anterior de competência. Já foi verificado exaustivamente à mão contra dados reais de produção (múltiplos cartões, meses diferentes) e o cálculo está correto; a aparência de erro é só a diferença de convenção entre os dois módulos.
 
+## Renda Fixa: principal vs. aportado no resgate parcial (armadilha recorrente)
+
+Isso já foi mexido duas vezes por entender errado o que o usuário estava comparando — documentando.
+
+- `InvestmentFixedIncome.principalAmount` = **base de rendimento**: o valor que compõe juro desde `applicationDate`. Num resgate parcial ele encolhe **proporcionalmente** (`principalForTargetNetValue`), porque é a única forma do bruto/líquido continuar fechando cent a cent.
+- `InvestmentFixedIncome.contributedAmount` (nullable) = **dinheiro que a pessoa pôs e ainda está lá**. No resgate parcial ele sai em **regime de caixa** (`splitContribution`): sacou R$ 2.000 de um CDB de R$ 10.000, sobram R$ 8.000 redondos — que é o número do extrato do banco. `null` = nunca houve resgate parcial, então é igual ao principal (toda linha anterior à migration de 2026-08-09).
+- Os dois divergem de propósito e por critérios diferentes. Sacar R$ 2.000 líquidos de uma posição de R$ 10.048,27 consome ~R$ 1.990 de base mas R$ 2.000 de aporte; o principal restante fica ~R$ 8.010 e o aportado fica R$ 8.000. **Essa diferença de ~R$ 10 era o que não batia com o banco** — a tela mostrava a base de rendimento no campo "Investido".
+- Regra prática: qualquer número que o usuário vá comparar com o extrato usa `calculation.contributedAmount` e `calculation.netGain`/`netGainPercent`. `netYield`/`netProfitabilityPercent` medem contra a base de rendimento e só servem pro cálculo de imposto — depois de um resgate parcial eles **subestimam** o ganho.
+- O bruto e o líquido já estavam certos antes disso e continuam: `restante + sacado` sempre fecha com a posição inteira de antes do saque. Se a divergência com o banco for no *líquido* (e não no "Investido"), a causa é outra — provavelmente o CDI, que é lido "ao vivo" e reprecifica todo o período retroativamente (é a origem da diferença crônica de R$ 0,50–1,00).
+
 ## Casa ↔ Parcelamento: fatura presumida
 
 `HouseholdCard.linkedCardId` (nullable, `onDelete: SetNull`) vincula opcionalmente um cartão da Casa a um cartão do Parcelamento. Quando a fatura do mês na Casa ainda está em R$0 (não editada) e há vínculo, `HouseholdCardsService.present()` mostra em azul (`presumedInvoice`) a soma das parcelas do Parcelamento que **vencem** naquele mês — nunca grava nada sozinho. Assim que o usuário confirma/edita, vira valor real e o presumido para de se aplicar pra aquela competência.

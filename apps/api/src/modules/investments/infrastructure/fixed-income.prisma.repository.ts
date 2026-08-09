@@ -27,6 +27,7 @@ export class FixedIncomePrismaRepository extends FixedIncomeRepository {
           institution: data.institution,
           type: data.type as any,
           principalAmount: data.principalAmount,
+          contributedAmount: data.contributedAmount,
           applicationDate: data.applicationDate,
           maturityDate: data.maturityDate,
           liquidity: data.liquidity as any,

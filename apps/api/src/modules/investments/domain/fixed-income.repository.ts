@@ -5,6 +5,9 @@ export interface CreateFixedIncomeData {
   institution: string;
   type: string;
   principalAmount: number;
+  /** Só o resgate parcial passa isto: a fatia sacada nasce com o aporte que lhe cabe, e não com o
+   *  principal proporcional. Omitido em qualquer aplicação normal — aí os dois são iguais. */
+  contributedAmount?: number;
   applicationDate: Date;
   maturityDate: Date;
   liquidity: string;

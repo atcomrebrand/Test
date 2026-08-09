@@ -1,4 +1,4 @@
-import { calculateFixedIncome, principalForTargetNetValue } from "./fixed-income-calculator";
+import { calculateFixedIncome, principalForTargetNetValue, splitContribution } from "./fixed-income-calculator";
 
 function daysAfter(base: Date, days: number): Date {
   return new Date(base.getTime() + days * 86_400_000);
@@ -193,5 +193,95 @@ describe("principalForTargetNetValue", () => {
   it("matches the real BV 130% CDI case from production: R$2.009,65 desired net out of a R$10.048,27 net position", () => {
     const requiredPrincipal = principalForTargetNetValue(10000, 10048.27, 2009.65);
     expect(requiredPrincipal).toBeCloseTo(2000, 0);
+  });
+});
+
+describe("splitContribution", () => {
+  it("tira o saque do próprio dinheiro aportado: 10.000 aplicados, saca 2.000, sobram 8.000", () => {
+    expect(splitContribution(10000, 2000)).toEqual({ withdrawn: 2000, remaining: 8000 });
+  });
+
+  it("não deixa o aportado ficar negativo quando o saque passa do que foi aportado", () => {
+    // Aportou 1.000, a aplicação já vale 1.300, saca 1.200: 1.000 são a devolução do aporte e os
+    // 200 restantes são lucro — o que fica tem aporte zerado, não -200.
+    expect(splitContribution(1000, 1200)).toEqual({ withdrawn: 1000, remaining: 0 });
+  });
+
+  it("trata saque zero como não mexer em nada", () => {
+    expect(splitContribution(10000, 0)).toEqual({ withdrawn: 0, remaining: 10000 });
+  });
+
+  it("conserva o total aportado em qualquer divisão", () => {
+    for (const saque of [0, 1, 999.99, 5000, 10000, 99999]) {
+      const { withdrawn, remaining } = splitContribution(10000, saque);
+      expect(withdrawn + remaining).toBeCloseTo(10000, 6);
+    }
+  });
+});
+
+describe("netGain: rendimento medido contra o dinheiro aportado", () => {
+  const applicationDate = new Date("2024-01-01T12:00:00Z");
+  const base = {
+    applicationDate,
+    asOfDate: daysAfter(applicationDate, 13),
+    type: "CDB" as const,
+    indexer: "POS_FIXADO_CDI" as const,
+    cdiPercent: 130,
+    cdiAnnualRate: 14.9,
+  };
+
+  it("sem resgate parcial é idêntico ao netYield — contributedAmount omitido cai no principal", () => {
+    const result = calculateFixedIncome({ ...base, principalAmount: 10000 });
+
+    expect(result.contributedAmount).toBe(10000);
+    expect(result.netGain).toBeCloseTo(result.netYield, 10);
+    expect(result.netGainPercent).toBeCloseTo(result.netProfitabilityPercent, 10);
+  });
+
+  /**
+   * O caso real que motivou tudo isto: CDB BV 130% do CDI, R$ 10.000 aplicados, saque de R$ 2.000.
+   * O principal cai pra ~8.009,76 (proporcional, pra o bruto/líquido continuar fechando), mas o
+   * dinheiro aportado que sobrou é R$ 8.000 redondos — e é esse número que aparece no extrato do
+   * banco. Antes disso, a tela mostrava "Investido: R$ 8.009,76" e a diferença de ~R$ 10 pro banco
+   * era justamente essa.
+   */
+  it("depois de um resgate parcial, o aportado é o número redondo do banco, não a base de rendimento", () => {
+    const cheio = calculateFixedIncome({ ...base, principalAmount: 10000 });
+    const principalDaFatia = principalForTargetNetValue(10000, cheio.netValue, 2000);
+    const principalRestante = 10000 - principalDaFatia;
+    const { remaining: aportadoRestante } = splitContribution(10000, 2000);
+
+    const restante = calculateFixedIncome({ ...base, principalAmount: principalRestante, contributedAmount: aportadoRestante });
+
+    expect(aportadoRestante).toBe(8000);
+    expect(restante.contributedAmount).toBe(8000);
+    expect(principalRestante).toBeGreaterThan(8000); // a base de rendimento fica acima do aporte
+    expect(restante.netGain).toBeCloseTo(restante.netValue - 8000, 6);
+    // netYield mede contra a base de rendimento, que já embute o juro rendido antes do saque — por
+    // isso reporta um ganho MENOR do que a pessoa de fato tem sobre o dinheiro que pôs. A diferença
+    // entre os dois é exatamente o juro que foi absorvido pela base.
+    expect(restante.netGain).toBeGreaterThan(restante.netYield);
+    expect(restante.netGain - restante.netYield).toBeCloseTo(principalRestante - 8000, 6);
+  });
+
+  it("o ganho total não muda por causa da divisão: fatia sacada + restante = ganho da posição inteira", () => {
+    const cheio = calculateFixedIncome({ ...base, principalAmount: 10000 });
+    const principalDaFatia = principalForTargetNetValue(10000, cheio.netValue, 2000);
+    const { withdrawn, remaining } = splitContribution(10000, 2000);
+
+    const fatia = calculateFixedIncome({ ...base, principalAmount: principalDaFatia, contributedAmount: withdrawn });
+    const restante = calculateFixedIncome({ ...base, principalAmount: 10000 - principalDaFatia, contributedAmount: remaining });
+
+    // A fatia sacada devolveu exatamente o que se tirou dela: ganho zero, o lucro todo fica com o resto.
+    expect(fatia.netValue).toBeCloseTo(2000, 6);
+    expect(fatia.netGain).toBeCloseTo(0, 6);
+    expect(fatia.netGain + restante.netGain).toBeCloseTo(cheio.netYield, 6);
+    expect(fatia.netValue + restante.netValue).toBeCloseTo(cheio.netValue, 6);
+  });
+
+  it("não divide por zero quando o aporte inteiro já foi sacado", () => {
+    const result = calculateFixedIncome({ ...base, principalAmount: 500, contributedAmount: 0 });
+    expect(result.netGainPercent).toBe(0);
+    expect(result.netGain).toBeCloseTo(result.netValue, 6);
   });
 });

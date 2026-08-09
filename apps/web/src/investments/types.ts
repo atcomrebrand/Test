@@ -339,13 +339,24 @@ export interface FixedIncomeCalculation {
   netValue: number;
   grossProfitabilityPercent: number;
   netProfitabilityPercent: number;
+  /** O dinheiro que foi aportado e ainda está aqui — é o "Investido" da tela. Só difere do
+   *  principalAmount depois de um resgate parcial, quando o principal vira base de rendimento. */
+  contributedAmount: number;
+  /** Ganho medido contra o aportado. Use este, não o netYield, em qualquer coisa que a pessoa vá
+   *  comparar com o extrato do banco. */
+  netGain: number;
+  netGainPercent: number;
 }
 
 export interface InvestmentFixedIncome {
   id: string;
   institution: string;
   type: FixedIncomeType;
+  /** Base de rendimento. Depois de um resgate parcial ela deixa de ser "o que eu pus" — pra isso
+   *  use contributedAmount. */
   principalAmount: string;
+  /** Já vem resolvido pelo backend (number, não a Decimal em string): nunca é null. */
+  contributedAmount: number;
   applicationDate: string;
   maturityDate: string;
   liquidity: FixedIncomeLiquidity;

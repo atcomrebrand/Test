@@ -40,15 +40,18 @@ export class InvestmentsDashboardService {
     const assetsRealizedProfit = enrichedAssets.reduce((sum, a) => sum + a.position.realizedProfit, 0);
     const assetsUnrealizedProfit = enrichedAssets.reduce((sum, a) => sum + (a.profit ?? 0), 0);
 
-    const fixedIncomeInvested = activeFixedIncomes.reduce((sum, f) => sum + Number(f.principalAmount), 0);
+    // Aportado, não principal: depois de um resgate parcial o principal vira base de rendimento e
+    // fica acima do dinheiro que a pessoa de fato pôs (ver FixedIncomesService.redeem). Somar o
+    // principal aqui inflaria o "valor investido" e afundaria a rentabilidade na mesma medida.
+    const fixedIncomeInvested = activeFixedIncomes.reduce((sum, f) => sum + f.calculation.contributedAmount, 0);
     const fixedIncomeNetValue = activeFixedIncomes.reduce((sum, f) => sum + f.calculation.netValue, 0);
     // netYield is frozen at redemption date (see FixedIncomesService.redeem/enrich), so a redeemed
     // CDB's rentabilidade doesn't change or vanish after redemption — but until now it also wasn't
     // ADDED anywhere once redeemed, since only activeFixedIncomes fed into lucroLiquido. Including
     // redeemedFixedIncomes here makes a matured/redeemed-and-reinvested CDB's profit keep counting
     // toward total earnings forever, the same way a fully-sold stock's realizedProfit already does.
-    const fixedIncomeUnrealizedYield = activeFixedIncomes.reduce((sum, f) => sum + f.calculation.netYield, 0);
-    const fixedIncomeRealizedYield = redeemedFixedIncomes.reduce((sum, f) => sum + f.calculation.netYield, 0);
+    const fixedIncomeUnrealizedYield = activeFixedIncomes.reduce((sum, f) => sum + f.calculation.netGain, 0);
+    const fixedIncomeRealizedYield = redeemedFixedIncomes.reduce((sum, f) => sum + f.calculation.netGain, 0);
     const fixedIncomeNetYield = fixedIncomeUnrealizedYield + fixedIncomeRealizedYield;
 
     const valorInvestido = assetsInvested + fixedIncomeInvested + cashBalance;
@@ -143,7 +146,7 @@ export class InvestmentsDashboardService {
       byClass.set(asset.class, (byClass.get(asset.class) ?? 0) + gain);
     }
     if (activeFixedIncomes.length > 0 || redeemedFixedIncomes.length > 0) {
-      const fixedIncomeGain = [...activeFixedIncomes, ...redeemedFixedIncomes].reduce((sum, f) => sum + f.calculation.netYield, 0);
+      const fixedIncomeGain = [...activeFixedIncomes, ...redeemedFixedIncomes].reduce((sum, f) => sum + f.calculation.netGain, 0);
       byClass.set("RENDA_FIXA", (byClass.get("RENDA_FIXA") ?? 0) + fixedIncomeGain);
     }
     return Array.from(byClass.entries()).map(([category, total]) => ({ category, total }));
@@ -158,7 +161,7 @@ export class InvestmentsDashboardService {
       ...assets
         .filter((a) => a.profit !== null)
         .map((a) => ({ label: a.ticker, class: a.class, profit: a.profit as number, profitPercent: a.profitPercent as number })),
-      ...fixedIncomes.map((f) => ({ label: f.institution, class: f.type, profit: f.calculation.netYield, profitPercent: f.calculation.netProfitabilityPercent })),
+      ...fixedIncomes.map((f) => ({ label: f.institution, class: f.type, profit: f.calculation.netGain, profitPercent: f.calculation.netGainPercent })),
     ];
     items.sort((a, b) => (direction === "desc" ? b.profit - a.profit : a.profit - b.profit));
     return items.slice(0, TOP_LIST_LIMIT);
@@ -262,7 +265,7 @@ export class InvestmentsDashboardService {
       }),
       this.prisma.investmentFixedIncome.findMany({
         where: { userId },
-        select: { principalAmount: true, applicationDate: true, redeemedAt: true, redeemedNetAmount: true },
+        select: { principalAmount: true, contributedAmount: true, applicationDate: true, redeemedAt: true, redeemedNetAmount: true },
       }),
     ]);
 
@@ -272,7 +275,9 @@ export class InvestmentsDashboardService {
       flows.push({ date: t.transactionDate, amount: t.type === "BUY" ? value : -value });
     }
     for (const f of fixedIncomes) {
-      flows.push({ date: f.applicationDate, amount: Number(f.principalAmount) });
+      // Capital que entrou = o que foi aportado (o principal já pode ter virado base de rendimento
+      // por causa de resgate parcial); null = nunca houve resgate parcial, então são a mesma coisa.
+      flows.push({ date: f.applicationDate, amount: Number(f.contributedAmount ?? f.principalAmount) });
       if (f.redeemedAt) flows.push({ date: f.redeemedAt, amount: -Number(f.redeemedNetAmount ?? f.principalAmount) });
     }
 

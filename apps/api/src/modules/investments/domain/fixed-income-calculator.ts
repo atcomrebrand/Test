@@ -13,6 +13,10 @@ const IR_EXEMPT_TYPES: FixedIncomeType[] = ["LCI", "LCA"];
 
 export interface FixedIncomeCalculationInput {
   principalAmount: number;
+  /** Dinheiro que o usuário efetivamente aportou e ainda está aqui. Só difere do principalAmount
+   *  depois de um resgate parcial, quando o principal vira uma base de rendimento em vez do
+   *  dinheiro colocado. Omitido = os dois são a mesma coisa. */
+  contributedAmount?: number | null;
   applicationDate: Date;
   /** Date to value as of — "today" for the live dashboard, or a hypothetical redemption date. */
   asOfDate: Date;
@@ -38,6 +42,13 @@ export interface FixedIncomeCalculationResult {
   netValue: number;
   grossProfitabilityPercent: number;
   netProfitabilityPercent: number;
+  /** O que o usuário pôs de dinheiro e ainda está aqui — é isso que a tela chama de "Investido". */
+  contributedAmount: number;
+  /** Ganho de verdade: o que dá pra sacar hoje menos o que foi aportado. Sem resgate parcial é
+   *  idêntico ao netYield; depois de um, é ele que bate com o extrato, porque o netYield mede
+   *  contra a base de rendimento (inflada pelo juro que já tinha rendido) e não contra o aporte. */
+  netGain: number;
+  netGainPercent: number;
 }
 
 function daysBetween(from: Date, to: Date): number {
@@ -104,6 +115,9 @@ export function calculateFixedIncome(input: FixedIncomeCalculationInput): FixedI
   const netYield = grossYield - iofAmount - irAmount;
   const netValue = input.principalAmount + netYield;
 
+  const contributedAmount = input.contributedAmount ?? input.principalAmount;
+  const netGain = netValue - contributedAmount;
+
   return {
     daysElapsed: days,
     grossValue,
@@ -116,6 +130,9 @@ export function calculateFixedIncome(input: FixedIncomeCalculationInput): FixedI
     netValue,
     grossProfitabilityPercent: input.principalAmount > 0 ? (grossYield / input.principalAmount) * 100 : 0,
     netProfitabilityPercent: input.principalAmount > 0 ? (netYield / input.principalAmount) * 100 : 0,
+    contributedAmount,
+    netGain,
+    netGainPercent: contributedAmount > 0 ? (netGain / contributedAmount) * 100 : 0,
   };
 }
 
@@ -129,4 +146,21 @@ export function calculateFixedIncome(input: FixedIncomeCalculationInput): FixedI
 export function principalForTargetNetValue(fullPrincipal: number, fullNetValue: number, targetNetValue: number): number {
   if (fullPrincipal <= 0 || fullNetValue <= 0) return 0;
   return (targetNetValue / fullNetValue) * fullPrincipal;
+}
+
+/**
+ * Divide o dinheiro aportado entre a fatia sacada e o que fica, em regime de caixa: quem saca
+ * R$ 2.000 de um CDB onde pôs R$ 10.000 está tirando R$ 2.000 do próprio dinheiro — sobram
+ * R$ 8.000 aportados, exatamente como o banco mostra. O ganho só aparece quando o saque passa de
+ * tudo que foi aportado; daí a fatia leva o aporte inteiro e o resto (o lucro) fica com ela.
+ *
+ * Isso é deliberadamente diferente de como o principalAmount se divide num resgate parcial: lá a
+ * divisão é proporcional porque ele é a base que rende juro, e o valor bruto/líquido tem que
+ * continuar fechando cent a cent. As duas coisas coexistem — uma diz quanto vale, a outra quanto
+ * custou.
+ */
+export function splitContribution(contributed: number, withdrawnNetAmount: number): { withdrawn: number; remaining: number } {
+  const base = Math.max(0, contributed);
+  const withdrawn = Math.min(Math.max(0, withdrawnNetAmount), base);
+  return { withdrawn, remaining: base - withdrawn };
 }

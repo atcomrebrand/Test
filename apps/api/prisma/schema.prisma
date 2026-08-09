@@ -575,7 +575,13 @@ model InvestmentFixedIncome {
   user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   institution       String
   type              FixedIncomeType
+  /// Base de rendimento: o valor que compõe desde applicationDate. Num resgate parcial ele é
+  /// reduzido proporcionalmente, então deixa de ser "o dinheiro que eu pus" — pra isso é o
+  /// contributedAmount abaixo.
   principalAmount   Decimal              @db.Decimal(14, 2)
+  /// Dinheiro que o usuário efetivamente aportou e que ainda está nesta aplicação. null = nunca
+  /// houve resgate parcial, então é igual ao principalAmount (o caso de toda linha já existente).
+  contributedAmount Decimal?             @db.Decimal(14, 2)
   applicationDate   DateTime
   maturityDate      DateTime
   liquidity         FixedIncomeLiquidity

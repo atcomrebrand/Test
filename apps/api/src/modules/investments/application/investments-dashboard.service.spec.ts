@@ -92,7 +92,7 @@ describe("InvestmentsDashboardService.summary — ganhosPorCategoria and redeeme
       principalAmount: "1000",
       maturityDate: new Date("2026-01-01"),
       redeemedAt: new Date("2026-03-01"),
-      calculation: { netValue: 1050, netYield: 50, netProfitabilityPercent: 5 },
+      calculation: { netValue: 1050, netYield: 50, netProfitabilityPercent: 5, contributedAmount: 1000, netGain: 50, netGainPercent: 5 },
     };
     const fixedIncomes = { findAll: jest.fn().mockResolvedValue([redeemed]) } as unknown as FixedIncomesService;
     const service = new InvestmentsDashboardService(
@@ -134,7 +134,7 @@ describe("InvestmentsDashboardService.summary — ganhosPorCategoria and redeeme
       principalAmount: "1000",
       maturityDate: new Date("2026-01-01"),
       redeemedAt: new Date("2026-03-01"),
-      calculation: { netValue: 1050, netYield: 50, netProfitabilityPercent: 5 },
+      calculation: { netValue: 1050, netYield: 50, netProfitabilityPercent: 5, contributedAmount: 1000, netGain: 50, netGainPercent: 5 },
     };
     const fixedIncomes = { findAll: jest.fn().mockResolvedValue([redeemedCdb]) } as unknown as FixedIncomesService;
     const service = new InvestmentsDashboardService(
