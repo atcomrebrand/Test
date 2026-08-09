@@ -33,6 +33,22 @@ function fromBacenDate(text: string): Date | null {
   return new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd)));
 }
 
+/**
+ * `fetch` do Node embrulha qualquer falha de rede num "fetch failed" sem detalhe nenhum — a razão
+ * de verdade (DNS, recusa de conexão, timeout, TLS) fica em `cause`, às vezes aninhada. Sem
+ * desempacotar isso, um CDI que não chega vira um log inútil e a investigação começa do zero.
+ */
+function describeError(err: unknown): string {
+  const parts: string[] = [];
+  let atual: unknown = err;
+  for (let i = 0; i < 4 && atual instanceof Error; i++) {
+    const code = (atual as NodeJS.ErrnoException).code;
+    parts.push(code ? `${atual.message} [${code}]` : atual.message);
+    atual = (atual as { cause?: unknown }).cause;
+  }
+  return parts.join(" <- ");
+}
+
 @Injectable()
 export class BacenProvider extends EconomicIndicatorProvider {
   private readonly logger = new Logger(BacenProvider.name);
@@ -41,7 +57,7 @@ export class BacenProvider extends EconomicIndicatorProvider {
     try {
       return await this.fetchLatestSeriesValue(CDI_ANNUALIZED_SERIES);
     } catch (err) {
-      this.logger.warn(`Falling back to default CDI rate: ${(err as Error).message}`);
+      this.logger.warn(`Falling back to default CDI rate: ${describeError(err)}`);
       return FALLBACK_CDI_RATE;
     }
   }
@@ -50,7 +66,7 @@ export class BacenProvider extends EconomicIndicatorProvider {
     try {
       return await this.fetchLatestSeriesValue(IPCA_12M_ACCUMULATED_SERIES);
     } catch (err) {
-      this.logger.warn(`Falling back to default IPCA rate: ${(err as Error).message}`);
+      this.logger.warn(`Falling back to default IPCA rate: ${describeError(err)}`);
       return FALLBACK_IPCA_RATE;
     }
   }
@@ -70,7 +86,7 @@ export class BacenProvider extends EconomicIndicatorProvider {
     } catch (err) {
       // null (e não lista vazia) é a diferença entre "não consegui perguntar" e "não teve dia útil
       // nenhum no período" — só o primeiro caso deve derrubar o cálculo pra taxa anual.
-      this.logger.warn(`Daily CDI series unavailable: ${(err as Error).message}`);
+      this.logger.warn(`Daily CDI series unavailable: ${describeError(err)}`);
       return null;
     }
   }
