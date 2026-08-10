@@ -38,17 +38,15 @@ export class FinancingsService {
 
   async summary(userId: string) {
     await this.financings.refreshLateStatuses(userId);
-    const [summary, financings] = await Promise.all([
+    // `listEquityInputs` já filtra os ativos (arquivado não tem mais dívida nem bem em jogo) e
+    // traz só os três números do cálculo — carregar a lista inteira aqui fazia a Home puxar todas
+    // as parcelas e todas as fotos a cada 60s pra somar isso.
+    const [summary, equityInputs] = await Promise.all([
       this.financings.summary(userId),
-      this.financings.findAllByUser(userId),
+      this.financings.listEquityInputs(userId),
     ]);
 
-    // Patrimônio só dos ativos: um financiamento arquivado não tem mais dívida nem bem em jogo.
-    const equity = sumFinancingEquity(
-      financings.filter((f) => f.active).map((f) => this.equityInputFor(f)),
-    );
-
-    return { ...summary, equity };
+    return { ...summary, equity: sumFinancingEquity(equityInputs) };
   }
 
   /**

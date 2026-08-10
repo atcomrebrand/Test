@@ -45,4 +45,11 @@ export abstract class FinancingRepository {
    *  substitui o de antes, ele se soma à série. */
   abstract addAssetValue(userId: string, financingId: string, amount: number, valuedAt: Date, source?: string): Promise<void>;
   abstract listAssetValues(financingId: string): Promise<{ amount: number; valuedAt: Date; source: string | null }[]>;
+  /**
+   * Só o que o cálculo de patrimônio precisa, dos financiamentos ativos. Existe separado de
+   * `findAllByUser` porque aquele traz a linha inteira (incluindo a foto, que é o campo mais
+   * pesado da tabela) e todas as parcelas — a Home pedia isso a cada 60s só pra somar três
+   * números.
+   */
+  abstract listEquityInputs(userId: string): Promise<{ assetValue: number | null; payoffAmount: number | null; remainingInstallments: number }[]>;
 }

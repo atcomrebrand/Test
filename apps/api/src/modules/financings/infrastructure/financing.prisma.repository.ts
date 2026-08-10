@@ -178,6 +178,31 @@ export class FinancingPrismaRepository extends FinancingRepository {
     await this.prisma.financingAssetValue.create({ data: { userId, financingId, amount, valuedAt, source } });
   }
 
+  async listEquityInputs(userId: string) {
+    // Duas queries enxutas em vez da linha inteira + todas as parcelas: `select` explícito deixa
+    // a foto (o campo mais pesado) fora, e o groupBy soma as parcelas no banco em vez de trazer
+    // uma linha por parcela pra somar em memória.
+    const [financings, remaining] = await Promise.all([
+      this.prisma.financing.findMany({
+        where: { userId, active: true },
+        select: { id: true, assetValue: true, payoffAmount: true },
+      }),
+      this.prisma.financingInstallment.groupBy({
+        by: ["financingId"],
+        where: { userId, status: { in: ["PENDING", "LATE"] } },
+        _sum: { amount: true },
+      }),
+    ]);
+
+    const remainingByFinancing = new Map(remaining.map((r) => [r.financingId, Number(r._sum.amount ?? 0)]));
+
+    return financings.map((f) => ({
+      assetValue: f.assetValue !== null ? Number(f.assetValue) : null,
+      payoffAmount: f.payoffAmount !== null ? Number(f.payoffAmount) : null,
+      remainingInstallments: remainingByFinancing.get(f.id) ?? 0,
+    }));
+  }
+
   async listAssetValues(financingId: string): Promise<{ amount: number; valuedAt: Date; source: string | null }[]> {
     const rows = await this.prisma.financingAssetValue.findMany({ where: { financingId }, orderBy: { valuedAt: "asc" } });
     return rows.map((r) => ({ amount: Number(r.amount), valuedAt: r.valuedAt, source: r.source }));
