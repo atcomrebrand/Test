@@ -562,3 +562,49 @@ describe("todayInBrazil", () => {
     expect(todayInBrazil(new Date("2026-08-10T03:00:01.000Z"))).toEqual(new Date("2026-08-10T00:00:00.000Z"));
   });
 });
+
+describe("daysElapsed ignora a hora gravada nas datas", () => {
+  const base = {
+    principalAmount: 10000,
+    type: "CDB" as const,
+    indexer: "PREFIXADO" as const,
+    fixedRatePercent: 12,
+  };
+
+  /**
+   * O bug que fazia o IOF discordar da janela do CDI: a aplicação gravada com hora (03:00 UTC =
+   * meia-noite de Brasília) tirava um dia do Math.floor, enquanto a janela do CDI — que normaliza
+   * pra meia-noite — contava o dia certo. As duas contas divergiam em silêncio.
+   */
+  it("aplicação gravada às 03:00 conta os mesmos dias que uma gravada à meia-noite", () => {
+    const meiaNoite = calculateFixedIncome({
+      ...base,
+      applicationDate: new Date("2026-07-14T00:00:00.000Z"),
+      asOfDate: new Date("2026-08-11T00:00:00.000Z"),
+    });
+    const comHora = calculateFixedIncome({
+      ...base,
+      applicationDate: new Date("2026-07-14T03:00:00.000Z"),
+      asOfDate: new Date("2026-08-11T00:00:00.000Z"),
+    });
+
+    expect(meiaNoite.daysElapsed).toBe(28);
+    expect(comHora.daysElapsed).toBe(28);
+    expect(comHora.iofRate).toBe(meiaNoite.iofRate);
+  });
+
+  it("a hora do asOfDate também não muda a contagem", () => {
+    const cedo = calculateFixedIncome({
+      ...base,
+      applicationDate: new Date("2026-07-14T00:00:00.000Z"),
+      asOfDate: new Date("2026-08-11T00:30:00.000Z"),
+    });
+    const tarde = calculateFixedIncome({
+      ...base,
+      applicationDate: new Date("2026-07-14T00:00:00.000Z"),
+      asOfDate: new Date("2026-08-11T23:30:00.000Z"),
+    });
+    expect(cedo.daysElapsed).toBe(28);
+    expect(tarde.daysElapsed).toBe(28);
+  });
+});

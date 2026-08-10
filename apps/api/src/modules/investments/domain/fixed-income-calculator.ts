@@ -61,8 +61,18 @@ export interface FixedIncomeCalculationResult {
   netGainPercent: number;
 }
 
+/**
+ * Dias corridos entre duas datas, comparando **calendário**, não instantes.
+ *
+ * IR e IOF são contados em dias corridos desde a aplicação — é aritmética de datas, e a hora
+ * gravada não pode entrar nisso. Sem normalizar, uma applicationDate com 3h de deslocamento fazia
+ * o `Math.floor` comer um dia e cair na faixa de IOF errada, enquanto a janela do CDI (que já
+ * normalizava) contava o dia certo. As duas contas discordavam em silêncio.
+ */
 function daysBetween(from: Date, to: Date): number {
-  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / 86_400_000));
+  const inicio = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate());
+  const fim = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
+  return Math.max(0, Math.round((fim - inicio) / 86_400_000));
 }
 
 function compound(principal: number, annualRatePercent: number, days: number): number {
