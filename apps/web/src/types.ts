@@ -164,6 +164,8 @@ export interface Financing {
   /** Quanto o bem vale hoje (FIPE/avaliação). */
   assetValue: string | number | null;
   assetValueAt: string | null;
+  /** Foto do bem como data URL, já redimensionada — null quando nunca foi enviada. */
+  photo: string | null;
   notes: string | null;
   active: boolean;
   createdAt: string;

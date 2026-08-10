@@ -122,6 +122,17 @@ export function useUpdateAssetValue() {
   });
 }
 
+/** `photo: null` remove a foto. O backend valida tipo e tamanho — o resize no cliente é conforto. */
+export function useUpdateAssetPhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, photo }: { id: string; photo: string | null }) =>
+      api.patch<Financing>(`/financings/${id}/photo`, { photo }),
+    onSuccess: () => invalidateAll(qc),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useFinancingAssetValues(id: string | null) {
   return useQuery({
     queryKey: ["financings", id, "asset-values"],

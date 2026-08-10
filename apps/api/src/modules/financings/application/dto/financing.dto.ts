@@ -1,5 +1,19 @@
 import { Type } from "class-transformer";
-import { IsBoolean, IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsPositive, IsString, Max, Min, MinLength } from "class-validator";
+import {
+  IsBoolean,
+  IsDateString,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsPositive,
+  IsString,
+  Max,
+  Min,
+  MinLength,
+  ValidateIf,
+} from "class-validator";
 
 const KINDS = ["CAR", "MOTORCYCLE", "HOUSE", "OTHER"] as const;
 
@@ -103,6 +117,15 @@ export class UpdateAssetValueDto {
   @IsOptional()
   @IsString()
   source?: string;
+}
+
+export class UpdateAssetPhotoDto {
+  /** Data URL da foto, ou `null` pra remover. O campo é obrigatório (não `@IsOptional`) pra que
+   *  "remover" seja sempre explícito — um corpo vazio por engano não deve apagar a foto. */
+  @ValidateIf((o) => o.photo !== null)
+  @IsString()
+  @IsNotEmpty()
+  photo!: string | null;
 }
 
 export class PayFinancingInstallmentDto {

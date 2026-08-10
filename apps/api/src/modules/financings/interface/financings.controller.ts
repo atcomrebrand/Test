@@ -5,6 +5,7 @@ import { FinancingsService } from "../application/financings.service";
 import {
   CreateFinancingDto,
   PayFinancingInstallmentDto,
+  UpdateAssetPhotoDto,
   UpdateAssetValueDto,
   UpdateFinancingDto,
   UpdateFinancingInstallmentStatusDto,
@@ -59,6 +60,11 @@ export class FinancingsController {
   @Get(":id/asset-values")
   assetValueHistory(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.service.assetValueHistory(user.userId, id);
+  }
+
+  @Patch(":id/photo")
+  updateAssetPhoto(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: UpdateAssetPhotoDto) {
+    return this.service.updateAssetPhoto(user.userId, id, dto);
   }
 
   @Delete(":id")

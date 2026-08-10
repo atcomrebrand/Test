@@ -9,10 +9,11 @@ import { FinancingFormModal } from "@/components/FinancingFormModal";
 import { PayoffQuoteModal } from "@/components/PayoffQuoteModal";
 import { AssetValueModal } from "@/components/AssetValueModal";
 import { FinancingInstallmentsModal } from "@/components/FinancingInstallmentsModal";
+import { AssetAvatar } from "@/components/AssetAvatar";
 import { useDeleteFinancing, useFinancings, useFinancingSummary } from "@/features/useFinancings";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { FINANCING_KIND_META } from "@/lib/financingKind";
-import { matchAutomakerIcon, matchCarThumbnail } from "@/lib/carIcons";
+import { matchCarThumbnail } from "@/lib/carIcons";
 import { Financing as FinancingType } from "@/types";
 
 export default function Financing() {
@@ -106,8 +107,9 @@ export default function Financing() {
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
           {financings.map((f) => {
             const meta = FINANCING_KIND_META[f.kind];
-            const automaker = f.kind === "CAR" ? matchAutomakerIcon(f.name) : null;
-            const carThumb = f.kind === "CAR" ? matchCarThumbnail(f.name) : null;
+            // A miniatura genérica do modelo é substituta da foto real — com a foto do bem no
+            // card ela vira ruído repetindo a mesma informação pior.
+            const carThumb = f.kind === "CAR" && !f.photo ? matchCarThumbnail(f.name) : null;
             const paidCount = f.installments.filter((i) => i.status === "PAID").length;
             const paidAmount = f.installments
               .filter((i) => i.status === "PAID")
@@ -122,18 +124,7 @@ export default function Financing() {
                 <CardContent className="space-y-4">
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      {automaker ? (
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white shadow-sm ring-1 ring-black/5">
-                          <automaker.Icon className="h-5 w-5" style={{ color: automaker.color }} />
-                        </span>
-                      ) : (
-                        <span
-                          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl"
-                          style={{ backgroundColor: `${meta.color}1a`, color: meta.color }}
-                        >
-                          <meta.icon className="h-5 w-5" />
-                        </span>
-                      )}
+                      <AssetAvatar financing={f} />
                       <div>
                         <p className="font-semibold">{f.name}</p>
                         <p className="text-xs text-muted">

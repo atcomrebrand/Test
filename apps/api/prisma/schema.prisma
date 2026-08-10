@@ -442,6 +442,10 @@ model Financing {
   /// porque nem todo financiamento tem um bem com valor conhecido (ou ainda não foi informado).
   assetValue        Decimal?      @db.Decimal(12, 2)
   assetValueAt      DateTime?
+  /// Foto do bem (carro/imóvel) como data URL, já redimensionada no cliente pra um quadrado
+  /// pequeno. Guardar aqui em vez de em arquivo evita storage/rota estática só pra isso — são
+  /// poucas dezenas de KB por financiamento, e a foto viaja junto do registro no backup.
+  photo             String?
   notes             String?
   active            Boolean       @default(true)
   createdAt         DateTime      @default(now())

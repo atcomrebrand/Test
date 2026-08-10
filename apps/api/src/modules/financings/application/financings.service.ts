@@ -4,9 +4,11 @@ import { FinancingRepository } from "../domain/financing.repository";
 import { generateFixedInstallments } from "../domain/financing-installment-generator";
 import { computeFinancingEquity, sumFinancingEquity } from "../domain/financing-equity";
 import { summarizeAssetValueHistory } from "../domain/asset-value-history";
+import { parseAssetPhoto } from "../domain/asset-photo";
 import {
   CreateFinancingDto,
   PayFinancingInstallmentDto,
+  UpdateAssetPhotoDto,
   UpdateAssetValueDto,
   UpdateFinancingDto,
   UpdateFinancingInstallmentStatusDto,
@@ -187,6 +189,25 @@ export class FinancingsService {
         trend: summarizeAssetValueHistory(await this.financings.listAssetValues(id)),
       },
     };
+  }
+
+  /**
+   * Guarda (ou remove, com `photo: null`) a foto do bem. O cliente já manda redimensionada, mas a
+   * validação de tipo e tamanho é aqui — chamada direta na API não passa pelo redimensionamento.
+   */
+  async updateAssetPhoto(userId: string, id: string, dto: UpdateAssetPhotoDto) {
+    await this.getOwned(userId, id);
+
+    if (dto.photo === null) {
+      await this.financings.update(id, { photo: null });
+      return this.findOne(userId, id);
+    }
+
+    const parsed = parseAssetPhoto(dto.photo);
+    if (!parsed.ok) throw new BadRequestException(parsed.reason);
+
+    await this.financings.update(id, { photo: parsed.dataUrl });
+    return this.findOne(userId, id);
   }
 
   /** Série completa de avaliações + o resumo da trajetória, pro gráfico de histórico de preço. */
