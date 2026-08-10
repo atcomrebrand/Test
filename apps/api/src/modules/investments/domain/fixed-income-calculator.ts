@@ -103,6 +103,37 @@ export function accrueCdiFactor(dailyRatesPercent: number[], cdiPercent: number)
   return factor;
 }
 
+function isBusinessDay(date: Date): boolean {
+  const dow = date.getUTCDay();
+  return dow !== 0 && dow !== 6;
+}
+
+/**
+ * Próximo dia útil depois de `date` — é nele que o dinheiro de um resgate cai, e é por isso que o
+ * extrato do banco mostra a posição avaliada nessa data e não "agora". Só considera fim de semana;
+ * feriado bancário faz o valor adiantar um dia, o que custa o rendimento de um dia até a série do
+ * Bacen alcançar (e aí se corrige sozinho).
+ */
+export function nextBusinessDay(date: Date): Date {
+  const next = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  do {
+    next.setUTCDate(next.getUTCDate() + 1);
+  } while (!isBusinessDay(next));
+  return next;
+}
+
+/** Dias úteis (seg–sex) no intervalo [from, to], contando as duas pontas. 0 se from > to. */
+export function businessDaysBetween(from: Date, to: Date): number {
+  let count = 0;
+  const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+  const end = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
+  while (cursor.getTime() <= end) {
+    if (isBusinessDay(cursor)) count++;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
+}
+
 function irRateForDays(days: number): number {
   if (days <= 180) return 22.5;
   if (days <= 360) return 20;

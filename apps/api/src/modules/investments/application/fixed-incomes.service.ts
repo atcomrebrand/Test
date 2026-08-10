@@ -2,8 +2,15 @@ import { BadRequestException, ForbiddenException, NotFoundException } from "@nes
 import { Injectable } from "@nestjs/common";
 import { InvestmentFixedIncome } from "@prisma/client";
 import { FixedIncomeRepository } from "../domain/fixed-income.repository";
-import { accrueCdiFactor, calculateFixedIncome, principalForTargetNetValue, splitContribution } from "../domain/fixed-income-calculator";
-import { EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
+import {
+  accrueCdiFactor,
+  businessDaysBetween,
+  calculateFixedIncome,
+  nextBusinessDay,
+  principalForTargetNetValue,
+  splitContribution,
+} from "../domain/fixed-income-calculator";
+import { DailyCdiWindow, EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
 import { AddFixedIncomeInterestDto, CreateFixedIncomeDto, RedeemFixedIncomeDto, UpdateFixedIncomeDto } from "./dto/fixed-income.dto";
 
 @Injectable()
@@ -148,11 +155,34 @@ export class FixedIncomesService {
   }
 
   private async enrich(fixedIncome: InvestmentFixedIncome) {
-    const asOfDate = fixedIncome.redeemedAt ?? new Date();
+    // Aplicação ativa é avaliada na data de liquidação (próximo dia útil), não "agora" — é o mesmo
+    // critério do extrato do banco, porque é nesse dia que o dinheiro cairia se resgatasse. Sem
+    // isso o app fica sistematicamente um dia atrás: um dia útil a menos de CDI e, quando a virada
+    // cruza uma faixa, o IOF errado junto. Conferido contra o banco em 2026-08-09: extrato com 19
+    // dias úteis e IOF de 27 dias, app com 18 e 26.
+    const asOfDate = fixedIncome.redeemedAt ?? nextBusinessDay(new Date());
     const { calc, cdiSource } = await this.calculate(fixedIncome, asOfDate);
     // contributedAmount vai resolvido no topo também (não só dentro de calculation) porque é o que
     // as telas e o dashboard mostram como "Investido" — ninguém deveria ter que lembrar do fallback.
     return { ...fixedIncome, contributedAmount: calc.contributedAmount, calculation: calc, cdiSource };
+  }
+
+  /**
+   * O Bacen publica a taxa de um dia útil só no dia seguinte, então a ponta da série está sempre um
+   * passo atrás da data de liquidação. Aqui os dias que faltam são repetidos com a última taxa
+   * publicada — o CDI mal se move de um dia pro outro, e é o que o banco faz pra cotar o resgate.
+   * `projected` sai junto pra que isso nunca seja invisível.
+   */
+  private projetarPontaNaoPublicada(janela: DailyCdiWindow, asOfDate: Date): { rates: number[]; projected: number } {
+    if (janela.rates.length === 0 || !janela.lastDate) return { rates: janela.rates, projected: 0 };
+
+    const primeiroNaoPublicado = new Date(janela.lastDate.getTime() + 86_400_000);
+    const ultimoQueRende = new Date(asOfDate.getTime() - 86_400_000);
+    const faltando = businessDaysBetween(primeiroNaoPublicado, ultimoQueRende);
+    if (faltando <= 0) return { rates: janela.rates, projected: 0 };
+
+    const ultimaTaxa = janela.rates[janela.rates.length - 1];
+    return { rates: [...janela.rates, ...Array(faltando).fill(ultimaTaxa)], projected: faltando };
   }
 
   /** Aplicação que nunca sofreu resgate parcial tem a coluna nula, e aí o dinheiro aportado é o
@@ -176,7 +206,8 @@ export class FixedIncomesService {
     // Com a série diária o número é o mesmo que o banco calcula, dia útil por dia útil. Sem ela
     // (Bacen fora do ar, ou aplicação com data anterior ao que a série cobre) o cálculo continua
     // saindo pela taxa anual de hoje — só que aí é estimativa, e a tela precisa dizer isso.
-    const cdiAccrualFactor = janelaCdi ? accrueCdiFactor(janelaCdi.rates, Number(fixedIncome.cdiPercent ?? 100)) : null;
+    const taxas = janelaCdi ? this.projetarPontaNaoPublicada(janelaCdi, asOfDate) : null;
+    const cdiAccrualFactor = taxas ? accrueCdiFactor(taxas.rates, Number(fixedIncome.cdiPercent ?? 100)) : null;
 
     const calc = calculateFixedIncome({
       principalAmount: principalOverride ?? Number(fixedIncome.principalAmount),
@@ -201,8 +232,10 @@ export class FixedIncomesService {
         ? {
             /** true = veio da série diária oficial do Bacen; false = estimado pela taxa anual de hoje. */
             official: cdiAccrualFactor !== null,
-            businessDays: janelaCdi?.rates.length ?? 0,
+            businessDays: taxas?.rates.length ?? 0,
             lastDate: janelaCdi?.lastDate ?? null,
+            /** Quantos desses dias foram repetidos da última taxa publicada por ainda não terem saído. */
+            projectedDays: taxas?.projected ?? 0,
           }
         : null,
     };

@@ -1,4 +1,12 @@
-import { accrueCdiFactor, calculateFixedIncome, effectiveAnnualRateForCdi, principalForTargetNetValue, splitContribution } from "./fixed-income-calculator";
+import {
+  accrueCdiFactor,
+  businessDaysBetween,
+  calculateFixedIncome,
+  effectiveAnnualRateForCdi,
+  nextBusinessDay,
+  principalForTargetNetValue,
+  splitContribution,
+} from "./fixed-income-calculator";
 
 function daysAfter(base: Date, days: number): Date {
   return new Date(base.getTime() + days * 86_400_000);
@@ -419,5 +427,97 @@ describe("calculateFixedIncome com o fator da série diária", () => {
     expect(result.iofRate).toBe(66); // 10 dias
     expect(result.irRate).toBe(22.5);
     expect(result.netValue).toBeCloseTo(8000 + result.netYield, 9);
+  });
+});
+
+describe("nextBusinessDay / businessDaysBetween", () => {
+  const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+
+  it("de sexta pula pra segunda", () => {
+    expect(nextBusinessDay(d("2026-08-07"))).toEqual(d("2026-08-10"));
+  });
+
+  it("de sábado e de domingo também caem na segunda", () => {
+    expect(nextBusinessDay(d("2026-08-08"))).toEqual(d("2026-08-10"));
+    expect(nextBusinessDay(d("2026-08-09"))).toEqual(d("2026-08-10"));
+  });
+
+  it("num dia útil comum é o dia seguinte", () => {
+    expect(nextBusinessDay(d("2026-08-10"))).toEqual(d("2026-08-11"));
+  });
+
+  it("ignora a hora — o resultado é sempre meia-noite UTC", () => {
+    expect(nextBusinessDay(new Date("2026-08-09T23:47:03.123Z"))).toEqual(d("2026-08-10"));
+  });
+
+  it("conta dias úteis com as duas pontas incluídas", () => {
+    expect(businessDaysBetween(d("2026-08-10"), d("2026-08-10"))).toBe(1);
+    expect(businessDaysBetween(d("2026-08-07"), d("2026-08-10"))).toBe(2); // sex + seg
+    expect(businessDaysBetween(d("2026-07-14"), d("2026-08-07"))).toBe(19);
+  });
+
+  it("intervalo invertido ou só de fim de semana dá zero", () => {
+    expect(businessDaysBetween(d("2026-08-10"), d("2026-08-07"))).toBe(0);
+    expect(businessDaysBetween(d("2026-08-08"), d("2026-08-09"))).toBe(0);
+  });
+});
+
+/**
+ * O caso real que fechou a conferência: CDB BV a 130% do CDI, aplicado em 14/07/2026, com resgate
+ * parcial em 03/08. Em 09/08 (domingo) o extrato do banco mostrava a posição avaliada na
+ * liquidação — segunda, 10/08 — com 19 dias úteis de CDI e IOF na faixa de 27 dias.
+ */
+describe("avaliação na data de liquidação — números reais do extrato", () => {
+  const aplicacao = new Date("2026-07-14T00:00:00.000Z");
+  const liquidacao = nextBusinessDay(new Date("2026-08-09T12:00:00.000Z"));
+  const cdiDiario = (Math.pow(1.1409, 1 / 252) - 1) * 100;
+
+  it("liquidando num domingo, a data de referência é a segunda seguinte", () => {
+    expect(liquidacao).toEqual(new Date("2026-08-10T00:00:00.000Z"));
+  });
+
+  it("reproduz o bruto e o líquido do extrato dentro de centavos", () => {
+    const diasUteis = businessDaysBetween(aplicacao, new Date("2026-08-07T00:00:00.000Z"));
+    expect(diasUteis).toBe(19);
+
+    const result = calculateFixedIncome({
+      principalAmount: 8009.93,
+      applicationDate: aplicacao,
+      asOfDate: liquidacao,
+      type: "CDB",
+      indexer: "POS_FIXADO_CDI",
+      cdiPercent: 130,
+      cdiAnnualRate: 14.09,
+      cdiAccrualFactor: accrueCdiFactor(Array(diasUteis).fill(cdiDiario), 130),
+    });
+
+    expect(result.daysElapsed).toBe(27);
+    expect(result.iofRate).toBe(10); // o banco cobrou 9,99% do rendimento
+    expect(result.irRate).toBe(22.5);
+
+    // A tolerância é de R$ 0,50 e não de centavos porque aqui o CDI é achatado em 14,09% pros 19
+    // dias, enquanto a série real oscilou um pouco no período — em produção quem entra é a série
+    // dia a dia. O que este teste trava é a ordem de grandeza e, principalmente, o dia de
+    // referência: com a data errada a diferença passa de R$ 5, como o teste seguinte mostra.
+    expect(Math.abs(result.grossValue - 8114.31)).toBeLessThan(0.5); // extrato: 8.114,31
+    expect(Math.abs(result.netValue - 8082.74)).toBeLessThan(0.5); // extrato: 8.082,74
+  });
+
+  it("avaliando em 09/08 em vez da liquidação, dá os R$ 6 a menos que o usuário via", () => {
+    const diasUteis = businessDaysBetween(aplicacao, new Date("2026-08-06T00:00:00.000Z"));
+    const atrasado = calculateFixedIncome({
+      principalAmount: 8009.93,
+      applicationDate: aplicacao,
+      asOfDate: new Date("2026-08-09T12:00:00.000Z"),
+      type: "CDB",
+      indexer: "POS_FIXADO_CDI",
+      cdiPercent: 130,
+      cdiAnnualRate: 14.09,
+      cdiAccrualFactor: accrueCdiFactor(Array(diasUteis).fill(cdiDiario), 130),
+    });
+
+    expect(atrasado.daysElapsed).toBe(26);
+    expect(atrasado.iofRate).toBe(13); // a faixa errada, um dia atrás
+    expect(8082.74 - atrasado.netValue).toBeGreaterThan(5);
   });
 });
