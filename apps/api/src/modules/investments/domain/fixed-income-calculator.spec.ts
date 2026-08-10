@@ -6,6 +6,7 @@ import {
   nextBusinessDay,
   principalForTargetNetValue,
   splitContribution,
+  todayInBrazil,
 } from "./fixed-income-calculator";
 
 function daysAfter(base: Date, days: number): Date {
@@ -470,21 +471,20 @@ describe("nextBusinessDay / businessDaysBetween", () => {
 describe("avaliação na data de liquidação — números reais do extrato", () => {
   const aplicacao = new Date("2026-07-14T00:00:00.000Z");
   const liquidacao = nextBusinessDay(new Date("2026-08-09T12:00:00.000Z"));
-  // 14,9% é o patamar que o próprio extrato implica: 18 dias úteis levando R$ 8.009,93 a
-  // R$ 8.114,31 a 130% do CDI só fecha com essa taxa. Em produção quem entra é a série dia a dia;
-  // aqui a taxa é achatada, e é por isso que a tolerância é de centavos e não exata.
-  const cdiDiario = (Math.pow(1.149, 1 / 252) - 1) * 100;
+  // 14,09% é o que o Bacen devolveu na série anual, e é a taxa que fecha com o extrato em 19 dias
+  // úteis. Em produção quem entra é a série dia a dia; aqui ela é achatada, e é por isso que a
+  // tolerância é de centavos e não exata.
+  const cdiDiario = (Math.pow(1.1409, 1 / 252) - 1) * 100;
 
   it("liquidando num domingo, a data de referência é a segunda seguinte", () => {
     expect(liquidacao).toEqual(new Date("2026-08-10T00:00:00.000Z"));
   });
 
   it("reproduz o bruto e o líquido do extrato dentro de centavos", () => {
-    // 18 dias úteis = o que o Bacen tinha publicado (série até 06/08). O rendimento não projeta a
-    // ponta que falta: o banco também espera a taxa sair. O que anda até a liquidação é só a
-    // contagem de imposto.
-    const diasUteis = businessDaysBetween(aplicacao, new Date("2026-08-06T00:00:00.000Z"));
-    expect(diasUteis).toBe(18);
+    // 19 dias úteis = tudo até a véspera da liquidação (07/08, sexta). A série do Bacen só tinha
+    // 18 (até 06/08); o 19º é completado com a última taxa, porque o extrato conta esse dia.
+    const diasUteis = businessDaysBetween(aplicacao, new Date("2026-08-07T00:00:00.000Z"));
+    expect(diasUteis).toBe(19);
 
     const result = calculateFixedIncome({
       principalAmount: 8009.93,
@@ -493,7 +493,7 @@ describe("avaliação na data de liquidação — números reais do extrato", ()
       type: "CDB",
       indexer: "POS_FIXADO_CDI",
       cdiPercent: 130,
-      cdiAnnualRate: 14.9,
+      cdiAnnualRate: 14.09,
       cdiAccrualFactor: accrueCdiFactor(Array(diasUteis).fill(cdiDiario), 130),
     });
 
@@ -518,7 +518,7 @@ describe("avaliação na data de liquidação — números reais do extrato", ()
       type: "CDB",
       indexer: "POS_FIXADO_CDI",
       cdiPercent: 130,
-      cdiAnnualRate: 14.9,
+      cdiAnnualRate: 14.09,
       cdiAccrualFactor: accrueCdiFactor(Array(diasUteis).fill(cdiDiario), 130),
     });
 
@@ -527,9 +527,9 @@ describe("avaliação na data de liquidação — números reais do extrato", ()
     expect(8082.74 - atrasado.netValue).toBeGreaterThan(2);
   });
 
-  /** O erro do outro lado: projetar o dia útil que o Bacen ainda não publicou passa do banco. */
-  it("projetar a ponta não publicada deixa o valor acima do extrato", () => {
-    const cdiDiario2 = (Math.pow(1.149, 1 / 252) - 1) * 100;
+  /** O erro do outro lado: completar até a própria liquidação (e não até a véspera) passa do banco. */
+  it("completar um dia útil a mais deixa o valor acima do extrato", () => {
+    const cdiDiario2 = (Math.pow(1.1409, 1 / 252) - 1) * 100;
     const comProjecao = calculateFixedIncome({
       principalAmount: 8009.93,
       applicationDate: aplicacao,
@@ -537,9 +537,28 @@ describe("avaliação na data de liquidação — números reais do extrato", ()
       type: "CDB",
       indexer: "POS_FIXADO_CDI",
       cdiPercent: 130,
-      cdiAnnualRate: 14.9,
-      cdiAccrualFactor: accrueCdiFactor(Array(19).fill(cdiDiario2), 130), // 18 publicados + 1 projetado
+      cdiAnnualRate: 14.09,
+      cdiAccrualFactor: accrueCdiFactor(Array(20).fill(cdiDiario2), 130), // um dia além da véspera
     });
     expect(comProjecao.netValue).toBeGreaterThan(8082.74 + 2);
+  });
+});
+
+
+describe("todayInBrazil", () => {
+  it("à noite de Brasília o UTC já virou, mas o dia do mercado ainda é o anterior", () => {
+    // 09/08 23:52 em Brasília = 10/08 02:52 em UTC. Foi esse intervalo que fazia a liquidação
+    // pular um dia útil inteiro e o rendimento contar um dia a mais que o banco.
+    expect(todayInBrazil(new Date("2026-08-10T02:52:00.000Z"))).toEqual(new Date("2026-08-09T00:00:00.000Z"));
+    expect(nextBusinessDay(todayInBrazil(new Date("2026-08-10T02:52:00.000Z")))).toEqual(new Date("2026-08-10T00:00:00.000Z"));
+  });
+
+  it("durante o dia em Brasília, UTC e mercado concordam", () => {
+    expect(todayInBrazil(new Date("2026-08-10T15:00:00.000Z"))).toEqual(new Date("2026-08-10T00:00:00.000Z"));
+  });
+
+  it("na virada da meia-noite de Brasília o dia avança", () => {
+    expect(todayInBrazil(new Date("2026-08-10T02:59:59.000Z"))).toEqual(new Date("2026-08-09T00:00:00.000Z"));
+    expect(todayInBrazil(new Date("2026-08-10T03:00:01.000Z"))).toEqual(new Date("2026-08-10T00:00:00.000Z"));
   });
 });

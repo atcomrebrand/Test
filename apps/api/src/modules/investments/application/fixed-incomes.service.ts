@@ -2,8 +2,16 @@ import { BadRequestException, ForbiddenException, NotFoundException } from "@nes
 import { Injectable } from "@nestjs/common";
 import { InvestmentFixedIncome } from "@prisma/client";
 import { FixedIncomeRepository } from "../domain/fixed-income.repository";
-import { accrueCdiFactor, calculateFixedIncome, nextBusinessDay, principalForTargetNetValue, splitContribution } from "../domain/fixed-income-calculator";
-import { EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
+import {
+  accrueCdiFactor,
+  businessDaysBetween,
+  calculateFixedIncome,
+  nextBusinessDay,
+  principalForTargetNetValue,
+  splitContribution,
+  todayInBrazil,
+} from "../domain/fixed-income-calculator";
+import { DailyCdiWindow, EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
 import { AddFixedIncomeInterestDto, CreateFixedIncomeDto, RedeemFixedIncomeDto, UpdateFixedIncomeDto } from "./dto/fixed-income.dto";
 
 @Injectable()
@@ -152,16 +160,36 @@ export class FixedIncomesService {
     // dia que o dinheiro cairia se resgatasse, e é o critério que o extrato usa pra contar IR e
     // IOF. Antes disso o app ficava um dia atrás e cobrava a faixa de IOF errada.
     //
-    // Repare que isso vale só pro imposto: o RENDIMENTO continua sendo só o dos dias úteis que o
-    // Bacen já publicou. Chegamos a projetar a ponta que falta e ficou um dia à frente do banco —
-    // ele também espera a taxa sair. Conferido contra o extrato em 2026-08-09 (série até 06/08,
-    // liquidação em 10/08): 18 dias úteis de rendimento e IOF de 27 dias reproduzem os R$ 8.082,74
-    // do banco a menos de R$ 0,40, que é a diferença de principal que já vinha de antes.
-    const asOfDate = fixedIncome.redeemedAt ?? nextBusinessDay(new Date());
+    // O rendimento vai até a véspera dessa data, e o extrato confirma que ele inclui dias úteis que
+    // o Bacen ainda não publicou — daí completarDiasNaoPublicados. Conferido em 2026-08-09
+    // (domingo, série até 06/08): o banco contava 19 dias úteis (incluindo a sexta 07/08, não
+    // publicada) e IOF de 27 dias.
+    const asOfDate = fixedIncome.redeemedAt ?? nextBusinessDay(todayInBrazil(new Date()));
     const { calc, cdiSource } = await this.calculate(fixedIncome, asOfDate);
     // contributedAmount vai resolvido no topo também (não só dentro de calculation) porque é o que
     // as telas e o dashboard mostram como "Investido" — ninguém deveria ter que lembrar do fallback.
     return { ...fixedIncome, contributedAmount: calc.contributedAmount, calculation: calc, cdiSource };
+  }
+
+  /**
+   * Completa os dias úteis entre a última taxa publicada e a véspera da liquidação, repetindo a
+   * última taxa conhecida. O Bacen publica a taxa de um dia útil só depois dele fechar, mas o banco
+   * já conta esse dia no extrato — sem completar, o app fica um dia atrás.
+   *
+   * O limite é a **véspera da liquidação**, não a liquidação: passar disso conta um dia a mais que
+   * o banco. Foi exatamente o erro que apareceu quando a data de liquidação vinha um dia adiantada
+   * por causa do fuso (ver todayInBrazil).
+   */
+  private completarDiasNaoPublicados(janela: DailyCdiWindow, asOfDate: Date): { rates: number[]; projected: number } {
+    if (janela.rates.length === 0 || !janela.lastDate) return { rates: janela.rates, projected: 0 };
+
+    const primeiroNaoPublicado = new Date(janela.lastDate.getTime() + 86_400_000);
+    const vesperaDaLiquidacao = new Date(asOfDate.getTime() - 86_400_000);
+    const faltando = businessDaysBetween(primeiroNaoPublicado, vesperaDaLiquidacao);
+    if (faltando <= 0) return { rates: janela.rates, projected: 0 };
+
+    const ultimaTaxa = janela.rates[janela.rates.length - 1];
+    return { rates: [...janela.rates, ...Array(faltando).fill(ultimaTaxa)], projected: faltando };
   }
 
   /** Aplicação que nunca sofreu resgate parcial tem a coluna nula, e aí o dinheiro aportado é o
@@ -185,7 +213,8 @@ export class FixedIncomesService {
     // Com a série diária o número é o mesmo que o banco calcula, dia útil por dia útil. Sem ela
     // (Bacen fora do ar, ou aplicação com data anterior ao que a série cobre) o cálculo continua
     // saindo pela taxa anual de hoje — só que aí é estimativa, e a tela precisa dizer isso.
-    const cdiAccrualFactor = janelaCdi ? accrueCdiFactor(janelaCdi.rates, Number(fixedIncome.cdiPercent ?? 100)) : null;
+    const taxas = janelaCdi ? this.completarDiasNaoPublicados(janelaCdi, asOfDate) : null;
+    const cdiAccrualFactor = taxas ? accrueCdiFactor(taxas.rates, Number(fixedIncome.cdiPercent ?? 100)) : null;
 
     const calc = calculateFixedIncome({
       principalAmount: principalOverride ?? Number(fixedIncome.principalAmount),
@@ -210,7 +239,8 @@ export class FixedIncomesService {
         ? {
             /** true = veio da série diária oficial do Bacen; false = estimado pela taxa anual de hoje. */
             official: cdiAccrualFactor !== null,
-            businessDays: janelaCdi?.rates.length ?? 0,
+            businessDays: taxas?.rates.length ?? 0,
+            projectedDays: taxas?.projected ?? 0,
             lastDate: janelaCdi?.lastDate ?? null,
           }
         : null,

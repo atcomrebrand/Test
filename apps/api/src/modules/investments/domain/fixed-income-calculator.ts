@@ -109,6 +109,27 @@ function isBusinessDay(date: Date): boolean {
 }
 
 /**
+ * Que dia é hoje **no Brasil**, como data pura (meia-noite UTC).
+ *
+ * O servidor roda em UTC, e das 21h à meia-noite de Brasília o UTC já virou o dia seguinte. Usar
+ * `new Date()` direto fazia a liquidação pular um dia útil inteiro nesse intervalo — num domingo
+ * às 23h, o app achava que era segunda e liquidava na terça. Quem manda aqui é o calendário do
+ * mercado, não o do servidor.
+ */
+export function todayInBrazil(now: Date): Date {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(now)
+    .split("-")
+    .map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+/**
  * Próximo dia útil depois de `date` — é nele que o dinheiro de um resgate cai, e é por isso que o
  * extrato do banco mostra a posição avaliada nessa data e não "agora". Só considera fim de semana;
  * feriado bancário faz o valor adiantar um dia, o que custa o rendimento de um dia até a série do

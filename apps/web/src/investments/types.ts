@@ -380,6 +380,9 @@ export interface CdiSource {
   businessDays: number;
   /** Último dia útil coberto pela série (ISO), ou null se ela não foi usada. */
   lastDate: string | null;
+  /** Dias úteis completados com a última taxa publicada, porque o Bacen divulga a taxa de um dia
+   *  só depois dele fechar e o extrato já conta esse dia. Normalmente 0 ou 1. */
+  projectedDays: number;
 }
 
 export interface CashAccount {
