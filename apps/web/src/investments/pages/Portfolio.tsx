@@ -140,10 +140,11 @@ function FixedIncomeCard({
         <div className="grid grid-cols-3 gap-2 rounded-xl surface-2 p-3">
           <div className="min-w-0">
             <p className="text-xs text-muted">Investido</p>
-            {/* O aportado, não o principal: depois de um resgate parcial o principal vira base de
-                rendimento e fica alguns reais acima do que a pessoa de fato pôs — era essa a
-                diferença que não batia com o extrato do banco. */}
-            <p className="truncate text-sm font-bold">{formatCurrency(f.calculation.contributedAmount)}</p>
+            {/* O principal (base de rendimento), que é o que o banco chama de "Valor total
+                investido" — conferido contra o extrato num CDB que passou por resgate parcial: o
+                banco também mostra a base proporcional, não o dinheiro em regime de caixa. Esse
+                último existe em calculation.contributedAmount e responde outra pergunta. */}
+            <p className="truncate text-sm font-bold">{formatCurrency(f.principalAmount)}</p>
           </div>
           <div className="min-w-0">
             <p className="text-xs text-muted">Bruto</p>
@@ -157,11 +158,12 @@ function FixedIncomeCard({
 
         <div
           className={`rounded-xl p-3 text-sm font-semibold ${
-            f.calculation.netGain >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
+            f.calculation.netYield >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"
           }`}
         >
-          {f.calculation.netGain >= 0 ? "+" : "-"}
-          {formatCurrency(Math.abs(f.calculation.netGain))} ({f.calculation.netGainPercent.toFixed(2)}%)
+          {/* Contra o principal, igual ao "Rendimento líquido" do extrato. */}
+          {f.calculation.netYield >= 0 ? "+" : "-"}
+          {formatCurrency(Math.abs(f.calculation.netYield))} ({f.calculation.netProfitabilityPercent.toFixed(2)}%)
         </div>
 
         <div className="grid grid-cols-3 gap-2 text-center text-xs">
@@ -175,7 +177,7 @@ function FixedIncomeCard({
           </div>
           <div className="rounded-lg surface-2 p-2">
             <p className="text-muted">Rent. líquida</p>
-            <p className="font-semibold">{f.calculation.netGainPercent.toFixed(2)}%</p>
+            <p className="font-semibold">{f.calculation.netProfitabilityPercent.toFixed(2)}%</p>
           </div>
         </div>
 
@@ -485,7 +487,7 @@ export default function Portfolio() {
                   Valor resgatado: {formatCurrency(unredeemTarget.redeemedNetAmount ?? 0)} em{" "}
                   {unredeemTarget.redeemedAt ? formatDate(unredeemTarget.redeemedAt) : "-"}
                 </p>
-                <p>Valor aplicado: {formatCurrency(unredeemTarget.calculation.contributedAmount)}</p>
+                <p>Valor aplicado: {formatCurrency(unredeemTarget.principalAmount)}</p>
               </div>
               <p className="mt-1 text-xs">
                 Confira se é essa a aplicação certa antes de confirmar — se o resgate foi parcial, a fatia resgatada vira um registro
