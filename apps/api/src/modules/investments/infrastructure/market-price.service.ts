@@ -11,10 +11,17 @@ import {
 } from "../domain/market-data.provider";
 import { FundamentusProvider } from "./providers/fundamentus.provider";
 import { FundamentusIndicators } from "../domain/fundamentus-parser";
+import { decideQuoteAction } from "../domain/quote-cache-policy";
 import { YahooDividendsProvider } from "./providers/yahoo-dividends.provider";
 
 /** Short TTL so prices feel live without hammering the free-tier BRAPI/CoinGecko rate limits. */
 const PRICE_TTL_MS = 5 * 60 * 1000;
+/**
+ * Quanto tempo um símbolo fica de quarentena depois que o provedor falha. Sem isso, cada
+ * requisição recomeçava a fila inteira contra uma BRAPI fora do ar e pagava o timeout de novo,
+ * símbolo por símbolo — foi o que deixou a carteira levando ~40s pra abrir.
+ */
+const PROVIDER_BACKOFF_MS = 2 * 60 * 1000;
 /** History/fundamentals change far less often intraday, so they get a longer TTL. */
 const DETAIL_TTL_MS = 30 * 60 * 1000;
 /** Balanços/DRE only change quarterly at most — a long TTL keeps the heavier multi-module lookup
@@ -43,6 +50,15 @@ export interface AssetQuoteDetail {
 export class MarketPriceService {
   private readonly logger = new Logger(MarketPriceService.name);
 
+  /** Símbolo -> instante em que a quarentena por falha do provedor expira. Em memória de
+   *  propósito: é estado operacional do processo, não histórico — reiniciar a API deve dar uma
+   *  chance nova a cada símbolo, e não vale uma coluna no banco pra isso. */
+  private readonly backoffUntil = new Map<string, number>();
+  /** Buscas em andamento, pra duas requisições simultâneas do mesmo símbolo não virarem duas
+   *  conexões. O log mostrava exatamente isso: o mesmo lote de tickers falhando duas vezes com
+   *  1 segundo de diferença, porque Portfolio e Dashboard carregam juntos. */
+  private readonly inFlight = new Map<string, Promise<unknown>>();
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly stockProvider: StockQuoteProvider,
@@ -61,21 +77,74 @@ export class MarketPriceService {
       where: { symbol_assetClass: { symbol, assetClass } },
     });
 
-    const isFresh = cached && !options.forceRefresh && Date.now() - cached.fetchedAt.getTime() < PRICE_TTL_MS;
-    if (isFresh) return { price: Number(cached.price), approximate: cached.approximate };
+    const served = cached ? { price: Number(cached.price), approximate: cached.approximate } : null;
+    const action = decideQuoteAction({
+      cachedAt: cached?.fetchedAt ?? null,
+      backoffUntil: this.backoffFor(assetClass, symbol),
+      forceRefresh: options.forceRefresh ?? false,
+      ttlMs: PRICE_TTL_MS,
+      now: new Date(),
+    });
+
+    if (action === "SERVE_FRESH") return served;
+    if (action === "GIVE_UP") return null;
+
+    if (action === "SERVE_STALE_REFRESH_IN_BACKGROUND") {
+      // Devolve o que já temos e atualiza por fora. Antes, esse caminho esperava o timeout do
+      // provedor pra no fim servir este mesmo número — com a BRAPI fora, ~8s por símbolo.
+      void this.refreshPrice(assetClass, symbol).catch(() => undefined);
+      return served;
+    }
 
     try {
-      const quote = await this.fetchQuoteFromProvider(assetClass, symbol);
-      await this.prisma.investmentPriceCache.upsert({
-        where: { symbol_assetClass: { symbol, assetClass } },
-        create: { symbol, assetClass, price: quote.price, currency: quote.currency, approximate: quote.approximate ?? false, source: this.sourceFor(assetClass) },
-        update: { price: quote.price, currency: quote.currency, approximate: quote.approximate ?? false, fetchedAt: new Date(), source: this.sourceFor(assetClass) },
-      });
+      const quote = await this.refreshPrice(assetClass, symbol);
       return { price: quote.price, approximate: quote.approximate ?? false };
-    } catch (err) {
-      this.logger.warn(`Quote refresh failed for ${assetClass} ${symbol}: ${(err as Error).message}`);
-      return cached ? { price: Number(cached.price), approximate: cached.approximate } : null;
+    } catch {
+      return served;
     }
+  }
+
+  /** Busca no provedor e grava. Deduplica: chamadas simultâneas pro mesmo símbolo compartilham a
+   *  mesma promise em vez de abrirem uma conexão cada. */
+  private refreshPrice(assetClass: InvestmentAssetClass, symbol: string) {
+    const key = `price:${assetClass}:${symbol}`;
+    const running = this.inFlight.get(key) as Promise<{ price: number; approximate?: boolean }> | undefined;
+    if (running) return running;
+
+    const promise = (async () => {
+      try {
+        const quote = await this.fetchQuoteFromProvider(assetClass, symbol);
+        await this.prisma.investmentPriceCache.upsert({
+          where: { symbol_assetClass: { symbol, assetClass } },
+          create: { symbol, assetClass, price: quote.price, currency: quote.currency, approximate: quote.approximate ?? false, source: this.sourceFor(assetClass) },
+          update: { price: quote.price, currency: quote.currency, approximate: quote.approximate ?? false, fetchedAt: new Date(), source: this.sourceFor(assetClass) },
+        });
+        this.backoffUntil.delete(this.backoffKey(assetClass, symbol));
+        return quote;
+      } catch (err) {
+        this.startBackoff(assetClass, symbol);
+        this.logger.warn(`Quote refresh failed for ${assetClass} ${symbol}: ${(err as Error).message}`);
+        throw err;
+      } finally {
+        this.inFlight.delete(key);
+      }
+    })();
+
+    this.inFlight.set(key, promise);
+    return promise;
+  }
+
+  private backoffKey(assetClass: InvestmentAssetClass, symbol: string) {
+    return `${assetClass}:${symbol}`;
+  }
+
+  private backoffFor(assetClass: InvestmentAssetClass, symbol: string): Date | null {
+    const until = this.backoffUntil.get(this.backoffKey(assetClass, symbol));
+    return until ? new Date(until) : null;
+  }
+
+  private startBackoff(assetClass: InvestmentAssetClass, symbol: string) {
+    this.backoffUntil.set(this.backoffKey(assetClass, symbol), Date.now() + PROVIDER_BACKOFF_MS);
   }
 
   /** Live price + change% + price history + fundamentals, for the asset detail page. Falls back
@@ -86,17 +155,34 @@ export class MarketPriceService {
     });
 
     const hasDetail = cached?.history !== null && cached?.history !== undefined;
-    const isFresh = cached && hasDetail && !options.forceRefresh && Date.now() - cached.fetchedAt.getTime() < DETAIL_TTL_MS;
-    if (isFresh) {
-      return {
-        price: Number(cached.price),
-        currency: cached.currency,
-        changePercent: cached.changePercent !== null ? Number(cached.changePercent) : null,
-        history: (cached.history as unknown as HistoricalPricePoint[]) ?? [],
-        fundamentals: (cached.fundamentals as AssetFundamentals) ?? {},
-        fetchedAt: cached.fetchedAt,
-        approximate: cached.approximate,
-      };
+    const servedFromCache = cached
+      ? {
+          price: Number(cached.price),
+          currency: cached.currency,
+          changePercent: cached.changePercent !== null ? Number(cached.changePercent) : null,
+          history: (cached.history as unknown as HistoricalPricePoint[]) ?? [],
+          fundamentals: (cached.fundamentals as AssetFundamentals) ?? {},
+          fetchedAt: cached.fetchedAt,
+          approximate: cached.approximate,
+        }
+      : null;
+
+    // Mesma política do preço: só vale segurar a tela esperando a rede quando não há nada guardado.
+    // `cachedAt` só conta quando o detalhe (com histórico) está lá — uma linha que só tem preço não
+    // serve pra essa página.
+    const action = decideQuoteAction({
+      cachedAt: cached && hasDetail ? cached.fetchedAt : null,
+      backoffUntil: this.backoffFor(assetClass, symbol),
+      forceRefresh: options.forceRefresh ?? false,
+      ttlMs: DETAIL_TTL_MS,
+      now: new Date(),
+    });
+
+    if (action === "SERVE_FRESH") return servedFromCache;
+    if (action === "GIVE_UP") return servedFromCache;
+    if (action === "SERVE_STALE_REFRESH_IN_BACKGROUND") {
+      void this.getDetail(assetClass, symbol, { forceRefresh: true }).catch(() => undefined);
+      return servedFromCache;
     }
 
     try {
@@ -135,17 +221,11 @@ export class MarketPriceService {
         approximate: saved.approximate,
       };
     } catch (err) {
+      // Põe o símbolo de quarentena junto com o preço: falhou o detalhe, provavelmente o provedor
+      // está fora pra tudo — a próxima tela não deve pagar o timeout de novo pra descobrir isso.
+      this.startBackoff(assetClass, symbol);
       this.logger.warn(`Detail refresh failed for ${assetClass} ${symbol}: ${(err as Error).message}`);
-      if (!cached) return null;
-      return {
-        price: Number(cached.price),
-        currency: cached.currency,
-        changePercent: cached.changePercent !== null ? Number(cached.changePercent) : null,
-        history: (cached.history as unknown as HistoricalPricePoint[]) ?? [],
-        fundamentals: (cached.fundamentals as AssetFundamentals) ?? {},
-        fetchedAt: cached.fetchedAt,
-        approximate: cached.approximate,
-      };
+      return servedFromCache;
     }
   }
 

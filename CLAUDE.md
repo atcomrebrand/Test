@@ -74,6 +74,15 @@ Isso já foi mexido duas vezes por entender errado o que o usuário estava compa
 - `cdiAnnualRate` (SGS 4392) continua existindo só como **fallback**: extrapola a taxa de hoje pro período inteiro. Quando é ele que entra, `cdiSource.official` vem `false` e a tela mostra um aviso âmbar de "valor estimado" — um CDI errado vira dezenas de reais numa posição grande e **não pode passar despercebido**.
 - Os valores em `FALLBACK_CDI_RATE`/`FALLBACK_IPCA_RATE` (bacen.provider.ts) são a última linha de defesa se o Bacen cair. Mantê-los perto do patamar corrente; o valor antigo de 10,75% ficou anos desatualizado e erraria centenas de reais em silêncio.
 
+## Cotação de ativos: nunca esperar a rede por um número que já temos
+
+- `MarketPriceService` sempre teve cache com TTL, mas o fallback pro valor guardado só acontecia **depois** do timeout. Com a BRAPI fora do ar, uma carteira de ~18 tickers (lotes de 4, timeout de 8s) levava ~36s pra exibir exatamente o mesmo número que já estava no banco no instante zero.
+- A regra agora mora em `decideQuoteAction` (domain, com spec): **cache velho é servido na hora e a atualização vai pra segundo plano**; esperar a rede só quando não há nada pra mostrar.
+- **Quarentena de 2min por símbolo** depois de uma falha (`PROVIDER_BACKOFF_MS`, em memória). Sem ela, cada requisição recomeçava a fila inteira contra um provedor morto — e era o que enchia o log de `Quote refresh failed` em loop.
+- `forceRefresh` (botão "atualizar") fura o TTL, mas **não** a quarentena: insistir num provedor que acabou de estourar o timeout só entrega o mesmo timeout, agora com o usuário parado olhando pra tela.
+- Requisições simultâneas do mesmo símbolo compartilham a mesma promise (`inFlight`). O log mostrava o mesmo lote falhando duas vezes com 1s de diferença — Portfolio e Dashboard carregam juntos.
+- **Diagnóstico**: `Quote refresh failed ... aborted due to timeout` em rajadas de 4 a cada ~8s = provedor fora, não app lento. Confirmar com `free -h` e o `CPU` do `systemctl status` antes de culpar o código: em 2026-08-10 a VPS estava com 559Mi livres e a API com 12,5s de CPU em 55min, ou seja, presa em I/O de rede.
+
 ## Financiamentos: valor do bem e patrimônio
 
 - `Financing.assetValue`/`assetValueAt` (nullable) = quanto o bem vale **hoje** (FIPE do veículo, valor de mercado do imóvel). `FinancingAssetValue` guarda a **série** de avaliações — a FIPE muda todo mês, então a avaliação nova não substitui a anterior, ela se soma ao histórico (mesmo padrão de `FinancingPayoffQuote`). O campo desnormalizado é sempre a **última escrita**, não necessariamente a avaliação de data mais recente; o gráfico ordena por data (`summarizeAssetValueHistory`), então backdatar uma avaliação faz os dois divergirem de propósito.
