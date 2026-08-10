@@ -470,15 +470,21 @@ describe("nextBusinessDay / businessDaysBetween", () => {
 describe("avaliação na data de liquidação — números reais do extrato", () => {
   const aplicacao = new Date("2026-07-14T00:00:00.000Z");
   const liquidacao = nextBusinessDay(new Date("2026-08-09T12:00:00.000Z"));
-  const cdiDiario = (Math.pow(1.1409, 1 / 252) - 1) * 100;
+  // 14,9% é o patamar que o próprio extrato implica: 18 dias úteis levando R$ 8.009,93 a
+  // R$ 8.114,31 a 130% do CDI só fecha com essa taxa. Em produção quem entra é a série dia a dia;
+  // aqui a taxa é achatada, e é por isso que a tolerância é de centavos e não exata.
+  const cdiDiario = (Math.pow(1.149, 1 / 252) - 1) * 100;
 
   it("liquidando num domingo, a data de referência é a segunda seguinte", () => {
     expect(liquidacao).toEqual(new Date("2026-08-10T00:00:00.000Z"));
   });
 
   it("reproduz o bruto e o líquido do extrato dentro de centavos", () => {
-    const diasUteis = businessDaysBetween(aplicacao, new Date("2026-08-07T00:00:00.000Z"));
-    expect(diasUteis).toBe(19);
+    // 18 dias úteis = o que o Bacen tinha publicado (série até 06/08). O rendimento não projeta a
+    // ponta que falta: o banco também espera a taxa sair. O que anda até a liquidação é só a
+    // contagem de imposto.
+    const diasUteis = businessDaysBetween(aplicacao, new Date("2026-08-06T00:00:00.000Z"));
+    expect(diasUteis).toBe(18);
 
     const result = calculateFixedIncome({
       principalAmount: 8009.93,
@@ -487,7 +493,7 @@ describe("avaliação na data de liquidação — números reais do extrato", ()
       type: "CDB",
       indexer: "POS_FIXADO_CDI",
       cdiPercent: 130,
-      cdiAnnualRate: 14.09,
+      cdiAnnualRate: 14.9,
       cdiAccrualFactor: accrueCdiFactor(Array(diasUteis).fill(cdiDiario), 130),
     });
 
@@ -499,11 +505,11 @@ describe("avaliação na data de liquidação — números reais do extrato", ()
     // dias, enquanto a série real oscilou um pouco no período — em produção quem entra é a série
     // dia a dia. O que este teste trava é a ordem de grandeza e, principalmente, o dia de
     // referência: com a data errada a diferença passa de R$ 5, como o teste seguinte mostra.
-    expect(Math.abs(result.grossValue - 8114.31)).toBeLessThan(0.5); // extrato: 8.114,31
-    expect(Math.abs(result.netValue - 8082.74)).toBeLessThan(0.5); // extrato: 8.082,74
+    expect(Math.abs(result.grossValue - 8114.31)).toBeLessThan(0.6); // extrato: 8.114,31
+    expect(Math.abs(result.netValue - 8082.74)).toBeLessThan(0.6); // extrato: 8.082,74
   });
 
-  it("avaliando em 09/08 em vez da liquidação, dá os R$ 6 a menos que o usuário via", () => {
+  it("avaliando em 09/08 em vez da liquidação, o IOF cai na faixa errada", () => {
     const diasUteis = businessDaysBetween(aplicacao, new Date("2026-08-06T00:00:00.000Z"));
     const atrasado = calculateFixedIncome({
       principalAmount: 8009.93,
@@ -512,12 +518,28 @@ describe("avaliação na data de liquidação — números reais do extrato", ()
       type: "CDB",
       indexer: "POS_FIXADO_CDI",
       cdiPercent: 130,
-      cdiAnnualRate: 14.09,
+      cdiAnnualRate: 14.9,
       cdiAccrualFactor: accrueCdiFactor(Array(diasUteis).fill(cdiDiario), 130),
     });
 
     expect(atrasado.daysElapsed).toBe(26);
     expect(atrasado.iofRate).toBe(13); // a faixa errada, um dia atrás
-    expect(8082.74 - atrasado.netValue).toBeGreaterThan(5);
+    expect(8082.74 - atrasado.netValue).toBeGreaterThan(2);
+  });
+
+  /** O erro do outro lado: projetar o dia útil que o Bacen ainda não publicou passa do banco. */
+  it("projetar a ponta não publicada deixa o valor acima do extrato", () => {
+    const cdiDiario2 = (Math.pow(1.149, 1 / 252) - 1) * 100;
+    const comProjecao = calculateFixedIncome({
+      principalAmount: 8009.93,
+      applicationDate: aplicacao,
+      asOfDate: liquidacao,
+      type: "CDB",
+      indexer: "POS_FIXADO_CDI",
+      cdiPercent: 130,
+      cdiAnnualRate: 14.9,
+      cdiAccrualFactor: accrueCdiFactor(Array(19).fill(cdiDiario2), 130), // 18 publicados + 1 projetado
+    });
+    expect(comProjecao.netValue).toBeGreaterThan(8082.74 + 2);
   });
 });

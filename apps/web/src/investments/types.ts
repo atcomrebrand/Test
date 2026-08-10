@@ -380,9 +380,6 @@ export interface CdiSource {
   businessDays: number;
   /** Último dia útil coberto pela série (ISO), ou null se ela não foi usada. */
   lastDate: string | null;
-  /** Dias úteis repetidos da última taxa publicada porque o Bacen ainda não divulgou — normalmente
-   *  1, que é a defasagem natural até a data de liquidação. */
-  projectedDays: number;
 }
 
 export interface CashAccount {
