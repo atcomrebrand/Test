@@ -148,6 +148,7 @@ model User {
   financings            Financing[]
   financingInstallments FinancingInstallment[]
   financingPayoffQuotes FinancingPayoffQuote[]
+  financingAssetValues  FinancingAssetValue[]
 
   investmentAssets        InvestmentAsset[]
   investmentTransactions  InvestmentTransaction[]
@@ -436,6 +437,11 @@ model Financing {
   /// Latest cash-payoff quote from the lender ("quitação à vista") — overwritten each time a new proposal arrives.
   payoffAmount      Decimal?      @db.Decimal(12, 2)
   payoffQuotedAt    DateTime?
+  /// Quanto o bem vale hoje: tabela FIPE pro veículo, valor de mercado pro imóvel. É a outra
+  /// metade do patrimônio — sem ela o app só enxerga a dívida e subestima o líquido. Nullable
+  /// porque nem todo financiamento tem um bem com valor conhecido (ou ainda não foi informado).
+  assetValue        Decimal?      @db.Decimal(12, 2)
+  assetValueAt      DateTime?
   notes             String?
   active            Boolean       @default(true)
   createdAt         DateTime      @default(now())
@@ -443,9 +449,29 @@ model Financing {
 
   installments FinancingInstallment[]
   payoffQuotes FinancingPayoffQuote[]
+  assetValues  FinancingAssetValue[]
 
   @@index([userId, active])
   @@map("financings")
+}
+
+/// Histórico do valor de mercado do bem — a FIPE muda todo mês e imóvel se reavalia de tempos em
+/// tempos, então guardar a série é o que permite ver se o patrimônio está subindo ou se o bem está
+/// desvalorizando mais rápido do que a dívida cai.
+model FinancingAssetValue {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  financingId String
+  financing   Financing @relation(fields: [financingId], references: [id], onDelete: Cascade)
+  amount      Decimal   @db.Decimal(12, 2)
+  /// De onde veio o número (ex.: "Tabela FIPE", "Avaliação da imobiliária") — texto livre.
+  source      String?
+  valuedAt    DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([financingId, valuedAt])
+  @@map("financing_asset_values")
 }
 
 /// History of cash-payoff ("quitação à vista") proposals, so a new quote can be compared

@@ -12,6 +12,8 @@ export interface CreateFinancingData {
   firstDueDate: Date;
   payoffAmount?: number;
   payoffQuotedAt?: Date;
+  assetValue?: number;
+  assetValueAt?: Date;
   notes?: string;
 }
 
@@ -39,4 +41,8 @@ export abstract class FinancingRepository {
   abstract listPayoffQuotesSince(financingId: string, since: Date): Promise<{ amount: number; quotedAt: Date }[]>;
   /** Every quote ever recorded for this financing, most recent first — for the full history view. */
   abstract listPayoffQuotes(financingId: string): Promise<{ amount: number; quotedAt: Date }[]>;
+  /** Guarda uma avaliação do bem no histórico — a FIPE muda todo mês, então o valor de hoje não
+   *  substitui o de antes, ele se soma à série. */
+  abstract addAssetValue(userId: string, financingId: string, amount: number, valuedAt: Date, source?: string): Promise<void>;
+  abstract listAssetValues(financingId: string): Promise<{ amount: number; valuedAt: Date; source: string | null }[]>;
 }

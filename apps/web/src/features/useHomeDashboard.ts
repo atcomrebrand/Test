@@ -3,9 +3,15 @@ import { api } from "@/lib/api";
 
 export interface HomeNetWorth {
   assets: number;
+  /** Quanto dos ativos vem da carteira de investimentos… */
+  investedAssets: number;
+  /** …e quanto vem de bem financiado avaliado (FIPE/avaliação). Os dois somam `assets`. */
+  financedAssets: number;
   debts: number;
   netWorth: number;
   debtToAssetPct: number | null;
+  /** Bens financiados ativos ainda sem valor informado — o patrimônio está incompleto. */
+  assetsPendingValuation: number;
 }
 
 export interface HomeUpcomingEvent {
@@ -65,6 +71,7 @@ export interface HomeDashboard {
       committedThisMonth: number;
       totalRemaining: number;
       nextInstallment: { financingId: string; financingName: string; dueDate: string; amount: number } | null;
+      equity: { assetsValue: number; debt: number; equity: number; withoutAssetValue: number };
     };
     cotacoes: { symbol: string; label: string; flag: string; rate: number | null; previousClose: number | null }[];
   };

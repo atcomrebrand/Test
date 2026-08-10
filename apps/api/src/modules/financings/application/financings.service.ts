@@ -1,9 +1,13 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
+import { Financing, FinancingInstallment } from "@prisma/client";
 import { FinancingRepository } from "../domain/financing.repository";
 import { generateFixedInstallments } from "../domain/financing-installment-generator";
+import { computeFinancingEquity, sumFinancingEquity } from "../domain/financing-equity";
+import { summarizeAssetValueHistory } from "../domain/asset-value-history";
 import {
   CreateFinancingDto,
   PayFinancingInstallmentDto,
+  UpdateAssetValueDto,
   UpdateFinancingDto,
   UpdateFinancingInstallmentStatusDto,
   UpdatePayoffDto,
@@ -12,23 +16,55 @@ import {
 /** How far back we look to judge whether a new payoff quote is the best one seen lately. */
 const PAYOFF_COMPARISON_WINDOW_MONTHS = 3;
 
+type FinancingWithInstallments = Financing & { installments: FinancingInstallment[] };
+
 @Injectable()
 export class FinancingsService {
   constructor(private readonly financings: FinancingRepository) {}
 
   async findAll(userId: string) {
     await this.financings.refreshLateStatuses(userId);
-    return this.financings.findAllByUser(userId);
+    const financings = await this.financings.findAllByUser(userId);
+    return financings.map((f) => this.present(f));
   }
 
   async findOne(userId: string, id: string) {
     const financing = await this.getOwned(userId, id);
-    return this.financings.findByIdWithInstallments(financing.id);
+    const full = await this.financings.findByIdWithInstallments(financing.id);
+    return full ? this.present(full) : null;
   }
 
   async summary(userId: string) {
     await this.financings.refreshLateStatuses(userId);
-    return this.financings.summary(userId);
+    const [summary, financings] = await Promise.all([
+      this.financings.summary(userId),
+      this.financings.findAllByUser(userId),
+    ]);
+
+    // Patrimônio só dos ativos: um financiamento arquivado não tem mais dívida nem bem em jogo.
+    const equity = sumFinancingEquity(
+      financings.filter((f) => f.active).map((f) => this.equityInputFor(f)),
+    );
+
+    return { ...summary, equity };
+  }
+
+  /**
+   * Anexa o patrimônio do bem ao financiamento — todo card que mostra dívida precisa mostrar
+   * também o que o bem vale, senão o app só enxerga a metade negativa da conta.
+   */
+  private present(financing: FinancingWithInstallments) {
+    return { ...financing, equity: computeFinancingEquity(this.equityInputFor(financing)) };
+  }
+
+  private equityInputFor(financing: FinancingWithInstallments) {
+    return {
+      assetValue: financing.assetValue !== null ? Number(financing.assetValue) : null,
+      payoffAmount: financing.payoffAmount !== null ? Number(financing.payoffAmount) : null,
+      remainingInstallments: financing.installments
+        .filter((i) => i.status === "PENDING" || i.status === "LATE")
+        .reduce((sum, i) => sum + Number(i.amount), 0),
+    };
   }
 
   async create(userId: string, dto: CreateFinancingDto) {
@@ -46,6 +82,7 @@ export class FinancingsService {
     });
 
     const payoffQuotedAt = dto.payoffAmount !== undefined ? new Date(dto.payoffQuotedAt ?? Date.now()) : undefined;
+    const assetValueAt = dto.assetValue !== undefined ? new Date(dto.assetValueAt ?? Date.now()) : undefined;
 
     const financing = await this.financings.createWithInstallments(
       {
@@ -59,6 +96,8 @@ export class FinancingsService {
         firstDueDate: installments[0].dueDate,
         payoffAmount: dto.payoffAmount,
         payoffQuotedAt,
+        assetValue: dto.assetValue,
+        assetValueAt,
         notes: dto.notes,
       },
       installments,
@@ -67,14 +106,19 @@ export class FinancingsService {
     if (dto.payoffAmount !== undefined && payoffQuotedAt) {
       await this.financings.addPayoffQuote(userId, financing.id, dto.payoffAmount, payoffQuotedAt);
     }
+    // A avaliação informada na criação já entra no histórico — senão o primeiro ponto da série
+    // só apareceria na segunda avaliação, e o gráfico começaria sem o ponto de partida.
+    if (dto.assetValue !== undefined && assetValueAt) {
+      await this.financings.addAssetValue(userId, financing.id, dto.assetValue, assetValueAt, dto.assetValueSource);
+    }
 
-    return this.financings.findByIdWithInstallments(financing.id);
+    return this.findOne(userId, financing.id);
   }
 
   async update(userId: string, id: string, dto: UpdateFinancingDto) {
     await this.getOwned(userId, id);
     await this.financings.update(id, dto as Record<string, unknown>);
-    return this.financings.findByIdWithInstallments(id);
+    return this.findOne(userId, id);
   }
 
   /**
@@ -101,7 +145,7 @@ export class FinancingsService {
     await this.financings.update(id, { payoffAmount: dto.payoffAmount, payoffQuotedAt: quotedAt });
 
     return {
-      financing: await this.financings.findByIdWithInstallments(id),
+      financing: await this.findOne(userId, id),
       comparison: {
         previousAmount,
         percentChange,
@@ -115,6 +159,41 @@ export class FinancingsService {
   async payoffQuoteHistory(userId: string, id: string) {
     await this.getOwned(userId, id);
     return this.financings.listPayoffQuotes(id);
+  }
+
+  /**
+   * Registra quanto o bem vale hoje. A avaliação nova não substitui a anterior: entra na série
+   * (a FIPE muda todo mês) e só então vira o valor corrente do financiamento. Devolve o
+   * patrimônio recalculado, porque é isso que muda na tela — a dívida continua a mesma, o que
+   * mexeu foi o outro lado da conta.
+   */
+  async updateAssetValue(userId: string, id: string, dto: UpdateAssetValueDto) {
+    const financing = await this.getOwned(userId, id);
+    const valuedAt = dto.valuedAt ? new Date(dto.valuedAt) : new Date();
+
+    const previousAmount = financing.assetValue !== null ? Number(financing.assetValue) : null;
+    const percentChange =
+      previousAmount && previousAmount > 0 ? ((dto.assetValue - previousAmount) / previousAmount) * 100 : null;
+
+    await this.financings.addAssetValue(userId, id, dto.assetValue, valuedAt, dto.source);
+    await this.financings.update(id, { assetValue: dto.assetValue, assetValueAt: valuedAt });
+
+    const updated = await this.findOne(userId, id);
+    return {
+      financing: updated,
+      comparison: {
+        previousAmount,
+        percentChange,
+        trend: summarizeAssetValueHistory(await this.financings.listAssetValues(id)),
+      },
+    };
+  }
+
+  /** Série completa de avaliações + o resumo da trajetória, pro gráfico de histórico de preço. */
+  async assetValueHistory(userId: string, id: string) {
+    await this.getOwned(userId, id);
+    const valuations = await this.financings.listAssetValues(id);
+    return { valuations, trend: summarizeAssetValueHistory(valuations) };
   }
 
   async remove(userId: string, id: string) {

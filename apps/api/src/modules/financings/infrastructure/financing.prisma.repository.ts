@@ -42,6 +42,8 @@ export class FinancingPrismaRepository extends FinancingRepository {
           firstDueDate: data.firstDueDate,
           payoffAmount: data.payoffAmount,
           payoffQuotedAt: data.payoffQuotedAt,
+          assetValue: data.assetValue,
+          assetValueAt: data.assetValueAt,
           notes: data.notes,
         },
       });
@@ -170,5 +172,14 @@ export class FinancingPrismaRepository extends FinancingRepository {
       select: { amount: true, quotedAt: true },
     });
     return quotes.map((q) => ({ amount: Number(q.amount), quotedAt: q.quotedAt }));
+  }
+
+  async addAssetValue(userId: string, financingId: string, amount: number, valuedAt: Date, source?: string): Promise<void> {
+    await this.prisma.financingAssetValue.create({ data: { userId, financingId, amount, valuedAt, source } });
+  }
+
+  async listAssetValues(financingId: string): Promise<{ amount: number; valuedAt: Date; source: string | null }[]> {
+    const rows = await this.prisma.financingAssetValue.findMany({ where: { financingId }, orderBy: { valuedAt: "asc" } });
+    return rows.map((r) => ({ amount: Number(r.amount), valuedAt: r.valuedAt, source: r.source }));
   }
 }

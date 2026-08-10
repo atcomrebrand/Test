@@ -5,6 +5,7 @@ import { FinancingsService } from "../application/financings.service";
 import {
   CreateFinancingDto,
   PayFinancingInstallmentDto,
+  UpdateAssetValueDto,
   UpdateFinancingDto,
   UpdateFinancingInstallmentStatusDto,
   UpdatePayoffDto,
@@ -48,6 +49,16 @@ export class FinancingsController {
   @Get(":id/payoff-quotes")
   payoffQuoteHistory(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.service.payoffQuoteHistory(user.userId, id);
+  }
+
+  @Patch(":id/asset-value")
+  updateAssetValue(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: UpdateAssetValueDto) {
+    return this.service.updateAssetValue(user.userId, id, dto);
+  }
+
+  @Get(":id/asset-values")
+  assetValueHistory(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.service.assetValueHistory(user.userId, id);
   }
 
   @Delete(":id")

@@ -50,6 +50,21 @@ export class CreateFinancingDto {
   @IsDateString()
   payoffQuotedAt?: string;
 
+  /** Quanto o bem vale hoje (FIPE/avaliação) — opcional já na criação, pra não obrigar duas telas. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  assetValue?: number;
+
+  @IsOptional()
+  @IsDateString()
+  assetValueAt?: string;
+
+  @IsOptional()
+  @IsString()
+  assetValueSource?: string;
+
   @IsOptional()
   @IsString()
   notes?: string;
@@ -72,6 +87,22 @@ export class UpdatePayoffDto {
   @IsOptional()
   @IsDateString()
   payoffQuotedAt?: string;
+}
+
+export class UpdateAssetValueDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  assetValue!: number;
+
+  @IsOptional()
+  @IsDateString()
+  valuedAt?: string;
+
+  /** De onde veio o número: "Tabela FIPE", "Avaliação da imobiliária"… texto livre. */
+  @IsOptional()
+  @IsString()
+  source?: string;
 }
 
 export class PayFinancingInstallmentDto {

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Landmark, Pencil, Trash2, ListChecks, TrendingDown } from "lucide-react";
+import { Plus, Landmark, Pencil, Trash2, ListChecks, TrendingDown, Gauge, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
@@ -7,8 +7,9 @@ import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FinancingFormModal } from "@/components/FinancingFormModal";
 import { PayoffQuoteModal } from "@/components/PayoffQuoteModal";
+import { AssetValueModal } from "@/components/AssetValueModal";
 import { FinancingInstallmentsModal } from "@/components/FinancingInstallmentsModal";
-import { useDeleteFinancing, useFinancings } from "@/features/useFinancings";
+import { useDeleteFinancing, useFinancings, useFinancingSummary } from "@/features/useFinancings";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { FINANCING_KIND_META } from "@/lib/financingKind";
 import { matchAutomakerIcon, matchCarThumbnail } from "@/lib/carIcons";
@@ -16,17 +17,20 @@ import { Financing as FinancingType } from "@/types";
 
 export default function Financing() {
   const { data: financings, isLoading } = useFinancings();
+  const { data: summary } = useFinancingSummary();
   const deleteFinancing = useDeleteFinancing();
 
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [payoffTargetId, setPayoffTargetId] = useState<string | null>(null);
+  const [assetValueTargetId, setAssetValueTargetId] = useState<string | null>(null);
   const [installmentsTargetId, setInstallmentsTargetId] = useState<string | null>(null);
 
   // Look these up fresh from the query cache each render instead of holding a
   // snapshot, so the installments modal reflects pay/unpay actions live.
   const editing = financings?.find((f) => f.id === editingId) ?? null;
   const payoffTarget = financings?.find((f) => f.id === payoffTargetId) ?? null;
+  const assetValueTarget = financings?.find((f) => f.id === assetValueTargetId) ?? null;
   const installmentsTarget = financings?.find((f) => f.id === installmentsTargetId) ?? null;
 
   function openCreate() {
@@ -49,6 +53,37 @@ export default function Financing() {
           </Button>
         }
       />
+
+      {summary && summary.totalActive > 0 && (
+        <Card className="mb-5">
+          <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4">
+            <div>
+              <p className="text-xs text-muted">Valor dos bens</p>
+              <p className="text-lg font-semibold">{formatCurrency(summary.equity.assetsValue)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Falta quitar</p>
+              <p className="text-lg font-semibold">{formatCurrency(summary.equity.debt)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted">Patrimônio nos bens</p>
+              <p className={`text-lg font-bold ${summary.equity.equity < 0 ? "text-red-500" : "text-emerald-500"}`}>
+                {formatCurrency(summary.equity.equity)}
+              </p>
+            </div>
+            {/* Sem esse aviso o total pareceria completo — um bem sem avaliação some do lado dos
+                ativos mas continua com a dívida inteira, deixando o patrimônio pessimista. */}
+            {summary.equity.withoutAssetValue > 0 && (
+              <p className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-4 w-4 shrink-0" />
+                {summary.equity.withoutAssetValue} bem
+                {summary.equity.withoutAssetValue > 1 ? "s ainda sem valor informado" : " ainda sem valor informado"} — o
+                patrimônio acima está incompleto.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
@@ -172,6 +207,62 @@ export default function Financing() {
                     )}
                   </button>
 
+                  {/* Valor do bem e patrimônio: a quitação sozinha só conta a metade negativa —
+                      um carro de R$ 60.000 com R$ 20.000 pra quitar são +R$ 40.000, não −R$ 20.000. */}
+                  <div className="flex items-center justify-between border-t border-[rgb(var(--border))] pt-3">
+                    <div>
+                      <p className="text-xs text-muted">Valor do bem</p>
+                      {f.assetValue ? (
+                        <p className="font-semibold">
+                          {formatCurrency(f.assetValue)}
+                          {f.assetValueAt && (
+                            <span className="ml-1.5 text-xs font-normal text-muted">em {formatDate(f.assetValueAt)}</span>
+                          )}
+                        </p>
+                      ) : (
+                        <p className="text-sm text-muted">Sem avaliação ainda</p>
+                      )}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => setAssetValueTargetId(f.id)}>
+                      <Gauge className="h-3.5 w-3.5" /> {f.assetValue ? "Atualizar" : "Informar"}
+                    </Button>
+                  </div>
+
+                  {f.equity.equity !== null ? (
+                    <div
+                      className={`rounded-xl p-3 ${
+                        f.equity.underwater
+                          ? "bg-red-500/10 text-red-600 dark:text-red-400"
+                          : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                      }`}
+                    >
+                      <p className="text-xs opacity-80">Patrimônio neste bem</p>
+                      <p className="text-xl font-bold">
+                        {formatCurrency(f.equity.equity)}
+                        {f.equity.equityPercent !== null && (
+                          <span className="ml-1.5 text-xs font-normal opacity-80">
+                            {f.equity.equityPercent.toFixed(1)}% do bem
+                          </span>
+                        )}
+                      </p>
+                      {f.equity.underwater && (
+                        <p className="mt-1 flex items-center gap-1.5 text-xs">
+                          <AlertTriangle className="h-3.5 w-3.5 shrink-0" /> Você deve mais do que o bem vale hoje.
+                        </p>
+                      )}
+                      {f.equity.debtSource === "REMAINING_INSTALLMENTS" && (
+                        <p className="mt-1 text-xs opacity-80">
+                          Calculado sobre a soma das parcelas restantes — cotar a quitação à vista dá um número mais
+                          justo, sem os juros que ainda não venceram.
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="rounded-xl surface-2 p-3 text-xs text-muted">
+                      Informe o valor do bem pra ver quanto dele já é patrimônio seu.
+                    </p>
+                  )}
+
                   <div className="flex items-center justify-between border-t border-[rgb(var(--border))] pt-3">
                     <div>
                       <p className="text-xs text-muted">Quitação à vista</p>
@@ -203,6 +294,11 @@ export default function Financing() {
 
       <FinancingFormModal open={formOpen} onClose={() => setFormOpen(false)} financing={editing} />
       <PayoffQuoteModal open={Boolean(payoffTarget)} onClose={() => setPayoffTargetId(null)} financing={payoffTarget} />
+      <AssetValueModal
+        open={Boolean(assetValueTarget)}
+        onClose={() => setAssetValueTargetId(null)}
+        financing={assetValueTarget}
+      />
       <FinancingInstallmentsModal
         open={Boolean(installmentsTarget)}
         onClose={() => setInstallmentsTargetId(null)}

@@ -94,10 +94,24 @@ export class HomeDashboardService {
         installments: f.installments.map((i) => ({ status: i.status, amount: Number(i.amount) })),
       })),
     );
-    const netWorth = calculateNetWorth({
-      investedAssets: investmentsSummary.cards.patrimonioTotal,
-      totalDebt: financingPayoffDebt,
-    });
+    //
+    // O bem financiado entra do lado dos ativos: a dívida sozinha só contava a metade negativa da
+    // conta (um carro de R$ 60.000 com R$ 20.000 de quitação aparecia como −R$ 20.000). Bem sem
+    // avaliação informada não entra como zero — fica de fora e `assetsPendingValuation` avisa a
+    // tela de que o número está incompleto, em vez de mostrar um líquido pessimista sem explicação.
+    const financedAssetsValue = financingsList
+      .filter((f) => f.active && f.assetValue !== null)
+      .reduce((sum, f) => sum + Number(f.assetValue), 0);
+    const assetsPendingValuation = financingsList.filter((f) => f.active && f.assetValue === null).length;
+
+    const netWorth = {
+      ...calculateNetWorth({
+        investedAssets: investmentsSummary.cards.patrimonioTotal,
+        financedAssets: financedAssetsValue,
+        totalDebt: financingPayoffDebt,
+      }),
+      assetsPendingValuation,
+    };
 
     // Visão mensal combinada usa só a Casa — Parcelas e Financiamento têm cada um seu próprio card
     // (abaixo) com os números só deles, sem entrar nessa soma. Misturá-los aqui duplicaria: a Casa
@@ -199,6 +213,7 @@ export class HomeDashboardService {
           committedThisMonth: financingsSummary.committedThisMonth,
           totalRemaining: financingsSummary.totalRemaining,
           nextInstallment: financingsSummary.nextInstallment,
+          equity: financingsSummary.equity,
         },
         cotacoes: ticker,
       },

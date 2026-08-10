@@ -136,6 +136,19 @@ export interface FinancingInstallment {
   paidAmount: string | number | null;
 }
 
+/** Patrimônio de um bem financiado: o que ele vale hoje menos o que falta pra quitar. */
+export interface FinancingEquity {
+  /** null quando o bem ainda não tem valor informado. */
+  assetValue: number | null;
+  debt: number;
+  debtSource: "PAYOFF_QUOTE" | "REMAINING_INSTALLMENTS";
+  /** null (não zero) sem valor do bem — desconhecido não é o mesmo que "não vale nada". */
+  equity: number | null;
+  equityPercent: number | null;
+  /** Deve-se mais do que o bem vale. */
+  underwater: boolean;
+}
+
 export interface Financing {
   id: string;
   userId: string;
@@ -148,10 +161,14 @@ export interface Financing {
   firstDueDate: string;
   payoffAmount: string | number | null;
   payoffQuotedAt: string | null;
+  /** Quanto o bem vale hoje (FIPE/avaliação). */
+  assetValue: string | number | null;
+  assetValueAt: string | null;
   notes: string | null;
   active: boolean;
   createdAt: string;
   installments: FinancingInstallment[];
+  equity: FinancingEquity;
 }
 
 export interface FinancingSummary {
@@ -160,4 +177,11 @@ export interface FinancingSummary {
   totalRemaining: number;
   totalPaid: number;
   nextInstallment: { financingId: string; financingName: string; dueDate: string; amount: number } | null;
+  equity: {
+    assetsValue: number;
+    debt: number;
+    equity: number;
+    /** Quantos financiamentos ativos ainda estão sem valor do bem — o total está incompleto. */
+    withoutAssetValue: number;
+  };
 }

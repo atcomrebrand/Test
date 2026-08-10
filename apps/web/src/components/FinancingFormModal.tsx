@@ -32,6 +32,7 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
     nextDueDate: todayISO(),
     paidInstallmentsCount: "0",
     payoffAmount: "",
+    assetValue: "",
     notes: "",
   });
 
@@ -47,6 +48,7 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
         nextDueDate: financing.firstDueDate.slice(0, 10),
         paidInstallmentsCount: "0",
         payoffAmount: financing.payoffAmount != null ? String(financing.payoffAmount) : "",
+        assetValue: financing.assetValue != null ? String(financing.assetValue) : "",
         notes: financing.notes ?? "",
       });
     } else if (open) {
@@ -60,6 +62,7 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
         nextDueDate: todayISO(),
         paidInstallmentsCount: "0",
         payoffAmount: "",
+        assetValue: "",
         notes: "",
       });
     }
@@ -92,6 +95,7 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
           nextDueDate: new Date(form.nextDueDate + "T12:00:00").toISOString(),
           paidInstallmentsCount: Number(form.paidInstallmentsCount) || 0,
           payoffAmount: form.payoffAmount ? Number(form.payoffAmount) : undefined,
+          assetValue: form.assetValue ? Number(form.assetValue) : undefined,
           notes: form.notes || undefined,
         },
         { onSuccess },
@@ -195,6 +199,19 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
             onChange={(e) => setForm({ ...form, payoffAmount: e.target.value })}
             hint="Se o banco já te passou um valor para quitar tudo à vista. Pode ser atualizado depois, sempre que chegar uma nova proposta."
             placeholder="Ex: 18500.00"
+          />
+        )}
+        {!isEdit && (
+          <Input
+            className="sm:col-span-2"
+            label="Valor do bem hoje (R$, opcional)"
+            type="number"
+            step="0.01"
+            min="0"
+            value={form.assetValue}
+            onChange={(e) => setForm({ ...form, assetValue: e.target.value })}
+            hint="Tabela FIPE do veículo ou valor de mercado do imóvel. A diferença entre isso e a quitação à vista é o seu patrimônio nele — dá pra informar depois e atualizar sempre que a tabela mudar."
+            placeholder="Ex: 62000.00"
           />
         )}
 

@@ -205,9 +205,22 @@ export function HomeDashboardSection() {
             <StatTile
               label="Patrimônio + Financiamentos"
               value={formatCurrency(netWorth.netWorth)}
-              sublabel="Investimentos menos dívida de financiamento"
+              sublabel={
+                netWorth.financedAssets > 0
+                  ? `Investimentos + bens financiados (${formatCurrency(netWorth.financedAssets)}) menos a dívida`
+                  : "Investimentos menos dívida de financiamento"
+              }
               icon={<Wallet className="h-4 w-4" />}
             />
+            {/* Sem esse aviso o número pareceria completo: o bem sem avaliação não entra nos ativos
+                mas a dívida dele entra inteira, deixando o patrimônio artificialmente pessimista. */}
+            {netWorth.assetsPendingValuation > 0 && (
+              <p className="-mt-2 text-xs text-amber-600 dark:text-amber-400">
+                {netWorth.assetsPendingValuation} bem financiado
+                {netWorth.assetsPendingValuation > 1 ? "s ainda sem valor informado" : " ainda sem valor informado"} — o
+                patrimônio acima está subestimado.
+              </p>
+            )}
             <Card>
               <CardContent className="flex flex-wrap items-center gap-4 py-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">

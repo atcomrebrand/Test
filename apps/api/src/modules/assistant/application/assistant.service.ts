@@ -476,6 +476,12 @@ export class AssistantService {
         totalRestanteEmParcelas: summary.totalRemaining,
         totalJaPago: summary.totalPaid,
         proximaParcela: summary.nextInstallment,
+        // Patrimônio nos bens: quanto os bens valem menos o que falta quitar. Bens sem avaliação
+        // informada não entram em valorDosBens (contam só a dívida) — daí bensSemValorInformado.
+        valorDosBens: summary.equity.assetsValue,
+        dividaPelaQuitacao: summary.equity.debt,
+        patrimonioNosBens: summary.equity.equity,
+        bensSemValorInformado: summary.equity.withoutAssetValue,
       },
       financiamentos: financings.map((f) => {
         const pendentes = f.installments.filter((i) => i.status === "PENDING" || i.status === "LATE");
@@ -493,6 +499,12 @@ export class AssistantService {
           totalRestanteSomandoParcelas: Math.round(pendentes.reduce((sum, i) => sum + Number(i.amount), 0) * 100) / 100,
           cotacaoQuitacaoAVista: f.payoffAmount !== null ? Number(f.payoffAmount) : null,
           dataCotacaoQuitacao: f.payoffQuotedAt,
+          valorDoBemHoje: f.assetValue !== null ? Number(f.assetValue) : null,
+          dataAvaliacaoDoBem: f.assetValueAt,
+          // null quando o bem não tem valor informado — desconhecido, não zero.
+          patrimonioNesteBem: f.equity.equity,
+          percentualDoBemQueJaEhSeu: f.equity.equityPercent,
+          deveMaisDoQueOBemVale: f.equity.underwater,
           observacoes: f.notes,
         };
       }),
@@ -503,7 +515,12 @@ export class AssistantService {
     const d = await this.homeDashboard.summary(userId);
     return {
       patrimonioInvestidoMenosDividaDeFinanciamento: d.netWorth.netWorth,
-      totalInvestido: d.netWorth.assets,
+      totalDeAtivos: d.netWorth.assets,
+      totalInvestido: d.netWorth.investedAssets,
+      // Bem financiado avaliado (FIPE/avaliação) — entra nos ativos porque a dívida dele já é
+      // abatida abaixo. Bem sem avaliação fica de fora, e bensFinanciadosSemAvaliacao avisa disso.
+      valorDeBensFinanciados: d.netWorth.financedAssets,
+      bensFinanciadosSemAvaliacao: d.netWorth.assetsPendingValuation,
       dividaDeFinanciamentoPelaQuitacaoAVista: d.netWorth.debts,
       rendaDoMes: d.monthly.income,
       comprometidoNoMes: d.monthly.committed,

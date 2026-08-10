@@ -82,6 +82,54 @@ export function useFinancingPayoffQuotes(id: string | null) {
   });
 }
 
+export interface AssetValuation {
+  amount: number;
+  valuedAt: string;
+  source: string | null;
+}
+
+export interface AssetValueTrend {
+  first: AssetValuation;
+  latest: AssetValuation;
+  previous: AssetValuation | null;
+  changeFromPrevious: number | null;
+  changePercentFromPrevious: number | null;
+  changeSinceFirst: number;
+  changePercentSinceFirst: number | null;
+  daysTracked: number;
+}
+
+export interface AssetValueComparison {
+  previousAmount: number | null;
+  percentChange: number | null;
+  trend: AssetValueTrend | null;
+}
+
+export function useUpdateAssetValue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, assetValue, valuedAt, source }: { id: string; assetValue: number; valuedAt?: string; source?: string }) =>
+      api.patch<{ financing: Financing; comparison: AssetValueComparison }>(`/financings/${id}/asset-value`, {
+        assetValue,
+        valuedAt,
+        source,
+      }),
+    onSuccess: (_data, vars) => {
+      invalidateAll(qc);
+      qc.invalidateQueries({ queryKey: ["financings", vars.id, "asset-values"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useFinancingAssetValues(id: string | null) {
+  return useQuery({
+    queryKey: ["financings", id, "asset-values"],
+    queryFn: () => api.get<{ valuations: AssetValuation[]; trend: AssetValueTrend | null }>(`/financings/${id}/asset-values`),
+    enabled: !!id,
+  });
+}
+
 export function useDeleteFinancing() {
   const qc = useQueryClient();
   return useMutation({
