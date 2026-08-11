@@ -4,6 +4,7 @@ import {
   calculateFixedIncome,
   effectiveAnnualRateForCdi,
   nextBusinessDay,
+  settlementDate,
   principalForTargetNetValue,
   splitContribution,
   todayInBrazil,
@@ -470,7 +471,7 @@ describe("nextBusinessDay / businessDaysBetween", () => {
  */
 describe("avaliação na data de liquidação — números reais do extrato", () => {
   const aplicacao = new Date("2026-07-14T00:00:00.000Z");
-  const liquidacao = nextBusinessDay(new Date("2026-08-09T12:00:00.000Z"));
+  const liquidacao = settlementDate(new Date("2026-08-09T12:00:00.000Z"));
   // 14,09% é o que o Bacen devolveu na série anual, e é a taxa que fecha com o extrato em 19 dias
   // úteis. Em produção quem entra é a série dia a dia; aqui ela é achatada, e é por isso que a
   // tolerância é de centavos e não exata.
@@ -550,7 +551,7 @@ describe("todayInBrazil", () => {
     // 09/08 23:52 em Brasília = 10/08 02:52 em UTC. Foi esse intervalo que fazia a liquidação
     // pular um dia útil inteiro e o rendimento contar um dia a mais que o banco.
     expect(todayInBrazil(new Date("2026-08-10T02:52:00.000Z"))).toEqual(new Date("2026-08-09T00:00:00.000Z"));
-    expect(nextBusinessDay(todayInBrazil(new Date("2026-08-10T02:52:00.000Z")))).toEqual(new Date("2026-08-10T00:00:00.000Z"));
+    expect(settlementDate(todayInBrazil(new Date("2026-08-10T02:52:00.000Z")))).toEqual(new Date("2026-08-10T00:00:00.000Z"));
   });
 
   it("durante o dia em Brasília, UTC e mercado concordam", () => {
@@ -606,5 +607,39 @@ describe("daysElapsed ignora a hora gravada nas datas", () => {
     });
     expect(cedo.daysElapsed).toBe(28);
     expect(tarde.daysElapsed).toBe(28);
+  });
+});
+
+/**
+ * CDB de liquidez diária liquida no MESMO dia útil — só rola pra frente fora dele.
+ *
+ * O erro que isso trava: `nextBusinessDay` sempre avança pelo menos um dia, então numa segunda-feira
+ * a liquidação ia parar na terça, cobrando um dia a mais de IOF e contando um dia útil a mais de
+ * rendimento. Passou despercebido porque a primeira conferência contra o extrato foi num domingo, e
+ * no domingo as duas regras respondem a mesma coisa. Conferido contra o extrato em 10/08/2026
+ * (segunda): o banco cobrava IOF de 10% (dia 27, liquidação em 10/08) enquanto o app cobrava 6%
+ * (dia 28, liquidação em 11/08).
+ */
+describe("settlementDate", () => {
+  const d = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
+
+  it("em dia útil, liquida no próprio dia", () => {
+    expect(settlementDate(d("2026-08-10"))).toEqual(d("2026-08-10")); // segunda
+    expect(settlementDate(d("2026-08-07"))).toEqual(d("2026-08-07")); // sexta
+  });
+
+  it("no fim de semana, rola pro próximo dia útil", () => {
+    expect(settlementDate(d("2026-08-08"))).toEqual(d("2026-08-10")); // sábado
+    expect(settlementDate(d("2026-08-09"))).toEqual(d("2026-08-10")); // domingo
+  });
+
+  /** As duas regras concordam no domingo — foi por isso que o erro sobreviveu à conferência. */
+  it("no domingo concorda com nextBusinessDay; na segunda, não", () => {
+    expect(settlementDate(d("2026-08-09"))).toEqual(nextBusinessDay(d("2026-08-09")));
+    expect(settlementDate(d("2026-08-10"))).not.toEqual(nextBusinessDay(d("2026-08-10")));
+  });
+
+  it("ignora a hora, comparando calendário", () => {
+    expect(settlementDate(new Date("2026-08-10T23:47:03.123Z"))).toEqual(d("2026-08-10"));
   });
 });

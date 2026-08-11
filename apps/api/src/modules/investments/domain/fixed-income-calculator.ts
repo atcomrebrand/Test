@@ -153,6 +153,23 @@ export function nextBusinessDay(date: Date): Date {
   return next;
 }
 
+/**
+ * Quando o dinheiro cairia se o resgate fosse pedido agora.
+ *
+ * CDB de liquidez diária liquida **no mesmo dia útil** — só rola pra frente quando hoje não é dia
+ * útil. Usar `nextBusinessDay` direto sempre avançava um dia (o `do...while` nunca considera a data
+ * recebida), o que numa segunda-feira jogava a liquidação pra terça: um dia a mais de IOF e um dia
+ * útil a mais de rendimento.
+ *
+ * O erro passou batido porque a primeira conferência contra o extrato foi feita num domingo, e no
+ * domingo as duas regras dão a mesma resposta (segunda). Só numa leitura em dia útil elas se
+ * separam — foi o que apareceu ao comparar 6% (dia 28) com os 10% (dia 27) do banco.
+ */
+export function settlementDate(date: Date): Date {
+  const today = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  return isBusinessDay(today) ? today : nextBusinessDay(today);
+}
+
 /** Dias úteis (seg–sex) no intervalo [from, to], contando as duas pontas. 0 se from > to. */
 export function businessDaysBetween(from: Date, to: Date): number {
   let count = 0;

@@ -6,7 +6,7 @@ import {
   accrueCdiFactor,
   businessDaysBetween,
   calculateFixedIncome,
-  nextBusinessDay,
+  settlementDate,
   principalForTargetNetValue,
   splitContribution,
   todayInBrazil,
@@ -164,7 +164,7 @@ export class FixedIncomesService {
     // o Bacen ainda não publicou — daí completarDiasNaoPublicados. Conferido em 2026-08-09
     // (domingo, série até 06/08): o banco contava 19 dias úteis (incluindo a sexta 07/08, não
     // publicada) e IOF de 27 dias.
-    const asOfDate = fixedIncome.redeemedAt ?? nextBusinessDay(todayInBrazil(new Date()));
+    const asOfDate = fixedIncome.redeemedAt ?? settlementDate(todayInBrazil(new Date()));
     const { calc, cdiSource } = await this.calculate(fixedIncome, asOfDate);
     // contributedAmount vai resolvido no topo também (não só dentro de calculation) porque é o que
     // as telas e o dashboard mostram como "Investido" — ninguém deveria ter que lembrar do fallback.
