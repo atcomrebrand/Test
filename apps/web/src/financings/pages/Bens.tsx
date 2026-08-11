@@ -5,20 +5,19 @@ import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { FinancingFormModal } from "@/components/FinancingFormModal";
-import { PayoffQuoteModal } from "@/components/PayoffQuoteModal";
-import { AssetValueModal } from "@/components/AssetValueModal";
-import { FinancingInstallmentsModal } from "@/components/FinancingInstallmentsModal";
-import { AssetAvatar } from "@/components/AssetAvatar";
-import { useDeleteFinancing, useFinancings, useFinancingSummary } from "@/features/useFinancings";
+import { FinancingFormModal } from "../components/FinancingFormModal";
+import { PayoffQuoteModal } from "../components/PayoffQuoteModal";
+import { AssetValueModal } from "../components/AssetValueModal";
+import { FinancingInstallmentsModal } from "../components/FinancingInstallmentsModal";
+import { AssetAvatar } from "../components/AssetAvatar";
+import { useDeleteFinancing, useFinancings } from "@/features/useFinancings";
 import { formatCurrency, formatDate } from "@/lib/format";
 import { FINANCING_KIND_META } from "@/lib/financingKind";
 import { matchCarThumbnail } from "@/lib/carIcons";
 import { Financing as FinancingType } from "@/types";
 
-export default function Financing() {
+export default function Bens() {
   const { data: financings, isLoading } = useFinancings();
-  const { data: summary } = useFinancingSummary();
   const deleteFinancing = useDeleteFinancing();
 
   const [formOpen, setFormOpen] = useState(false);
@@ -46,8 +45,8 @@ export default function Financing() {
   return (
     <div>
       <PageHeader
-        title="Financiamentos"
-        description="Carro, moto, casa — controle as parcelas fixas fora do cartão de crédito."
+        title="Bens financiados"
+        description="Carro, moto, casa — o que você deve, o que o bem vale e quanto já é seu."
         actions={
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4" /> Novo financiamento
@@ -55,36 +54,6 @@ export default function Financing() {
         }
       />
 
-      {summary && summary.totalActive > 0 && (
-        <Card className="mb-5">
-          <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-4">
-            <div>
-              <p className="text-xs text-muted">Valor dos bens</p>
-              <p className="text-lg font-semibold">{formatCurrency(summary.equity.assetsValue)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted">Falta quitar</p>
-              <p className="text-lg font-semibold">{formatCurrency(summary.equity.debt)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-muted">Patrimônio nos bens</p>
-              <p className={`text-lg font-bold ${summary.equity.equity < 0 ? "text-red-500" : "text-emerald-500"}`}>
-                {formatCurrency(summary.equity.equity)}
-              </p>
-            </div>
-            {/* Sem esse aviso o total pareceria completo — um bem sem avaliação some do lado dos
-                ativos mas continua com a dívida inteira, deixando o patrimônio pessimista. */}
-            {summary.equity.withoutAssetValue > 0 && (
-              <p className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                <AlertTriangle className="h-4 w-4 shrink-0" />
-                {summary.equity.withoutAssetValue} bem
-                {summary.equity.withoutAssetValue > 1 ? "s ainda sem valor informado" : " ainda sem valor informado"} — o
-                patrimônio acima está incompleto.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
       {isLoading ? (
         <div className="grid grid-cols-1 gap-5 md:grid-cols-2">

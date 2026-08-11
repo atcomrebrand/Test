@@ -234,7 +234,7 @@ export function HomeDashboardSection() {
                   <p className="text-xs text-muted">Restante</p>
                   <p className="font-semibold">{formatCurrency(modules.financiamentos.totalRemaining)}</p>
                 </div>
-                <Link to="/financing" className="flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
+                <Link to="/financiamentos" className="flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
                   Ver <ArrowRight className="h-3.5 w-3.5" />
                 </Link>
               </CardContent>

@@ -12,6 +12,7 @@ import {
   Clock,
   Home as HomeIcon,
   ShoppingCart,
+  Landmark,
   ChevronLeft,
   ChevronRight,
   type LucideIcon,
@@ -34,7 +35,7 @@ const APPS: AppCard[] = [
   {
     to: "/parcelas",
     title: "Parcelas",
-    description: "Cartões, compras, parcelas, assinaturas e financiamentos.",
+    description: "Cartões, compras, parcelas e assinaturas.",
     icon: CreditCard,
     color: "bg-accent-500",
   },
@@ -58,6 +59,13 @@ const APPS: AppCard[] = [
     description: "Contas, cartões, entradas e quanto realmente sobra no mês.",
     icon: HomeIcon,
     color: "bg-amber-500",
+  },
+  {
+    to: "/financiamentos",
+    title: "Financiamentos",
+    description: "Carro, moto, casa — parcelas, valor do bem e patrimônio.",
+    icon: Landmark,
+    color: "bg-rose-500",
   },
   {
     to: "/mercado",

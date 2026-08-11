@@ -158,7 +158,7 @@ export default function Dashboard() {
                 </p>
               </div>
             )}
-            <Link to="/financing" className="ml-auto flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
+            <Link to="/financiamentos" className="ml-auto flex items-center gap-1 text-sm font-medium text-accent-500 hover:underline">
               Ver financiamentos <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </CardContent>

@@ -10,7 +10,6 @@ import Cards from "./pages/Cards";
 import Purchases from "./pages/Purchases";
 import Installments from "./pages/Installments";
 import Subscriptions from "./pages/Subscriptions";
-import Financing from "./pages/Financing";
 import CalendarPage from "./pages/CalendarPage";
 import Timeline from "./pages/Timeline";
 import Categories from "./pages/Categories";
@@ -40,6 +39,10 @@ import Reports from "./tracking/pages/Reports";
 import Stats from "./tracking/pages/Stats";
 import TrackingHistory from "./tracking/pages/HistoryPage";
 import TrackingSearch from "./tracking/pages/Search";
+import { FinancingsLayout } from "./financings/FinancingsLayout";
+import FinanciamentosVisaoGeral from "./financings/pages/VisaoGeral";
+import FinanciamentosBens from "./financings/pages/Bens";
+import FinanciamentosParcelas from "./financings/pages/Parcelas";
 import { MarketLayout } from "./market/MarketLayout";
 import MercadoResumo from "./market/pages/Resumo";
 import MercadoImportar from "./market/pages/Importar";
@@ -70,7 +73,7 @@ export default function App() {
           <Route path="/purchases" element={<Purchases />} />
           <Route path="/installments" element={<Installments />} />
           <Route path="/subscriptions" element={<Subscriptions />} />
-          <Route path="/financing" element={<Financing />} />
+          <Route path="/financing" element={<Navigate to="/financiamentos" replace />} />
           <Route path="/calendar" element={<CalendarPage />} />
           <Route path="/timeline" element={<Timeline />} />
           <Route path="/categories" element={<Categories />} />
@@ -104,6 +107,12 @@ export default function App() {
           <Route path="/horas/estatisticas" element={<Stats />} />
           <Route path="/horas/historico" element={<TrackingHistory />} />
           <Route path="/horas/busca" element={<TrackingSearch />} />
+        </Route>
+
+        <Route element={<FinancingsLayout />}>
+          <Route path="/financiamentos" element={<FinanciamentosVisaoGeral />} />
+          <Route path="/financiamentos/bens" element={<FinanciamentosBens />} />
+          <Route path="/financiamentos/parcelas" element={<FinanciamentosParcelas />} />
         </Route>
 
         <Route element={<MarketLayout />}>
