@@ -127,15 +127,15 @@ enum FixedIncomeIndexer {
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
+  id            String   @id @default(cuid())
+  name          String
   /// Como o assistente deve chamar a pessoa, quando ela quer ser tratada por outro nome que não o
   /// do cadastro (apelido, primeiro nome, o que for). Nulo = usa o `name`.
   preferredName String?
-  email        String   @unique
-  passwordHash String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  email         String   @unique
+  passwordHash  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   cards                 Card[]
   categories            Category[]
@@ -183,6 +183,26 @@ model User {
   marketPurchases     MarketPurchase[]
   marketProducts      MarketProduct[]
   marketPurchaseItems MarketPurchaseItem[]
+
+  crmPortfolios           CrmPortfolio[]
+  crmPlans                CrmPlan[]
+  crmPaymentMethods       CrmPaymentMethod[]
+  crmOrigins              CrmOrigin[]
+  crmTags                 CrmTag[]
+  crmCustomers            CrmCustomer[]
+  crmSubscriptions        CrmSubscription[]
+  crmPayments             CrmPayment[]
+  crmCustomerEvents       CrmCustomerEvent[]
+  crmLeads                CrmLead[]
+  crmResellers            CrmReseller[]
+  crmResellerPortfolios   CrmResellerPortfolio[]
+  crmRecharges            CrmRecharge[]
+  crmCreditMovements      CrmCreditMovement[]
+  crmCreditPriceChanges   CrmCreditPriceChange[]
+  crmApproxClientsChanges CrmApproxClientsChange[]
+  crmMessageTemplates     CrmMessageTemplate[]
+  crmSettings             CrmSettings?
+  crmAuditLogs            CrmAuditLog[]
 
   @@map("users")
 }
@@ -1263,4 +1283,559 @@ model MarketPurchaseItem {
   @@index([userId, productId])
   @@index([purchaseId])
   @@map("market_purchase_items")
+}
+
+// ---------------------------------------------------------------------------
+// CRM — clientes, assinaturas e revendedores
+//
+// Módulo independente do Contas da Casa: nenhuma tabela household é referenciada
+// aqui, e nenhuma regra daquele módulo depende destas.
+// ---------------------------------------------------------------------------
+
+/// Estados do cliente. Só CANCELLED e INACTIVE são gravados (`manualStatus`) — atos deliberados
+/// de quem opera. Os demais são derivados de `currentDueDate` em computeCustomerStatus, porque um
+/// status gravado envelhece sozinho: "ativo" continuaria ativo no banco no dia seguinte ao
+/// vencimento sem ninguém tocar em nada.
+enum CrmCustomerStatus {
+  LEAD
+  TRIAL
+  ACTIVE
+  DUE_SOON
+  LATE
+  DELINQUENT
+  CANCELLED
+  INACTIVE
+  RECOVERY
+}
+
+enum CrmSubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum CrmLeadStage {
+  NEW
+  CONTACTED
+  INTERESTED
+  TRIAL
+  CONVERTED
+  LOST
+}
+
+/// Independente do status dos clientes finais do revendedor: um revendedor suspenso pode ter
+/// centenas de clientes ativos, e um ativo pode estar sem nenhum.
+enum CrmResellerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  NEGOTIATING
+  BLOCKED
+}
+
+enum CrmCreditMovementKind {
+  RECHARGE
+  USAGE
+  ADJUSTMENT
+}
+
+enum CrmTemplateCategory {
+  RENEWAL
+  DUE
+  DELINQUENCY
+  RETENTION
+  SUPPORT
+  WELCOME
+  RESELLER
+  OTHER
+}
+
+enum CrmBillingPeriod {
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+  CUSTOM
+}
+
+/// Os dois serviços. É entidade e não enum porque o nome é configurável pelo usuário e porque
+/// revendedor e cliente precisam apontar pra ele por id — trocar o nome não pode reescrever dado.
+model CrmPortfolio {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("#6366f1")
+  order     Int      @default(0)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customers          CrmCustomer[]
+  subscriptions      CrmSubscription[]
+  payments           CrmPayment[]
+  plans              CrmPlan[]
+  leads              CrmLead[]
+  resellerPortfolios CrmResellerPortfolio[]
+  recharges          CrmRecharge[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+  @@map("crm_portfolios")
+}
+
+model CrmPlan {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId   String
+  portfolio     CrmPortfolio     @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  name          String
+  price         Decimal          @db.Decimal(12, 2)
+  billingPeriod CrmBillingPeriod @default(MONTHLY)
+  /// Só quando billingPeriod = CUSTOM.
+  customDays    Int?
+  active        Boolean          @default(true)
+  order         Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  subscriptions CrmSubscription[]
+
+  @@index([userId, portfolioId, active])
+  @@map("crm_plans")
+}
+
+/// Global ao usuário, não por portfólio: PIX é o mesmo PIX nos dois serviços, e duplicar a forma
+/// de pagamento duplicaria também a taxa — que é justamente o número que não pode divergir.
+model CrmPaymentMethod {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  feePercent Decimal  @default(0) @db.Decimal(5, 2)
+  feeFixed   Decimal  @default(0) @db.Decimal(12, 2)
+  active     Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  subscriptions CrmSubscription[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+  @@map("crm_payment_methods")
+}
+
+model CrmOrigin {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  customers CrmCustomer[]
+  leads     CrmLead[]
+
+  @@unique([userId, name])
+  @@map("crm_origins")
+}
+
+model CrmTag {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("#64748b")
+  createdAt DateTime @default(now())
+
+  customers CrmCustomerTag[]
+  resellers CrmResellerTag[]
+  leads     CrmLeadTag[]
+
+  @@unique([userId, name])
+  @@map("crm_tags")
+}
+
+model CrmCustomerTag {
+  customerId String
+  customer   CrmCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        CrmTag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, tagId])
+  @@map("crm_customer_tags")
+}
+
+model CrmResellerTag {
+  resellerId String
+  reseller   CrmReseller @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        CrmTag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([resellerId, tagId])
+  @@map("crm_reseller_tags")
+}
+
+model CrmLeadTag {
+  leadId String
+  lead   CrmLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    CrmTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, tagId])
+  @@map("crm_lead_tags")
+}
+
+model CrmCustomer {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId  String
+  portfolio    CrmPortfolio  @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  name         String
+  nickname     String?
+  phone        String
+  /// Nulo = usa o `phone`. Existe porque nem sempre o WhatsApp é o telefone do cadastro.
+  whatsapp     String?
+  email        String?
+  document     String?
+  originId     String?
+  origin       CrmOrigin?    @relation(fields: [originId], references: [id], onDelete: SetNull)
+  /// Quem indicou. Auto-relação em vez de texto livre pra "indicação" virar métrica de verdade.
+  referredById String?
+  referredBy   CrmCustomer?  @relation("CrmReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals    CrmCustomer[] @relation("CrmReferral")
+
+  /// Vencimento vigente, desnormalizado da assinatura ativa e reescrito na mesma transação da
+  /// renovação. É o que torna as janelas do painel de vencimentos (hoje/3/7/30 dias) uma varredura
+  /// de índice em vez de um cálculo linha a linha em JS.
+  currentDueDate    DateTime?
+  /// Só CANCELLED/INACTIVE/RECOVERY — decisões de quem opera, que o cálculo não deve sobrescrever.
+  manualStatus      CrmCustomerStatus?
+  trialEndsAt       DateTime?
+  /// Início da relação, preservado entre assinaturas: é o que responde "cliente há quanto tempo".
+  firstSubscribedAt DateTime?
+  vip               Boolean            @default(false)
+  /// Marcado à mão: o cálculo automático de VIP não pode desmarcar quem foi promovido na mão.
+  vipManual         Boolean            @default(false)
+  notes             String?
+  deletedAt         DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  subscriptions CrmSubscription[]
+  payments      CrmPayment[]
+  events        CrmCustomerEvent[]
+  tags          CrmCustomerTag[]
+  convertedLead CrmLead?
+
+  @@index([userId, portfolioId, deletedAt])
+  @@index([userId, currentDueDate])
+  @@index([userId, phone])
+  @@map("crm_customers")
+}
+
+model CrmSubscription {
+  id              String                @id @default(cuid())
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId      String
+  customer        CrmCustomer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  portfolioId     String
+  portfolio       CrmPortfolio          @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  planId          String?
+  plan            CrmPlan?              @relation(fields: [planId], references: [id], onDelete: SetNull)
+  startDate       DateTime
+  dueDate         DateTime
+  amount          Decimal               @db.Decimal(12, 2)
+  billingPeriod   CrmBillingPeriod      @default(MONTHLY)
+  customDays      Int?
+  paymentMethodId String?
+  paymentMethod   CrmPaymentMethod?     @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  status          CrmSubscriptionStatus @default(ACTIVE)
+  lastPaymentAt   DateTime?
+  cancelledAt     DateTime?
+  notes           String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  payments CrmPayment[]
+
+  @@index([userId, customerId])
+  @@index([userId, portfolioId, status])
+  @@map("crm_subscriptions")
+}
+
+/// Receita de cliente direto. Separada de CrmRecharge de propósito (§55): sendo tabelas distintas,
+/// somar as duas origens por engano deixa de ser possível — não é uma flag que dá pra esquecer de
+/// filtrar. Taxa e forma de pagamento são copiadas pra cá no momento do pagamento; mudar a taxa do
+/// PIX amanhã não pode reescrever o líquido de ontem.
+model CrmPayment {
+  id                String           @id @default(cuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId        String
+  customer          CrmCustomer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  subscriptionId    String?
+  subscription      CrmSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  portfolioId       String
+  portfolio         CrmPortfolio     @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  paidAt            DateTime
+  grossAmount       Decimal          @db.Decimal(12, 2)
+  feePercent        Decimal          @default(0) @db.Decimal(5, 2)
+  feeFixed          Decimal          @default(0) @db.Decimal(12, 2)
+  feeAmount         Decimal          @default(0) @db.Decimal(12, 2)
+  netAmount         Decimal          @db.Decimal(12, 2)
+  paymentMethodId   String?
+  /// Rótulo congelado: a forma de pagamento pode ser renomeada ou desativada depois.
+  paymentMethodName String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  /// Estorno é registro novo, nunca DELETE — o histórico financeiro não encolhe.
+  reversedAt        DateTime?
+  notes             String?
+  createdAt         DateTime         @default(now())
+
+  @@index([userId, portfolioId, paidAt])
+  @@index([userId, customerId, paidAt])
+  @@map("crm_payments")
+}
+
+/// Timeline do cliente. Linha append-only: o que aconteceu aconteceu.
+model CrmCustomerEvent {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    CrmCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  kind        String
+  description String
+  amount      Decimal?    @db.Decimal(12, 2)
+  createdAt   DateTime    @default(now())
+
+  @@index([userId, customerId, createdAt])
+  @@map("crm_customer_events")
+}
+
+model CrmLead {
+  id                  String       @id @default(cuid())
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId         String
+  portfolio           CrmPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  name                String
+  phone               String
+  whatsapp            String?
+  originId            String?
+  origin              CrmOrigin?   @relation(fields: [originId], references: [id], onDelete: SetNull)
+  stage               CrmLeadStage @default(NEW)
+  lastContactAt       DateTime?
+  nextContactAt       DateTime?
+  /// Preenchido na conversão. O lead não é apagado ao virar cliente — é o que permite medir taxa
+  /// de conversão por origem depois.
+  convertedCustomerId String?      @unique
+  convertedCustomer   CrmCustomer? @relation(fields: [convertedCustomerId], references: [id], onDelete: SetNull)
+  convertedAt         DateTime?
+  lostReason          String?
+  notes               String?
+  deletedAt           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  tags CrmLeadTag[]
+
+  @@index([userId, portfolioId, stage])
+  @@index([userId, nextContactAt])
+  @@map("crm_leads")
+}
+
+/// A pessoa do revendedor, sem portfólio: o vínculo comercial mora em CrmResellerPortfolio, senão
+/// o mesmo João viraria dois cadastros por atender os dois serviços (§45).
+model CrmReseller {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  companyName String?
+  phone       String
+  whatsapp    String?
+  email       String?
+  notes       String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  portfolios CrmResellerPortfolio[]
+  tags       CrmResellerTag[]
+
+  @@index([userId, deletedAt])
+  @@index([userId, phone])
+  @@map("crm_resellers")
+}
+
+/// O vínculo revendedor × serviço: é aqui que vivem crédito, preço e estimativa de clientes, porque
+/// são números por serviço. Saldo NÃO é coluna — vem sempre de CrmCreditMovement.
+model CrmResellerPortfolio {
+  id                  String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerId          String
+  reseller            CrmReseller       @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  portfolioId         String
+  portfolio           CrmPortfolio      @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  status              CrmResellerStatus @default(ACTIVE)
+  /// Preço vigente do crédito. Recarga antiga guarda o próprio preço e nunca é reprecificada.
+  creditPrice         Decimal           @default(0) @db.Decimal(12, 2)
+  /// ESTIMATIVA informada à mão — não é contagem de clientes cadastrados no CRM (§37). A UI é
+  /// obrigada a rotular como estimativa e o dashboard soma isso num bloco separado.
+  approxActiveClients Int               @default(0)
+  approxUpdatedAt     DateTime?
+  lowCreditThreshold  Int               @default(10)
+  startedAt           DateTime          @default(now())
+  notes               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  recharges     CrmRecharge[]
+  movements     CrmCreditMovement[]
+  priceChanges  CrmCreditPriceChange[]
+  approxChanges CrmApproxClientsChange[]
+
+  @@unique([resellerId, portfolioId])
+  @@index([userId, portfolioId, status])
+  @@map("crm_reseller_portfolios")
+}
+
+/// Receita de revendedor. unitPrice fica congelado na linha (§36).
+model CrmRecharge {
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerPortfolioId String
+  resellerPortfolio   CrmResellerPortfolio @relation(fields: [resellerPortfolioId], references: [id], onDelete: Cascade)
+  portfolioId         String
+  portfolio           CrmPortfolio         @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  date                DateTime
+  quantity            Int
+  unitPrice           Decimal              @db.Decimal(12, 2)
+  totalAmount         Decimal              @db.Decimal(12, 2)
+  paymentMethodId     String?
+  paymentMethodName   String?
+  feePercent          Decimal              @default(0) @db.Decimal(5, 2)
+  feeFixed            Decimal              @default(0) @db.Decimal(12, 2)
+  feeAmount           Decimal              @default(0) @db.Decimal(12, 2)
+  netAmount           Decimal              @db.Decimal(12, 2)
+  notes               String?
+  createdAt           DateTime             @default(now())
+
+  movements CrmCreditMovement[]
+
+  @@index([userId, portfolioId, date])
+  @@index([resellerPortfolioId, date])
+  @@map("crm_recharges")
+}
+
+/// Extrato de créditos. `quantity` é assinado (+recarga, −uso) e o saldo é sempre a soma disso —
+/// nunca um número digitado (§31). Linha nunca é apagada: erro se corrige com ADJUSTMENT contrário.
+model CrmCreditMovement {
+  id                  String                @id @default(cuid())
+  userId              String
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerPortfolioId String
+  resellerPortfolio   CrmResellerPortfolio  @relation(fields: [resellerPortfolioId], references: [id], onDelete: Cascade)
+  kind                CrmCreditMovementKind
+  quantity            Int
+  rechargeId          String?
+  recharge            CrmRecharge?          @relation(fields: [rechargeId], references: [id], onDelete: SetNull)
+  note                String?
+  createdAt           DateTime              @default(now())
+
+  @@index([resellerPortfolioId, createdAt])
+  @@index([userId, createdAt])
+  @@map("crm_credit_movements")
+}
+
+model CrmCreditPriceChange {
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerPortfolioId String
+  resellerPortfolio   CrmResellerPortfolio @relation(fields: [resellerPortfolioId], references: [id], onDelete: Cascade)
+  previousPrice       Decimal              @db.Decimal(12, 2)
+  newPrice            Decimal              @db.Decimal(12, 2)
+  changedAt           DateTime             @default(now())
+
+  @@index([resellerPortfolioId, changedAt])
+  @@map("crm_credit_price_changes")
+}
+
+/// Histórico da estimativa (§37): valor anterior, novo e quando mudou.
+model CrmApproxClientsChange {
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerPortfolioId String
+  resellerPortfolio   CrmResellerPortfolio @relation(fields: [resellerPortfolioId], references: [id], onDelete: Cascade)
+  previousValue       Int
+  newValue            Int
+  changedAt           DateTime             @default(now())
+
+  @@index([resellerPortfolioId, changedAt])
+  @@map("crm_approx_clients_changes")
+}
+
+model CrmMessageTemplate {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  category    CrmTemplateCategory @default(OTHER)
+  body        String
+  /// Separa os templates de revendedor dos de cliente: as variáveis disponíveis são outras.
+  forReseller Boolean             @default(false)
+  active      Boolean             @default(true)
+  order       Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([userId, active])
+  @@map("crm_message_templates")
+}
+
+model CrmSettings {
+  id                        String   @id @default(cuid())
+  userId                    String   @unique
+  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Critérios de VIP. Nulo = critério desligado.
+  vipMinMonths              Int?
+  vipMinRevenue             Decimal? @db.Decimal(12, 2)
+  vipMinRenewals            Int?
+  /// Janelas do semáforo de atividade do revendedor (§39).
+  resellerAttentionDays     Int      @default(30)
+  resellerInactiveDays      Int      @default(60)
+  defaultLowCreditThreshold Int      @default(10)
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+
+  @@map("crm_settings")
+}
+
+model CrmAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@index([userId, createdAt])
+  @@map("crm_audit_logs")
 }
