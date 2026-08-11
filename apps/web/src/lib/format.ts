@@ -54,3 +54,17 @@ export function daysUntil(date: string | Date) {
   const now = new Date();
   return Math.ceil((target.getTime() - now.getTime()) / 86400000);
 }
+
+/**
+ * Horas decimais viram "7h31". Decimal puro ("7.53h") é ambíguo: parece hora e minuto, e passa
+ * de 7.59 pra 7.62 sem virar hora nenhuma — o que faz o número parecer errado mesmo estando certo.
+ *
+ * O arredondamento é feito no TOTAL de minutos, uma vez só. Separar a hora antes e arredondar o
+ * resto levava 7,9917h a virar "7h60": 0,9917 × 60 arredonda pra 60, e ninguém promovia a hora.
+ */
+export function formatHours(hours: number): string {
+  const totalMinutes = Math.round(hours * 60);
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return m > 0 ? `${h}h${String(m).padStart(2, "0")}` : `${h}h`;
+}

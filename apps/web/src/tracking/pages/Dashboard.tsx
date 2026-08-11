@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { CategoryChart } from "@/components/charts/CategoryChart";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatHours } from "@/lib/format";
 import { useTrackingDashboard, useActiveSession } from "../api";
 import { useLiveElapsed } from "../hooks/useLiveElapsed";
 import { formatHMS } from "../lib/sessionTime";
@@ -18,11 +18,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   OUTRO: "#3B82F6",
 };
 
-function formatHours(hours: number): string {
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  return m > 0 ? `${h}h${m.toString().padStart(2, "0")}` : `${h}h`;
-}
 
 function formatPercent(value: number | null): string {
   if (value === null) return "—";

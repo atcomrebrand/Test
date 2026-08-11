@@ -1,14 +1,9 @@
 import { Card, CardContent } from "@/components/ui/Card";
 import { StatTile } from "@/components/ui/StatTile";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatHours } from "@/lib/format";
 import { useTrackingStats } from "../api";
 
-function formatHours(hours: number): string {
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  return m > 0 ? `${h}h${m.toString().padStart(2, "0")}` : `${h}h`;
-}
 
 function formatHourOfDay(hour: number): string {
   const h = Math.floor(hour);

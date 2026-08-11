@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { StatTile } from "@/components/ui/StatTile";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CategoryChart } from "@/components/charts/CategoryChart";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatHours } from "@/lib/format";
 import { getToken } from "@/lib/api";
 import { useTrackingReports } from "../api";
 import { ReportPeriod } from "../types";
@@ -27,11 +27,6 @@ const CATEGORY_COLORS: Record<string, string> = {
   OUTRO: "#3B82F6",
 };
 
-function formatHours(hours: number): string {
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  return m > 0 ? `${h}h${m.toString().padStart(2, "0")}` : `${h}h`;
-}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);

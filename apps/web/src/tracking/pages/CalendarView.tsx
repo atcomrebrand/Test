@@ -5,7 +5,7 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatHours } from "@/lib/format";
 import { useTrackingCalendar } from "../api";
 import { formatHMS } from "../lib/sessionTime";
 import { AddPastSessionModal } from "../components/AddPastSessionModal";
@@ -131,7 +131,7 @@ export default function CalendarView() {
                     }`}
                   >
                     <span className="font-medium">{day}</span>
-                    {hasData && <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">{entry!.hours}h</span>}
+                    {hasData && <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">{formatHours(entry!.hours)}</span>}
                     {!hasData && isDayOff && <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">folga</span>}
                   </button>
                 );

@@ -1,3 +1,4 @@
+import { formatHours } from "@/lib/format";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 interface Props {
@@ -9,11 +10,6 @@ function formatDayLabel(iso: string): string {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-function formatHours(hours: number): string {
-  const h = Math.floor(hours);
-  const m = Math.round((hours - h) * 60);
-  return m > 0 ? `${h}h${m.toString().padStart(2, "0")}` : `${h}h`;
-}
 
 /** New chart type for this repo (only Pie/Area existed before) — matches the same visual
  *  conventions: CSS-var-based tooltip, no axis lines, muted tick color. */
