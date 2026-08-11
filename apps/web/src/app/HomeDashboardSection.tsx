@@ -1,3 +1,4 @@
+import { motion } from "framer-motion";
 import { Link } from "react-router-dom";
 import {
   ArrowRight,
@@ -53,6 +54,37 @@ export function HomeDashboardSection() {
         <h2 className="text-lg font-bold">Visão geral</h2>
         <p className="mt-1 text-sm text-muted">Cruzando os dados de todos os módulos.</p>
       </div>
+
+      {/* O número que resume tudo, em destaque e antes de qualquer outro: é a leitura que o resto
+          da tela detalha. A composição vem junto porque o total sozinho não deixa reconhecer as
+          parcelas — são os mesmos dois números do card de Investimentos e da Visão Geral de
+          Financiamentos. */}
+      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+        <Card className="border-accent-500/20 bg-gradient-to-br from-accent-500/10 to-transparent">
+          <CardContent className="py-6">
+            <div className="flex items-center gap-2 text-muted">
+              <Wallet className="h-4 w-4" />
+              <p className="text-sm font-medium">Patrimônio total</p>
+            </div>
+            <p className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">{formatCurrency(netWorth.netWorth)}</p>
+            <p className="mt-2 text-sm text-muted">
+              {formatCurrency(netWorth.investedAssets)} em investimentos
+              {modules.financiamentos.totalActive > 0 && (
+                <> + {formatCurrency(modules.financiamentos.equity.equity)} de patrimônio nos bens</>
+              )}
+            </p>
+            {/* Sem esse aviso o número pareceria completo: o bem sem avaliação não entra nos ativos
+                mas a dívida dele entra inteira, deixando o patrimônio artificialmente pessimista. */}
+            {netWorth.assetsPendingValuation > 0 && (
+              <p className="mt-3 text-xs text-amber-600 dark:text-amber-400">
+                {netWorth.assetsPendingValuation} bem financiado
+                {netWorth.assetsPendingValuation > 1 ? "s ainda sem valor informado" : " ainda sem valor informado"} — o
+                total está subestimado.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      </motion.div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
@@ -202,27 +234,6 @@ export function HomeDashboardSection() {
 
         {modules.financiamentos.totalActive > 0 && (
           <div className="flex flex-col gap-4 lg:col-span-2">
-            {/* A soma é o líquido dos investimentos com o patrimônio nos bens (bens − dívida) —
-                os mesmos dois números que aparecem no card de Investimentos e na Visão Geral de
-                Financiamentos. Antes o rótulo escondia isso, e o total parecia um terceiro
-                número solto; mostrar as duas parcelas deixa a conta reconhecível. */}
-            <StatTile
-              label="Patrimônio total"
-              value={formatCurrency(netWorth.netWorth)}
-              sublabel={`${formatCurrency(netWorth.investedAssets)} em investimentos + ${formatCurrency(
-                modules.financiamentos.equity.equity,
-              )} de patrimônio nos bens`}
-              icon={<Wallet className="h-4 w-4" />}
-            />
-            {/* Sem esse aviso o número pareceria completo: o bem sem avaliação não entra nos ativos
-                mas a dívida dele entra inteira, deixando o patrimônio artificialmente pessimista. */}
-            {netWorth.assetsPendingValuation > 0 && (
-              <p className="-mt-2 text-xs text-amber-600 dark:text-amber-400">
-                {netWorth.assetsPendingValuation} bem financiado
-                {netWorth.assetsPendingValuation > 1 ? "s ainda sem valor informado" : " ainda sem valor informado"} — o
-                patrimônio acima está subestimado.
-              </p>
-            )}
             <Card>
               <CardContent className="flex flex-wrap items-center gap-4 py-4">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500">
