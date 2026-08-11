@@ -1,12 +1,15 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { Modal } from "@/components/ui/Modal";
 import { Input, Select } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { useCreateFixedIncome } from "../api";
+import { useCreateFixedIncome, useUpdateFixedIncome } from "../api";
+import { InvestmentFixedIncome } from "../types";
 
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** Preenchido = edição. Ausente = cadastro novo. */
+  fixedIncome?: InvestmentFixedIncome | null;
 }
 
 const TYPE_OPTIONS = [
@@ -34,8 +37,10 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function FixedIncomeFormModal({ open, onClose }: Props) {
+export function FixedIncomeFormModal({ open, onClose, fixedIncome }: Props) {
+  const isEdit = Boolean(fixedIncome);
   const create = useCreateFixedIncome();
+  const update = useUpdateFixedIncome();
   const [institution, setInstitution] = useState("");
   const [type, setType] = useState("CDB");
   const [principalAmount, setPrincipalAmount] = useState("");
@@ -58,8 +63,48 @@ export function FixedIncomeFormModal({ open, onClose }: Props) {
     setCdiPercent("");
   }
 
+  // Ao abrir em modo edição, carrega o que está gravado. Só no `open` pra que um refetch em
+  // segundo plano não sobrescreva o que o usuário está digitando.
+  useEffect(() => {
+    if (!open) return;
+    if (!fixedIncome) {
+      reset();
+      return;
+    }
+    setInstitution(fixedIncome.institution);
+    setType(fixedIncome.type);
+    setPrincipalAmount(String(fixedIncome.principalAmount));
+    setApplicationDate(fixedIncome.applicationDate.slice(0, 10));
+    setMaturityDate(fixedIncome.maturityDate.slice(0, 10));
+    setLiquidity(fixedIncome.liquidity);
+    setIndexer(fixedIncome.indexer);
+    setFixedRatePercent(fixedIncome.fixedRatePercent != null ? String(fixedIncome.fixedRatePercent) : "");
+    setCdiPercent(fixedIncome.cdiPercent != null ? String(fixedIncome.cdiPercent) : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   function onSubmit(e: FormEvent) {
     e.preventDefault();
+
+    if (isEdit && fixedIncome) {
+      // Só os campos que a API aceita corrigir. Tipo, liquidez e indexador ficam de fora: mudar
+      // o indexador troca a fórmula de rendimento inteira, e aí o certo é cadastrar de novo.
+      update.mutate(
+        {
+          id: fixedIncome.id,
+          data: {
+            institution,
+            principalAmount: Number(principalAmount),
+            applicationDate: new Date(applicationDate + "T12:00:00").toISOString(),
+            maturityDate: new Date(maturityDate + "T12:00:00").toISOString(),
+            cdiPercent: indexer === "POS_FIXADO_CDI" && cdiPercent ? Number(cdiPercent) : undefined,
+          },
+        },
+        { onSuccess: () => onClose() },
+      );
+      return;
+    }
+
     create.mutate(
       {
         institution,
@@ -82,11 +127,11 @@ export function FixedIncomeFormModal({ open, onClose }: Props) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Nova aplicação de renda fixa" size="lg">
+    <Modal open={open} onClose={onClose} title={isEdit ? "Corrigir aplicação" : "Nova aplicação de renda fixa"} size="lg">
       <form onSubmit={onSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input label="Instituição" value={institution} onChange={(e) => setInstitution(e.target.value)} required autoFocus />
-          <Select label="Tipo" options={TYPE_OPTIONS} value={type} onChange={(e) => setType(e.target.value)} />
+          <Select label="Tipo" options={TYPE_OPTIONS} value={type} onChange={(e) => setType(e.target.value)} disabled={isEdit} />
         </div>
 
         <Input
@@ -100,13 +145,20 @@ export function FixedIncomeFormModal({ open, onClose }: Props) {
         />
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Input label="Data de aplicação" type="date" value={applicationDate} onChange={(e) => setApplicationDate(e.target.value)} required />
+          <Input
+            label="Data de aplicação"
+            type="date"
+            value={applicationDate}
+            onChange={(e) => setApplicationDate(e.target.value)}
+            hint={isEdit ? "Um dia de diferença aqui muda o IOF, o IR e a contagem do CDI." : undefined}
+            required
+          />
           <Input label="Data de vencimento" type="date" value={maturityDate} onChange={(e) => setMaturityDate(e.target.value)} required />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Select label="Liquidez" options={LIQUIDITY_OPTIONS} value={liquidity} onChange={(e) => setLiquidity(e.target.value)} />
-          <Select label="Indexador" options={INDEXER_OPTIONS} value={indexer} onChange={(e) => setIndexer(e.target.value)} />
+          <Select label="Liquidez" options={LIQUIDITY_OPTIONS} value={liquidity} onChange={(e) => setLiquidity(e.target.value)} disabled={isEdit} />
+          <Select label="Indexador" options={INDEXER_OPTIONS} value={indexer} onChange={(e) => setIndexer(e.target.value)} disabled={isEdit} />
         </div>
 
         {indexer === "POS_FIXADO_CDI" ? (
@@ -137,8 +189,8 @@ export function FixedIncomeFormModal({ open, onClose }: Props) {
           <Button type="button" variant="secondary" onClick={onClose}>
             Cancelar
           </Button>
-          <Button type="submit" loading={create.isPending}>
-            Cadastrar
+          <Button type="submit" loading={create.isPending || update.isPending}>
+            {isEdit ? "Salvar correção" : "Cadastrar"}
           </Button>
         </div>
       </form>

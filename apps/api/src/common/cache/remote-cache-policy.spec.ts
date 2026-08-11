@@ -1,16 +1,16 @@
-import { decideQuoteAction } from "./quote-cache-policy";
+import { decideRemoteFetch } from "./remote-cache-policy";
 
 const NOW = new Date("2026-08-10T18:00:00.000Z");
 const TTL = 5 * 60 * 1000;
 
-function state(overrides: Partial<Parameters<typeof decideQuoteAction>[0]> = {}) {
-  return decideQuoteAction({ cachedAt: null, backoffUntil: null, forceRefresh: false, ttlMs: TTL, now: NOW, ...overrides });
+function state(overrides: Partial<Parameters<typeof decideRemoteFetch>[0]> = {}) {
+  return decideRemoteFetch({ cachedAt: null, backoffUntil: null, forceRefresh: false, ttlMs: TTL, now: NOW, ...overrides });
 }
 
 const minutesAgo = (n: number) => new Date(NOW.getTime() - n * 60 * 1000);
 const minutesAhead = (n: number) => new Date(NOW.getTime() + n * 60 * 1000);
 
-describe("decideQuoteAction", () => {
+describe("decideRemoteFetch", () => {
   it("cache dentro do TTL não toca na rede", () => {
     expect(state({ cachedAt: minutesAgo(2) })).toBe("SERVE_FRESH");
   });

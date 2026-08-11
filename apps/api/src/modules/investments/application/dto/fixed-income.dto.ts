@@ -52,6 +52,23 @@ export class CreateFixedIncomeDto {
 export class UpdateFixedIncomeDto {
   @IsOptional() @IsString() @MinLength(1) institution?: string;
   @IsOptional() @IsString() notes?: string;
+
+  /**
+   * Data de aplicação. Editável porque um erro de um dia aqui desloca IOF, IR e a janela inteira
+   * do CDI — e antes só dava pra corrigir por SQL direto no banco. É o campo que mais custa caro
+   * pra errar e o único que não tinha como consertar pela tela.
+   */
+  @IsOptional() @IsDateString() applicationDate?: string;
+
+  /** Vencimento. Anda junto: quem digitou a aplicação errada normalmente errou o vencimento também. */
+  @IsOptional() @IsDateString() maturityDate?: string;
+
+  /** % do CDI do papel. Um "130" digitado como "13" só aparece semanas depois, na divergência. */
+  @IsOptional() @Type(() => Number) @IsNumber() @IsPositive() cdiPercent?: number;
+
+  /** Base de rendimento. Corrigir isso à mão é o caminho documentado pra alinhar com o extrato
+   *  depois de um resgate parcial — ver a seção de renda fixa no CLAUDE.md. */
+  @IsOptional() @Type(() => Number) @IsNumber() @IsPositive() principalAmount?: number;
 }
 
 export class RedeemFixedIncomeDto {

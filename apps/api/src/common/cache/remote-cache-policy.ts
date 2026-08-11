@@ -10,7 +10,7 @@
  * some na hora e a atualização acontece por fora; a espera só existe quando não há nada pra mostrar.
  */
 
-export type QuoteCacheAction =
+export type RemoteFetchAction =
   /** Cache dentro do TTL — devolve e não toca na rede. */
   | "SERVE_FRESH"
   /** Tem valor guardado, só que velho: devolve já e atualiza em segundo plano. */
@@ -20,7 +20,7 @@ export type QuoteCacheAction =
   /** Nada em cache e o provedor falhou há pouco: devolve vazio na hora em vez de pagar o timeout. */
   | "GIVE_UP";
 
-export interface QuoteCacheState {
+export interface RemoteCacheState {
   /** Quando o valor guardado foi buscado. null = nunca houve busca bem-sucedida. */
   cachedAt: Date | null;
   /** Até quando esse símbolo está em quarentena depois de uma falha. null = sem falha recente. */
@@ -31,7 +31,7 @@ export interface QuoteCacheState {
   now: Date;
 }
 
-export function decideQuoteAction({ cachedAt, backoffUntil, forceRefresh, ttlMs, now }: QuoteCacheState): QuoteCacheAction {
+export function decideRemoteFetch({ cachedAt, backoffUntil, forceRefresh, ttlMs, now }: RemoteCacheState): RemoteFetchAction {
   const inBackoff = backoffUntil !== null && backoffUntil.getTime() > now.getTime();
 
   // Pedido explícito do usuário fura o TTL, mas não a quarentena: insistir num provedor que acabou

@@ -11,7 +11,7 @@ import {
 } from "../domain/market-data.provider";
 import { FundamentusProvider } from "./providers/fundamentus.provider";
 import { FundamentusIndicators } from "../domain/fundamentus-parser";
-import { decideQuoteAction } from "../domain/quote-cache-policy";
+import { decideRemoteFetch } from "../../../common/cache/remote-cache-policy";
 import { YahooDividendsProvider } from "./providers/yahoo-dividends.provider";
 
 /** Short TTL so prices feel live without hammering the free-tier BRAPI/CoinGecko rate limits. */
@@ -78,7 +78,7 @@ export class MarketPriceService {
     });
 
     const served = cached ? { price: Number(cached.price), approximate: cached.approximate } : null;
-    const action = decideQuoteAction({
+    const action = decideRemoteFetch({
       cachedAt: cached?.fetchedAt ?? null,
       backoffUntil: this.backoffFor(assetClass, symbol),
       forceRefresh: options.forceRefresh ?? false,
@@ -170,7 +170,7 @@ export class MarketPriceService {
     // Mesma política do preço: só vale segurar a tela esperando a rede quando não há nada guardado.
     // `cachedAt` só conta quando o detalhe (com histórico) está lá — uma linha que só tem preço não
     // serve pra essa página.
-    const action = decideQuoteAction({
+    const action = decideRemoteFetch({
       cachedAt: cached && hasDetail ? cached.fetchedAt : null,
       backoffUntil: this.backoffFor(assetClass, symbol),
       forceRefresh: options.forceRefresh ?? false,

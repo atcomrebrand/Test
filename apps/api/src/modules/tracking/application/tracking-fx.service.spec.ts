@@ -59,15 +59,51 @@ describe("TrackingFxService.getUsdToBrlRate", () => {
     expect(fetchUsdToBrl).not.toHaveBeenCalled();
   });
 
-  it("refetches when the cache is stale", async () => {
+  /**
+   * Cache velho é servido na hora e a atualização vai pra segundo plano. Antes, quem pedia a
+   * cotação esperava a cadeia de quatro fontes — e com a AwesomeAPI limitando por IP (429), essa
+   * espera acontecia toda vez que o TTL de 2min virava. O valor novo entra no cache e aparece na
+   * chamada seguinte (o ticker da Home repete a cada 60s), sem ninguém ficar preso na rede.
+   */
+  it("serve o cache velho na hora e atualiza em segundo plano", async () => {
     const staleDate = new Date(Date.now() - 60 * 60 * 1000);
     const prisma = makePrisma({ rate: 5.0 as unknown, fetchedAt: staleDate });
-    const provider = makeProvider(jest.fn().mockResolvedValue({ rate: 5.9, previousClose: null }));
+    const fetchUsdToBrl = jest.fn().mockResolvedValue({ rate: 5.9, previousClose: null });
+    const provider = makeProvider(fetchUsdToBrl);
     const service = new TrackingFxService(prisma, provider, NEVER_YAHOO, NEVER_EXCHANGERATE, NEVER_CDN);
 
     const rate = await service.getUsdToBrlRate();
 
-    expect(rate).toBe(5.9);
+    expect(rate).toBe(5.0); // o guardado, sem esperar a rede
+    await new Promise((resolve) => setImmediate(resolve));
+    expect(fetchUsdToBrl).toHaveBeenCalled(); // mas a atualização aconteceu
+    expect(prisma.trackingFxRateCache.upsert).toHaveBeenCalled();
+  });
+
+  /** Sem nada em cache não há o que servir, então aí vale esperar a rede. */
+  it("sem cache nenhum, espera a fonte responder", async () => {
+    const prisma = makePrisma(null);
+    const provider = makeProvider(jest.fn().mockResolvedValue({ rate: 5.9, previousClose: null }));
+    const service = new TrackingFxService(prisma, provider, NEVER_YAHOO, NEVER_EXCHANGERATE, NEVER_CDN);
+
+    expect(await service.getUsdToBrlRate()).toBe(5.9);
+  });
+
+  /**
+   * O 429 da AwesomeAPI é por IP: insistir a cada 2 minutos só renovava o bloqueio. Depois de
+   * falhar, a fonte fica de quarentena e a cadeia vai direto pra próxima.
+   */
+  it("não chama de novo uma fonte que acabou de falhar", async () => {
+    const prisma = makePrisma(null);
+    const awesome = jest.fn().mockRejectedValue(new Error("AwesomeAPI 429"));
+    const yahoo = jest.fn().mockResolvedValue({ rate: 5.1, previousClose: 5.08 });
+    const service = new TrackingFxService(prisma, makeProvider(awesome), makeYahooFallback(yahoo), NEVER_EXCHANGERATE, NEVER_CDN);
+
+    expect(await service.getUsdToBrlRate()).toBe(5.1);
+    expect(await service.getUsdToBrlRate()).toBe(5.1);
+
+    expect(awesome).toHaveBeenCalledTimes(1); // a segunda passada pulou a fonte queimada
+    expect(yahoo).toHaveBeenCalledTimes(2);
   });
 
   it("falls back to Yahoo Finance when the primary fails — before the daily-snapshot sources", async () => {

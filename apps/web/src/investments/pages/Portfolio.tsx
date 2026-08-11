@@ -14,6 +14,7 @@ import {
   ChevronDown,
   ChevronUp,
   AlertTriangle,
+  Pencil,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -108,12 +109,14 @@ function FixedIncomeCard({
   onRegisterInterest,
   onRedeem,
   onUnredeem,
+  onEdit,
   onRemove,
 }: {
   f: InvestmentFixedIncome;
   onRegisterInterest: () => void;
   onRedeem: () => void;
   onUnredeem: () => void;
+  onEdit: () => void;
   onRemove: () => void;
 }) {
   const daysToMaturity = Math.ceil((new Date(f.maturityDate).getTime() - Date.now()) / 86400000);
@@ -132,9 +135,19 @@ function FixedIncomeCard({
               {f.redeemedAt && <Badge tone="success">Resgatado</Badge>}
             </div>
           </div>
-          <button onClick={onRemove} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500" aria-label="Remover">
-            <Trash2 className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onEdit}
+              className="rounded-lg p-1.5 text-muted transition-colors hover:surface-2"
+              aria-label="Corrigir aplicação"
+              title="Corrigir data, valor ou % do CDI"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button onClick={onRemove} className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500" aria-label="Remover">
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-2 rounded-xl surface-2 p-3">
@@ -240,6 +253,7 @@ export default function Portfolio() {
   const [stakingTarget, setStakingTarget] = useState<InvestmentAsset | null>(null);
   const [interestTarget, setInterestTarget] = useState<string | null>(null);
   const [redeemTarget, setRedeemTarget] = useState<InvestmentFixedIncome | null>(null);
+  const [editFixedIncome, setEditFixedIncome] = useState<InvestmentFixedIncome | null>(null);
   const [unredeemTarget, setUnredeemTarget] = useState<InvestmentFixedIncome | null>(null);
   const [openFixedIncomeSections, setOpenFixedIncomeSections] = useState({ active: true, redeemed: false });
 
@@ -304,6 +318,7 @@ export default function Portfolio() {
                   onRegisterInterest={() => setInterestTarget(f.id)}
                   onRedeem={() => setRedeemTarget(f)}
                   onUnredeem={() => setUnredeemTarget(f)}
+                  onEdit={() => setEditFixedIncome(f)}
                   onRemove={() => removeFixedIncome.mutate(f.id)}
                 />
               ))}
@@ -322,6 +337,7 @@ export default function Portfolio() {
                   onRegisterInterest={() => setInterestTarget(f.id)}
                   onRedeem={() => setRedeemTarget(f)}
                   onUnredeem={() => setUnredeemTarget(f)}
+                  onEdit={() => setEditFixedIncome(f)}
                   onRemove={() => removeFixedIncome.mutate(f.id)}
                 />
               ))}
@@ -462,6 +478,7 @@ export default function Portfolio() {
 
       {!isFixedIncome && <AssetFormModal open={formOpen} onClose={() => setFormOpen(false)} assetClass={tab as AssetClass} />}
       {isFixedIncome && <FixedIncomeFormModal open={formOpen} onClose={() => setFormOpen(false)} />}
+      <FixedIncomeFormModal open={!!editFixedIncome} onClose={() => setEditFixedIncome(null)} fixedIncome={editFixedIncome} />
       <TransactionModal assetId={transactionTarget} onClose={() => setTransactionTarget(null)} />
       <AssetIncomeModal assetId={incomeTarget} onClose={() => setIncomeTarget(null)} />
       <StakingConfigModal asset={stakingTarget} onClose={() => setStakingTarget(null)} />

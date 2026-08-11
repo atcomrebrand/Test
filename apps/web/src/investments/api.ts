@@ -296,6 +296,23 @@ export function useCreateFixedIncome() {
   });
 }
 
+/**
+ * Corrige uma aplicação já cadastrada. Existe principalmente pela data de aplicação: errar um dia
+ * ali desloca IOF, IR e a janela inteira do CDI, e até agora só dava pra consertar por SQL.
+ */
+export function useUpdateFixedIncome() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+      api.patch<InvestmentFixedIncome>(`/investments/fixed-incomes/${id}`, data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Aplicação atualizada.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
 export function useDeleteFixedIncome() {
   const qc = useQueryClient();
   return useMutation({

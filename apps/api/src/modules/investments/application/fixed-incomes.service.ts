@@ -51,9 +51,19 @@ export class FixedIncomesService {
 
   async update(userId: string, id: string, dto: UpdateFixedIncomeDto) {
     await this.getOwned(userId, id);
-    // O DTO só deixa mexer em institution/notes, então principalAmount e contributedAmount não
-    // saem de sincronia por aqui — quem os move é só o resgate parcial, que ajusta os dois juntos.
-    const updated = await this.fixedIncomes.update(id, dto as Record<string, unknown>);
+
+    const { applicationDate, maturityDate, ...rest } = dto;
+    const data: Record<string, unknown> = { ...rest };
+    // Datas chegam como string ISO do DTO; o Prisma aceita, mas converter aqui deixa explícito
+    // que o campo é data e evita depender desse detalhe do driver.
+    if (applicationDate !== undefined) data.applicationDate = new Date(applicationDate);
+    if (maturityDate !== undefined) data.maturityDate = new Date(maturityDate);
+
+    // `principalAmount` agora é editável (era só por SQL). Ele NÃO arrasta `contributedAmount`
+    // junto de propósito: os dois respondem perguntas diferentes — base de rendimento contra
+    // dinheiro do próprio bolso ainda aplicado — e só o resgate parcial mexe nos dois de uma vez.
+    // Corrigir o principal à mão pra bater com o extrato é caso de uso legítimo e documentado.
+    const updated = await this.fixedIncomes.update(id, data);
     return this.enrich(updated);
   }
 
