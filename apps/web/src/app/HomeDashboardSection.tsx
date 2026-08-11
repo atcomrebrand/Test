@@ -202,14 +202,16 @@ export function HomeDashboardSection() {
 
         {modules.financiamentos.totalActive > 0 && (
           <div className="flex flex-col gap-4 lg:col-span-2">
+            {/* A soma é o líquido dos investimentos com o patrimônio nos bens (bens − dívida) —
+                os mesmos dois números que aparecem no card de Investimentos e na Visão Geral de
+                Financiamentos. Antes o rótulo escondia isso, e o total parecia um terceiro
+                número solto; mostrar as duas parcelas deixa a conta reconhecível. */}
             <StatTile
-              label="Patrimônio + Financiamentos"
+              label="Patrimônio total"
               value={formatCurrency(netWorth.netWorth)}
-              sublabel={
-                netWorth.financedAssets > 0
-                  ? `Investimentos + bens financiados (${formatCurrency(netWorth.financedAssets)}) menos a dívida`
-                  : "Investimentos menos dívida de financiamento"
-              }
+              sublabel={`${formatCurrency(netWorth.investedAssets)} em investimentos + ${formatCurrency(
+                modules.financiamentos.equity.equity,
+              )} de patrimônio nos bens`}
               icon={<Wallet className="h-4 w-4" />}
             />
             {/* Sem esse aviso o número pareceria completo: o bem sem avaliação não entra nos ativos
