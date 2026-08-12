@@ -164,12 +164,25 @@ export class CrmCustomersService {
     return this.present(after);
   }
 
-  /** Tira o override manual e devolve o cliente pro cálculo normal. */
+  /**
+   * Tira o override manual e devolve o cliente pro cálculo normal.
+   *
+   * Reativa junto a assinatura que o cancelamento derrubou: sem isso o cliente voltava "ativo" mas
+   * sem assinatura ativa, e aí valor, plano e forma de pagamento sumiam da tela e das mensagens —
+   * o template renderizava "o valor da renovação é {{valor}}".
+   */
   async reactivate(userId: string, id: string) {
-    await this.assertOwned(userId, id);
+    const customer = await this.assertOwned(userId, id);
     const after = await this.repo.update(id, { manualStatus: null });
+
+    const lastCancelled = customer.subscriptions.find((s) => s.status === "CANCELLED");
+    const hasActive = customer.subscriptions.some((s) => s.status === "ACTIVE");
+    if (lastCancelled && !hasActive) {
+      await this.repo.updateSubscription(lastCancelled.id, { status: "ACTIVE", cancelledAt: null });
+    }
+
     await this.repo.addEvent(userId, id, "REACTIVATED", "Cliente reativado");
-    return this.present(after);
+    return this.present(await this.assertOwned(userId, id));
   }
 
   // -------------------------------------------------------------------------
