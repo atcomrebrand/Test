@@ -109,3 +109,52 @@ Sempre, antes de reportar uma feature/fix como pronta:
 4. Verificação end-to-end real (curl direto na API e/ou agente Playwright) — não basta compilar, testar o fluxo de verdade com dados criados na hora.
 
 Ambiente de dev local costuma cair sozinho (Postgres e/ou os processos `start:dev`/`vite dev`) entre sessões — checar com `pg_isready` e `curl` antes de assumir que subiu.
+
+## CRM: as quatro regras que sustentam o módulo
+
+Módulo independente (`crm`), sem `imports` de outros módulos — em particular não toca no Contas da
+Casa. Frontend em `apps/web/src/crm/`, rotas `/crm/*`, cor indigo (violeta pro que é de revendedor).
+
+- **Portfólio é entidade, não enum.** `CrmPortfolio` é configurável e referenciado por id, então
+  renomear "Serviço A" não reescreve dado. O seletor global vive num zustand persistido
+  (`crm/store.ts`); `portfolioId = null` significa "Todos" e simplesmente não manda o parâmetro.
+- **Revendedor ≠ cliente, e o vínculo é que carrega o serviço.** `CrmReseller` é a pessoa;
+  `CrmResellerPortfolio` é a relação revendedor×serviço, e é nela que moram crédito, preço e
+  estimativa de clientes. Sem isso, quem atende os dois serviços viraria dois cadastros.
+- **Saldo de crédito NÃO é coluna.** É sempre `SUM(quantity)` de `CrmCreditMovement`. Guardar o
+  saldo criaria duas fontes de verdade que divergem no primeiro erro de transação. Movimentação
+  nunca é apagada — erro se corrige com `ADJUSTMENT` contrário. O sinal é imposto pelo tipo em
+  `signedQuantity`, então `USAGE` com quantidade negativa ainda debita.
+- **Preço e taxa congelam na linha.** `CrmRecharge.unitPrice` e `CrmPayment.feePercent/feeFixed` são
+  copiados no momento da operação. Mudar o preço do crédito ou a taxa do PIX hoje não pode
+  reprecificar o passado; a alteração vira histórico (`CrmCreditPriceChange`).
+
+**Status do cliente é derivado, não gravado.** `computeCustomerStatus` lê `currentDueDate` a cada
+leitura, porque status gravado envelhece sozinho — "ativo" seguiria ativo no dia seguinte ao
+vencimento sem ninguém tocar em nada. Só `CANCELLED`/`INACTIVE`/`RECOVERY` são gravados
+(`manualStatus`): atos deliberados que o cálculo não adivinha. `currentDueDate` é desnormalizado da
+assinatura ativa e **indexado** — é o que faz as janelas do painel (hoje/3/7/30) virarem varredura
+de índice em vez de carregar a base e filtrar em JS.
+
+**Cancelar derruba a assinatura; reativar precisa restaurá-la.** Foi bug real: o cliente voltava
+"ativo" sem assinatura ativa, e aí valor, plano e forma de pagamento sumiam da tela — o template de
+cobrança renderizava literalmente "o valor da renovação é `{{valor}}`".
+
+**A estimativa de clientes do revendedor é chute informado à mão**, com histórico de alteração
+(`CrmApproxClientsChange`). A UI é obrigada a rotular como estimativa e usar "~"; ela nunca entra na
+mesma soma dos clientes reais do CRM.
+
+**Receita direta e de revendedor são tabelas distintas** (`CrmPayment` vs `CrmRecharge`), não uma
+flag — somar as duas por engano deixa de ser possível. Dashboard e Financeiro sempre mostram as duas
+origens junto com o total, nunca só o total.
+
+**O módulo não envia mensagem.** `renderMessage` devolve texto + link do `wa.me`; quem clica em
+enviar é a pessoa. Não existe função de envio no backend, de propósito.
+
+**Churn de "Todos" não é a soma dos churns** — é recalculado sobre a união, senão vira média de
+porcentagens. Mesma lógica pras coortes de retenção, que só contam quem teve tempo de alcançar cada
+marco (senão todo cliente novo derruba a coluna de 12 meses).
+
+**Nenhum indicador conta em JS.** Todos os números do dashboard são `count`/`aggregate`/`groupBy` no
+Postgres, e as posições de crédito de todos os vínculos saem numa consulta só. A VPS tem 1GB e essa
+tela abre a cada visita — foi exatamente assim que a Home quebrou antes.

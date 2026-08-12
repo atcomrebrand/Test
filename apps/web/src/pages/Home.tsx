@@ -12,6 +12,7 @@ import {
   Clock,
   Home as HomeIcon,
   ShoppingCart,
+  Users,
   Landmark,
   ChevronLeft,
   ChevronRight,
@@ -73,6 +74,13 @@ const APPS: AppCard[] = [
     description: "Escaneie a nota do supermercado e acompanhe preço e imposto.",
     icon: ShoppingCart,
     color: "bg-sky-500",
+  },
+  {
+    to: "/crm",
+    title: "CRM",
+    description: "Clientes, assinaturas, revendedores e créditos dos dois serviços.",
+    icon: Users,
+    color: "bg-indigo-500",
   },
 ];
 

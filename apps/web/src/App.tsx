@@ -1,6 +1,20 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Layout } from "./app/Layout";
 import { ProtectedRoute } from "./app/ProtectedRoute";
+import { CrmLayout } from "./crm/CrmLayout";
+import CrmDashboard from "./crm/pages/Dashboard";
+import CrmVencimentos from "./crm/pages/Vencimentos";
+import CrmClientes from "./crm/pages/Clientes";
+import CrmClienteDetalhe from "./crm/pages/ClienteDetalhe";
+import CrmRevendedores from "./crm/pages/Revendedores";
+import CrmRevendedorDetalhe from "./crm/pages/RevendedorDetalhe";
+import CrmLeads from "./crm/pages/Leads";
+import CrmFinanceiro from "./crm/pages/Financeiro";
+import CrmRetencao from "./crm/pages/Retencao";
+import CrmRelatorios from "./crm/pages/Relatorios";
+import CrmComunicacao from "./crm/pages/Comunicacao";
+import CrmConfiguracoes from "./crm/pages/Configuracoes";
+
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import Home from "./pages/Home";
@@ -113,6 +127,22 @@ export default function App() {
           <Route path="/financiamentos" element={<FinanciamentosVisaoGeral />} />
           <Route path="/financiamentos/bens" element={<FinanciamentosBens />} />
           <Route path="/financiamentos/parcelas" element={<FinanciamentosParcelas />} />
+        </Route>
+
+
+        <Route element={<CrmLayout />}>
+          <Route path="/crm" element={<CrmDashboard />} />
+          <Route path="/crm/vencimentos" element={<CrmVencimentos />} />
+          <Route path="/crm/clientes" element={<CrmClientes />} />
+          <Route path="/crm/clientes/:id" element={<CrmClienteDetalhe />} />
+          <Route path="/crm/revendedores" element={<CrmRevendedores />} />
+          <Route path="/crm/revendedores/:id" element={<CrmRevendedorDetalhe />} />
+          <Route path="/crm/leads" element={<CrmLeads />} />
+          <Route path="/crm/financeiro" element={<CrmFinanceiro />} />
+          <Route path="/crm/retencao" element={<CrmRetencao />} />
+          <Route path="/crm/relatorios" element={<CrmRelatorios />} />
+          <Route path="/crm/comunicacao" element={<CrmComunicacao />} />
+          <Route path="/crm/configuracoes" element={<CrmConfiguracoes />} />
         </Route>
 
         <Route element={<MarketLayout />}>
