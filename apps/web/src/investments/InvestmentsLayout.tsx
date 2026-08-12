@@ -3,7 +3,7 @@ import { ArrowLeft, LayoutDashboard, Compass, LineChart, History, Newspaper, Cal
 import { cn } from "@/lib/cn";
 import { InvestmentsMobileNav } from "./InvestmentsMobileNav";
 
-const INVESTMENT_NAV = [
+export const INVESTMENT_NAV = [
   { to: "/investimentos", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/investimentos/explorar", label: "Explorar", icon: Compass },
   { to: "/investimentos/carteira", label: "Carteira", icon: LineChart },
