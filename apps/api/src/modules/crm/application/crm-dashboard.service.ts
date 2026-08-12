@@ -4,7 +4,9 @@ import { PrismaService } from "../../../prisma/prisma.service";
 import { classifyResellerActivity, isLowCredit } from "../domain/credit-ledger";
 import { DELINQUENT_AFTER_DAYS } from "../domain/customer-status";
 import { averageTicket, combineRevenue, computeChurn, computeRetentionCohorts } from "../domain/revenue";
+import { computeProfit, CrmCurrency, groupRevenueByCurrency } from "../domain/panel-credits";
 import { CrmCatalogService } from "./crm-catalog.service";
+import { CrmPanelService } from "./crm-panel.service";
 
 export type PeriodKey = "today" | "month" | "lastMonth" | "3m" | "6m" | "12m" | "custom";
 
@@ -58,6 +60,7 @@ export class CrmDashboardService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly catalog: CrmCatalogService,
+    private readonly panel: CrmPanelService,
   ) {}
 
   private scope(userId: string, portfolioId?: string): Prisma.CrmCustomerWhereInput {
@@ -218,6 +221,88 @@ export class CrmDashboardService {
         }))
         .sort((a, b) => b.monthlyRecurring - a.monthlyRecurring),
     };
+  }
+
+  /**
+   * Receita por moeda e lucro real (decisão: nunca somar real com dólar).
+   *
+   * Calcula serviço a serviço e só então agrupa por moeda, porque a moeda é do serviço. O lucro
+   * desconta as taxas E o que os créditos consumidos custaram — sem isso, "receita" parece lucro,
+   * quando na verdade cada renovação já saiu com um custo embutido.
+   */
+  async financialByCurrency(
+    userId: string,
+    portfolioId: string | undefined,
+    period: PeriodKey,
+    from?: string,
+    to?: string,
+  ) {
+    const window = resolvePeriod(period, from, to);
+    const all = await this.catalog.listPortfolios(userId);
+    const portfolios = portfolioId ? all.filter((p) => p.id === portfolioId) : all;
+    const ids = portfolios.map((p) => p.id);
+
+    const [payments, recharges, consumed, prices] = await Promise.all([
+      this.prisma.crmPayment.groupBy({
+        by: ["portfolioId"],
+        where: { userId, reversedAt: null, portfolioId: { in: ids }, paidAt: { gte: window.from, lt: window.to } },
+        _sum: { grossAmount: true, feeAmount: true },
+      }),
+      this.prisma.crmRecharge.groupBy({
+        by: ["portfolioId"],
+        where: { userId, portfolioId: { in: ids }, date: { gte: window.from, lt: window.to } },
+        _sum: { totalAmount: true, feeAmount: true },
+      }),
+      this.panel.consumedInPeriod(userId, ids, window.from, window.to),
+      this.panel.averagePrices(userId, ids),
+    ]);
+
+    const paymentBy = new Map(payments.map((p) => [p.portfolioId, p]));
+    const rechargeBy = new Map(recharges.map((r) => [r.portfolioId, r]));
+
+    const perPortfolio = portfolios.map((p) => {
+      const pay = paymentBy.get(p.id);
+      const rec = rechargeBy.get(p.id);
+      const direct = num(pay?._sum.grossAmount);
+      const resellerRevenue = num(rec?._sum.totalAmount);
+      const fees = num(pay?._sum.feeAmount) + num(rec?._sum.feeAmount);
+      const creditsConsumed = consumed.get(p.id) ?? 0;
+
+      return {
+        portfolio: p,
+        currency: p.currency as CrmCurrency,
+        direct,
+        reseller: resellerRevenue,
+        creditsConsumed,
+        averageCreditPrice: prices.get(p.id) ?? null,
+        ...computeProfit({
+          grossRevenue: direct + resellerRevenue,
+          fees,
+          creditsConsumed,
+          averageCreditPrice: prices.get(p.id) ?? null,
+        }),
+      };
+    });
+
+    // Um bloco por moeda. Somar tudo num número só juntaria grandezas diferentes — o mesmo erro que
+    // a soma de churns cometeria.
+    const byCurrency = groupRevenueByCurrency(
+      perPortfolio.map((p) => ({ currency: p.currency, direct: p.direct, reseller: p.reseller })),
+    ).map((bucket) => {
+      const doMesmo = perPortfolio.filter((p) => p.currency === bucket.currency);
+      const round = (v: number) => Math.round(v * 100) / 100;
+      return {
+        ...bucket,
+        fees: round(doMesmo.reduce((s, p) => s + p.fees, 0)),
+        creditCost: round(doMesmo.reduce((s, p) => s + p.creditCost, 0)),
+        profit: round(doMesmo.reduce((s, p) => s + p.profit, 0)),
+        creditsConsumed: doMesmo.reduce((s, p) => s + p.creditsConsumed, 0),
+        // Se qualquer serviço da moeda tem custo desconhecido, a margem do bloco está otimista.
+        costUnknown: doMesmo.some((p) => p.costUnknown),
+      };
+    });
+
+    return { period, from: window.from, to: window.to, byCurrency, perPortfolio };
   }
 
   /** Painel de vencimentos (§6): as janelas com os clientes de cada uma, prontos pra ação rápida. */
@@ -536,15 +621,57 @@ export class CrmDashboardService {
   async overview(userId: string, portfolioId: string | undefined, period: PeriodKey, from?: string, to?: string) {
     if (portfolioId) await this.catalog.assertPortfolio(userId, portfolioId);
 
-    const [customers, financial, dueBoard, resellers, churn, alerts] = await Promise.all([
-      this.customerIndicators(userId, portfolioId),
-      this.financial(userId, portfolioId, period, from, to),
-      this.dueBoard(userId, portfolioId),
-      this.resellerIndicators(userId, portfolioId),
-      this.churn(userId, portfolioId),
-      this.alerts(userId, portfolioId),
-    ]);
+    const portfolios = await this.catalog.listPortfolios(userId);
+    const ids = portfolioId ? [portfolioId] : portfolios.map((p) => p.id);
 
-    return { customers, financial, dueBoard, resellers, churn, alerts };
+    const [customers, financial, byCurrency, dueBoard, resellers, churn, alerts, panelBalances, settings] =
+      await Promise.all([
+        this.customerIndicators(userId, portfolioId),
+        this.financial(userId, portfolioId, period, from, to),
+        this.financialByCurrency(userId, portfolioId, period, from, to),
+        this.dueBoard(userId, portfolioId),
+        this.resellerIndicators(userId, portfolioId),
+        this.churn(userId, portfolioId),
+        this.alerts(userId, portfolioId),
+        this.panel.balances(userId, ids),
+        this.catalog.getSettings(userId),
+      ]);
+
+    const panel = portfolios
+      .filter((p) => ids.includes(p.id))
+      .map((p) => {
+        const balance = panelBalances.get(p.id) ?? 0;
+        return {
+          portfolio: p,
+          currency: p.currency as CrmCurrency,
+          balance,
+          lowCredit: balance <= settings.panelLowCreditThreshold,
+        };
+      });
+
+    // Estoque acabando entra como alerta de primeira linha: sem crédito a renovação é bloqueada, e
+    // descobrir isso com o cliente esperando é o pior momento possível.
+    const panelAlerts = panel
+      .filter((p) => p.lowCredit)
+      .map((p) => ({
+        kind: "PANEL_LOW_CREDIT",
+        tone: (p.balance <= 0 ? "danger" : "warning") as "danger" | "warning",
+        message:
+          p.balance <= 0
+            ? `${p.portfolio.name}: sem créditos no painel — as renovações estão bloqueadas.`
+            : `${p.portfolio.name}: só ${p.balance} crédito(s) no painel.`,
+      }));
+
+    return {
+      customers,
+      financial,
+      byCurrency: byCurrency.byCurrency,
+      perPortfolio: byCurrency.perPortfolio,
+      dueBoard,
+      resellers,
+      churn,
+      panel,
+      alerts: [...panelAlerts, ...alerts],
+    };
   }
 }

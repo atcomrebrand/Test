@@ -16,6 +16,7 @@ import {
   useCrmPortfolios,
   useCrmSettings,
   useUpdateCrmPaymentMethod,
+  useUpdateCrmPlan,
   useUpdateCrmPortfolio,
   useUpdateCrmSettings,
 } from "../api";
@@ -37,16 +38,19 @@ export default function Configuracoes() {
 
   const updatePortfolio = useUpdateCrmPortfolio();
   const createPlan = useCreateCrmPlan();
+  const updatePlan = useUpdateCrmPlan();
   const createMethod = useCreateCrmPaymentMethod();
   const updateMethod = useUpdateCrmPaymentMethod();
   const createOrigin = useCreateCrmOrigin();
   const updateSettings = useUpdateCrmSettings();
 
   const [nomes, setNomes] = useState<Record<string, string>>({});
-  const [novoPlano, setNovoPlano] = useState({ portfolioId: "", name: "", price: "", billingPeriod: "MONTHLY" });
+  const [novoPlano, setNovoPlano] = useState({ portfolioId: "", name: "", price: "", billingPeriod: "MONTHLY", creditCost: "1" });
   const [novaForma, setNovaForma] = useState({ name: "", feePercent: "0", feeFixed: "0" });
   const [novaOrigem, setNovaOrigem] = useState("");
   const [cfg, setCfg] = useState({
+    panelLowCreditThreshold: "20",
+    deductResellerRechargesFromPanel: true,
     vipMinMonths: "",
     vipMinRevenue: "",
     vipMinRenewals: "",
@@ -58,6 +62,8 @@ export default function Configuracoes() {
   useEffect(() => {
     if (!settings) return;
     setCfg({
+      panelLowCreditThreshold: String(settings.panelLowCreditThreshold),
+      deductResellerRechargesFromPanel: settings.deductResellerRechargesFromPanel,
       vipMinMonths: settings.vipMinMonths?.toString() ?? "",
       vipMinRevenue: settings.vipMinRevenue ? String(Number(settings.vipMinRevenue)) : "",
       vipMinRenewals: settings.vipMinRenewals?.toString() ?? "",
@@ -86,6 +92,18 @@ export default function Configuracoes() {
                   onChange={(e) => setNomes({ ...nomes, [p.id]: e.target.value })}
                   className="min-w-[12rem] flex-1"
                 />
+                {/* A moeda vale pro serviço inteiro: o que é vendido em dólar é recebido em dólar e
+                    tem o crédito comprado em dólar. */}
+                <Select
+                  label="Moeda"
+                  value={p.currency}
+                  onChange={(e) => updatePortfolio.mutate({ id: p.id, data: { currency: e.target.value } })}
+                  options={[
+                    { value: "BRL", label: "Real (R$)" },
+                    { value: "USD", label: "Dólar (US$)" },
+                  ]}
+                  className="w-32"
+                />
                 <Button
                   size="sm"
                   variant="secondary"
@@ -104,17 +122,30 @@ export default function Configuracoes() {
         <h2 className="mb-2 text-sm font-semibold">Planos</h2>
         <Card>
           <CardContent className="flex flex-col gap-3 py-4">
-            {(plans ?? []).map((p) => (
-              <div key={p.id} className="flex items-center justify-between text-sm">
-                <span>
-                  {p.name}{" "}
-                  <span className="text-muted">
-                    · {portfolios.find((x) => x.id === p.portfolioId)?.name}
+            {(plans ?? []).map((p) => {
+              const servico = portfolios.find((x) => x.id === p.portfolioId);
+              return (
+                <div key={p.id} className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1">
+                    {p.name} <span className="text-muted">· {servico?.name}</span>
                   </span>
-                </span>
-                <span className="font-semibold">{formatCurrency(p.price)}</span>
-              </div>
-            ))}
+                  <Input
+                    label="Créditos"
+                    type="number"
+                    min="1"
+                    defaultValue={String(p.creditCost)}
+                    onBlur={(e) => {
+                      const v = Number(e.target.value);
+                      if (v > 0 && v !== p.creditCost) updatePlan.mutate({ id: p.id, data: { creditCost: v } });
+                    }}
+                    className="w-24"
+                  />
+                  <span className="w-24 text-right font-semibold">
+                    {formatCurrency(p.price, servico?.currency ?? "BRL")}
+                  </span>
+                </div>
+              );
+            })}
 
             <div className="flex flex-wrap items-end gap-2 border-t border-[rgb(var(--border))] pt-3">
               <Select
@@ -138,6 +169,14 @@ export default function Configuracoes() {
                 onChange={(e) => setNovoPlano({ ...novoPlano, price: e.target.value })}
                 className="w-28"
               />
+              <Input
+                label="Créditos"
+                type="number"
+                min="1"
+                value={novoPlano.creditCost}
+                onChange={(e) => setNovoPlano({ ...novoPlano, creditCost: e.target.value })}
+                className="w-24"
+              />
               <Select
                 label="Período"
                 value={novoPlano.billingPeriod}
@@ -155,8 +194,12 @@ export default function Configuracoes() {
                       name: novoPlano.name,
                       price: Number(novoPlano.price),
                       billingPeriod: novoPlano.billingPeriod,
+                      creditCost: Number(novoPlano.creditCost) || 1,
                     },
-                    { onSuccess: () => setNovoPlano({ portfolioId: "", name: "", price: "", billingPeriod: "MONTHLY" }) },
+                    {
+                      onSuccess: () =>
+                        setNovoPlano({ portfolioId: "", name: "", price: "", billingPeriod: "MONTHLY", creditCost: "1" }),
+                    },
                   )
                 }
                 className="gap-1.5"
@@ -325,11 +368,41 @@ export default function Configuracoes() {
               </div>
             </div>
 
+            <div>
+              <p className="mb-2 text-xs text-muted">Seu estoque de créditos (o painel de cima).</p>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Input
+                  label="Avisar quando o painel tiver ≤"
+                  type="number"
+                  value={cfg.panelLowCreditThreshold}
+                  onChange={(e) => setCfg({ ...cfg, panelLowCreditThreshold: e.target.value })}
+                />
+                <label className="flex items-start gap-2 pt-6 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={cfg.deductResellerRechargesFromPanel}
+                    onChange={(e) => setCfg({ ...cfg, deductResellerRechargesFromPanel: e.target.checked })}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded"
+                  />
+                  {/* Ligado por padrão porque o sub-painel do revendedor costuma ser abastecido pelo
+                      seu. Quem compra o painel dele à parte desliga aqui. */}
+                  <span>
+                    Repasse a revendedor sai do meu estoque
+                    <span className="block text-xs text-muted">
+                      Desligue se o painel do revendedor for comprado separado do seu.
+                    </span>
+                  </span>
+                </label>
+              </div>
+            </div>
+
             <Button
               className="w-fit"
               loading={updateSettings.isPending}
               onClick={() =>
                 updateSettings.mutate({
+                  panelLowCreditThreshold: Number(cfg.panelLowCreditThreshold),
+                  deductResellerRechargesFromPanel: cfg.deductResellerRechargesFromPanel,
                   vipMinMonths: cfg.vipMinMonths ? Number(cfg.vipMinMonths) : null,
                   vipMinRevenue: cfg.vipMinRevenue ? Number(cfg.vipMinRevenue) : null,
                   vipMinRenewals: cfg.vipMinRenewals ? Number(cfg.vipMinRenewals) : null,

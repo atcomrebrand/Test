@@ -4,6 +4,7 @@ import { ProtectedRoute } from "./app/ProtectedRoute";
 import { CrmLayout } from "./crm/CrmLayout";
 import CrmDashboard from "./crm/pages/Dashboard";
 import CrmVencimentos from "./crm/pages/Vencimentos";
+import CrmPainel from "./crm/pages/Painel";
 import CrmClientes from "./crm/pages/Clientes";
 import CrmClienteDetalhe from "./crm/pages/ClienteDetalhe";
 import CrmRevendedores from "./crm/pages/Revendedores";
@@ -138,6 +139,7 @@ export default function App() {
           <Route path="/crm/revendedores" element={<CrmRevendedores />} />
           <Route path="/crm/revendedores/:id" element={<CrmRevendedorDetalhe />} />
           <Route path="/crm/leads" element={<CrmLeads />} />
+          <Route path="/crm/painel" element={<CrmPainel />} />
           <Route path="/crm/financeiro" element={<CrmFinanceiro />} />
           <Route path="/crm/retencao" element={<CrmRetencao />} />
           <Route path="/crm/relatorios" element={<CrmRelatorios />} />

@@ -158,3 +158,30 @@ marco (senão todo cliente novo derruba a coluna de 12 meses).
 **Nenhum indicador conta em JS.** Todos os números do dashboard são `count`/`aggregate`/`groupBy` no
 Postgres, e as posições de crédito de todos os vínculos saem numa consulta só. A VPS tem 1GB e essa
 tela abre a cada visita — foi exatamente assim que a Home quebrou antes.
+
+## CRM: dois estoques de crédito, e eles se movem em direções opostas
+
+Essa é a distinção que sustenta o financeiro do módulo, e confundir as duas inverte o sinal do lucro:
+
+- **`CrmPanelRecharge` / `CrmPanelCreditMovement`** = o **seu** estoque. Você compra do painel de
+  cima; é **custo**. Saldo por serviço, sempre `SUM(quantity)` do extrato.
+- **`CrmRecharge` / `CrmCreditMovement`** = o estoque do **revendedor**. Ele compra de você; é
+  **receita**.
+
+**Renovar consome crédito e é BLOQUEADO quando o saldo não cobre.** O custo vem do plano
+(`CrmPlan.creditCost`), com override opcional na assinatura (`resolveCreditCost`). A checagem roda
+antes de gravar qualquer coisa; a baixa acontece dentro da mesma transação do pagamento, porque
+pagamento gravado sem baixa faria o saldo divergir do painel real em silêncio, uma renovação por vez.
+
+**Repasse a revendedor debita do seu estoque** por padrão (`deductResellerRechargesFromPanel`), já
+que o sub-painel dele costuma ser abastecido pelo seu. Desligável em Configurações pra quem compra o
+painel do revendedor à parte.
+
+**O custo do crédito é a média ponderada das compras**, não a média dos preços: 1000 a R$ 0,90 mais
+10 a R$ 2,00 dá R$ 0,91, não R$ 1,45 — 59% de diferença no custo. Quando não há compra registrada,
+`averagePanelCreditPrice` devolve `null` e o lucro sai com `costUnknown: true`, porque margem cheia
+sem dizer que o custo ficou de fora é o número que faz decidir errado.
+
+**Moeda é do serviço** (`CrmPortfolio.currency`): o que é vendido em dólar é recebido em dólar e tem
+o crédito comprado em dólar. No consolidado de "Todos", receita e lucro saem **agrupados por moeda**
+(`groupRevenueByCurrency`), nunca somados num total único — mesma regra do churn.

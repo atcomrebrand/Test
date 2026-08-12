@@ -31,6 +31,17 @@ export class CrmDashboardController {
     return this.service.financial(user.userId, portfolioId, period, from, to);
   }
 
+  @Get("by-currency")
+  byCurrency(
+    @CurrentUser() user: AuthUser,
+    @Query("portfolioId") portfolioId?: string,
+    @Query("period") period: PeriodKey = "month",
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    return this.service.financialByCurrency(user.userId, portfolioId, period, from, to);
+  }
+
   @Get("due-board")
   dueBoard(@CurrentUser() user: AuthUser, @Query("portfolioId") portfolioId?: string) {
     return this.service.dueBoard(user.userId, portfolioId);

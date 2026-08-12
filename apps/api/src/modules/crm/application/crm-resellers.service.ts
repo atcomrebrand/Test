@@ -23,6 +23,7 @@ import { splitPaymentFee } from "../domain/revenue";
 import { computeTenure, fullMonthsBetween } from "../domain/tenure";
 import { CrmAuditService } from "./crm-audit.service";
 import { CrmCatalogService } from "./crm-catalog.service";
+import { CrmPanelService } from "./crm-panel.service";
 
 const RESELLER_STATUSES = ["ACTIVE", "INACTIVE", "SUSPENDED", "NEGOTIATING", "BLOCKED"] as const;
 const MOVEMENT_KINDS = ["RECHARGE", "USAGE", "ADJUSTMENT"] as const;
@@ -82,6 +83,7 @@ export class CrmResellersService {
   constructor(
     private readonly repo: CrmResellerRepository,
     private readonly catalog: CrmCatalogService,
+    private readonly panel: CrmPanelService,
     private readonly audit: CrmAuditService,
   ) {}
 
@@ -256,6 +258,14 @@ export class CrmResellersService {
     const link = await this.assertLink(userId, linkId);
     const method = dto.paymentMethodId ? await this.catalog.assertPaymentMethod(userId, dto.paymentMethodId) : null;
 
+    // Repassar crédito pro revendedor tira do seu próprio estoque, porque é o mesmo painel: o
+    // sub-painel dele é abastecido pelo seu. Configurável porque nem todo arranjo é assim — quem
+    // compra o painel do revendedor à parte desliga isso em Configurações.
+    const settings = await this.catalog.getSettings(userId);
+    if (settings.deductResellerRechargesFromPanel) {
+      await this.panel.assertCanConsume(userId, link.portfolioId, dto.quantity);
+    }
+
     const unitPrice = dto.unitPrice ?? Number(link.creditPrice);
     if (unitPrice <= 0 && dto.unitPrice === undefined) {
       throw new BadRequestException("Defina o preço do crédito no vínculo antes de recarregar");
@@ -284,10 +294,23 @@ export class CrmResellersService {
       notes: dto.notes ?? null,
     });
 
+    if (settings.deductResellerRechargesFromPanel) {
+      await this.panel.addMovement(userId, {
+        portfolioId: link.portfolioId,
+        kind: "CONSUMPTION",
+        quantity: dto.quantity,
+        note: `Repasse de ${dto.quantity} créditos ao revendedor`,
+      });
+    }
+
     await this.audit.log(userId, "CrmRecharge", result.recharge.id, "CREATE", null, result.recharge);
 
     const [position] = await this.repo.creditPositions(userId, [linkId]);
-    return { ...result, balance: position?.balance ?? 0 };
+    return {
+      ...result,
+      balance: position?.balance ?? 0,
+      panelBalance: await this.panel.balance(userId, link.portfolioId),
+    };
   }
 
   /** Uso e ajuste. O sinal é imposto pelo tipo — a UI não consegue mandar uso positivo. */

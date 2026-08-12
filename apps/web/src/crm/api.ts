@@ -4,6 +4,9 @@ import { api } from "@/lib/api";
 import { useCrmStore } from "./store";
 import {
   CrmComparison,
+  CrmCurrencyBucket,
+  CrmPanelBalance,
+  CrmPanelOverview,
   CrmCustomer,
   CrmCustomerDetail,
   CrmDashboard,
@@ -661,5 +664,60 @@ export function useSendWhatsapp() {
       window.open(res.whatsappUrl, "_blank", "noopener");
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Estoque próprio de créditos (o painel de cima)
+// ---------------------------------------------------------------------------
+
+export function useCrmPanelBalances() {
+  return useQuery({
+    queryKey: ["crm", "panel", "balances"],
+    queryFn: () => api.get<CrmPanelBalance[]>("/crm/panel/balances"),
+  });
+}
+
+export function useCrmPanelOverview(portfolioId: string | undefined) {
+  return useQuery({
+    queryKey: ["crm", "panel", portfolioId],
+    queryFn: () => api.get<CrmPanelOverview>(`/crm/panel/${portfolioId}`),
+    enabled: Boolean(portfolioId),
+  });
+}
+
+export function useCreatePanelRecharge() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      api.post<{ balance: number; recharge: { quantity: number } }>("/crm/panel/recharges", data),
+    onSuccess: (res) => {
+      invalidate(qc);
+      toast.success(`+${res.recharge.quantity} créditos. Saldo: ${res.balance}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useCreatePanelMovement() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      api.post<{ balance: number }>("/crm/panel/movements", data),
+    onSuccess: (res) => {
+      invalidate(qc);
+      toast.success(`Saldo do painel: ${res.balance}`);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** Receita e lucro por moeda — nunca um total único misturando real com dólar. */
+export function useCrmByCurrency(period = "month") {
+  const portfolioId = useCrmPortfolioId();
+  return useQuery({
+    queryKey: ["crm", "by-currency", portfolioId, period],
+    queryFn: () =>
+      api.get<{ byCurrency: CrmCurrencyBucket[] }>(`/crm/dashboard/by-currency${scope(portfolioId, { period })}`),
   });
 }

@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   AlertTriangle,
+  Battery,
   ArrowRight,
   CalendarClock,
   Info,
@@ -74,7 +75,7 @@ export default function Dashboard() {
     );
   }
 
-  const { customers, financial, dueBoard, resellers, churn, alerts } = data;
+  const { customers, dueBoard, resellers, churn, alerts, byCurrency, panel } = data;
 
   return (
     <div className="flex flex-col gap-6">
@@ -105,51 +106,86 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Receita: as duas origens sempre juntas do total. Um número só faria parecer que tudo veio
-          do mesmo lugar, quando metade é assinatura e metade é crédito de revendedor (§55). */}
-      <Card>
-        <CardContent className="py-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm text-muted">Receita do período</p>
-              <p className="text-3xl font-bold tracking-tight">{formatCurrency(financial.revenue.total)}</p>
-            </div>
-            <Select
-              options={PERIODS}
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-              className="w-44"
-            />
-          </div>
+      {/* Um bloco por moeda: real e dólar nunca entram no mesmo total, porque um número que junta
+          grandezas diferentes parece preciso e não significa nada. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold">Receita do período</h2>
+        <Select options={PERIODS} value={period} onChange={(e) => setPeriod(e.target.value)} className="w-44" />
+      </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-xl bg-emerald-500/5 p-3">
-              <p className="text-xs text-muted">Clientes diretos</p>
-              <p className="mt-0.5 text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                {formatCurrency(financial.revenue.direct)}
-              </p>
-              <p className="text-[11px] text-muted">{financial.paymentsCount} pagamento(s)</p>
-            </div>
-            <div className="rounded-xl bg-violet-500/5 p-3">
-              <p className="text-xs text-muted">Revendedores</p>
-              <p className="mt-0.5 text-lg font-bold text-violet-600 dark:text-violet-400">
-                {formatCurrency(financial.revenue.reseller)}
-              </p>
-              <p className="text-[11px] text-muted">{financial.rechargesCount} recarga(s)</p>
-            </div>
-            <div className="surface-2 rounded-xl p-3">
-              <p className="text-xs text-muted">Taxas</p>
-              <p className="mt-0.5 text-lg font-bold text-red-500">−{formatCurrency(financial.fees)}</p>
-              <p className="text-[11px] text-muted">Líquido {formatCurrency(financial.net)}</p>
-            </div>
-            <div className="surface-2 rounded-xl p-3">
-              <p className="text-xs text-muted">Pendente</p>
-              <p className="mt-0.5 text-lg font-bold text-amber-500">{formatCurrency(financial.pending.amount)}</p>
-              <p className="text-[11px] text-muted">{financial.pending.count} vencido(s)</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {byCurrency.map((b) => (
+          <Card key={b.currency}>
+            <CardContent className="py-5">
+              <div className="mb-3 flex items-baseline gap-2">
+                <p className="text-3xl font-bold tracking-tight">{formatCurrency(b.total, b.currency)}</p>
+                <span className="surface-2 rounded-md px-1.5 py-0.5 text-[11px] font-medium">{b.currency}</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-xl bg-emerald-500/5 p-3">
+                  <p className="text-xs text-muted">Clientes diretos</p>
+                  <p className="mt-0.5 text-lg font-bold text-emerald-600 dark:text-emerald-400">
+                    {formatCurrency(b.direct, b.currency)}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-violet-500/5 p-3">
+                  <p className="text-xs text-muted">Revendedores</p>
+                  <p className="mt-0.5 text-lg font-bold text-violet-600 dark:text-violet-400">
+                    {formatCurrency(b.reseller, b.currency)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Lucro depois da taxa E do que os créditos custaram — sem o custo, "receita"
+                  parece lucro, quando cada renovação já saiu com um custo embutido. */}
+              <div className="surface-2 mt-3 flex flex-col gap-1 rounded-xl p-3 text-sm">
+                <div className="flex justify-between text-muted">
+                  <span>Taxas</span>
+                  <span>−{formatCurrency(b.fees, b.currency)}</span>
+                </div>
+                <div className="flex justify-between text-muted">
+                  <span>{b.creditsConsumed} crédito(s) consumido(s)</span>
+                  <span>−{formatCurrency(b.creditCost, b.currency)}</span>
+                </div>
+                <div className="mt-1 flex justify-between border-t border-[rgb(var(--border))] pt-2 font-semibold">
+                  <span>Lucro</span>
+                  <span className={b.profit >= 0 ? "text-emerald-500" : "text-red-500"}>
+                    {formatCurrency(b.profit, b.currency)}
+                  </span>
+                </div>
+                {b.costUnknown && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                    Sem preço de compra registrado — o custo dos créditos ficou de fora e o lucro está otimista.
+                  </p>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Saldo do painel é o recurso que limita tudo: sem crédito a renovação é bloqueada. */}
+      {panel.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {panel.map((p) => (
+            <Link key={p.portfolio.id} to="/crm/painel">
+              <div
+                className={cn(
+                  "surface rounded-xl border p-3 transition-colors hover:surface-2",
+                  p.lowCredit ? "border-amber-500/40" : "border-[rgb(var(--border))]",
+                )}
+              >
+                <p className="flex items-center gap-1.5 text-xs text-muted">
+                  <Battery className="h-3 w-3" /> Painel · {p.portfolio.name}
+                </p>
+                <p className={cn("mt-0.5 text-xl font-bold", p.balance <= 0 && "text-red-500")}>{p.balance}</p>
+                <p className="text-[11px] text-muted">créditos</p>
+              </div>
+            </Link>
+          ))}
+        </div>
+      )}
 
       <section>
         <div className="mb-3 flex items-center justify-between">

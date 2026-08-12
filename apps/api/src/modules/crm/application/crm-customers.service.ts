@@ -2,7 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { CrmCustomerRepository, CustomerFilters, CustomerWithRelations } from "../domain/crm-customer.repository";
 import { computeCustomerStatus, CrmCustomerStatus } from "../domain/customer-status";
 import { classifyVip, splitPaymentFee } from "../domain/revenue";
+import { resolveCreditCost } from "../domain/panel-credits";
 import { computeNextDueDate, computeTenure, monthsInPeriod } from "../domain/tenure";
+import { CrmPanelService } from "./crm-panel.service";
 import { CrmAuditService } from "./crm-audit.service";
 import { CrmCatalogService } from "./crm-catalog.service";
 import {
@@ -26,6 +28,7 @@ export class CrmCustomersService {
   constructor(
     private readonly repo: CrmCustomerRepository,
     private readonly catalog: CrmCatalogService,
+    private readonly panel: CrmPanelService,
     private readonly audit: CrmAuditService,
   ) {}
 
@@ -204,6 +207,7 @@ export class CrmCustomersService {
       startDate,
       dueDate,
       amount: dto.amount,
+      creditCost: dto.creditCost ?? null,
       billingPeriod: dto.billingPeriod ?? "MONTHLY",
       customDays: dto.customDays ?? null,
       paymentMethodId: dto.paymentMethodId ?? null,
@@ -266,6 +270,12 @@ export class CrmCustomersService {
       today: now,
     });
 
+    // O custo em créditos sai do pacote, e a checagem vem ANTES de gravar qualquer coisa: bloquear
+    // é a decisão de produto aqui — melhor descobrir que falta crédito agora do que ficar com um
+    // saldo negativo que não corresponde ao painel de verdade.
+    const creditCost = resolveCreditCost(subscription.creditCost, subscription.plan?.creditCost);
+    await this.panel.assertCanConsume(userId, subscription.portfolioId, creditCost);
+
     // A taxa é copiada agora e congela na linha: mexer na forma de pagamento depois não pode
     // reescrever o líquido desta renovação.
     const fee = splitPaymentFee(amount, {
@@ -291,10 +301,19 @@ export class CrmCustomersService {
       periodEnd: nextDueDate,
       notes: dto.notes ?? null,
       firstSubscribedAt: customer.firstSubscribedAt ?? subscription.startDate,
+      creditCost,
     });
 
     await this.audit.log(userId, "CrmSubscription", subscriptionId, "RENEW", subscription, updated);
-    return { subscription: updated, payment, nextDueDate, monthsAdvanced: monthsInPeriod(period) };
+    const balance = await this.panel.balance(userId, subscription.portfolioId);
+    return {
+      subscription: updated,
+      payment,
+      nextDueDate,
+      monthsAdvanced: monthsInPeriod(period),
+      creditCost,
+      panelBalance: balance,
+    };
   }
 
   // -------------------------------------------------------------------------

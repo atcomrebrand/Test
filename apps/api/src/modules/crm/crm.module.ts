@@ -6,6 +6,7 @@ import { CrmLeadsService } from "./application/crm-leads.service";
 import { CrmResellersService } from "./application/crm-resellers.service";
 import { CrmDashboardService } from "./application/crm-dashboard.service";
 import { CrmSearchService } from "./application/crm-search.service";
+import { CrmPanelService } from "./application/crm-panel.service";
 import { CrmCatalogRepository } from "./domain/crm-catalog.repository";
 import { CrmCatalogPrismaRepository } from "./infrastructure/crm-catalog.prisma.repository";
 import { CrmCustomerRepository } from "./domain/crm-customer.repository";
@@ -20,6 +21,7 @@ import { CrmLeadsController } from "./interface/crm-leads.controller";
 import { CrmResellersController } from "./interface/crm-resellers.controller";
 import { CrmDashboardController } from "./interface/crm-dashboard.controller";
 import { CrmSearchController } from "./interface/crm-search.controller";
+import { CrmPanelController } from "./interface/crm-panel.controller";
 
 /**
  * CRM de clientes, assinaturas e revendedores.
@@ -28,7 +30,7 @@ import { CrmSearchController } from "./interface/crm-search.controller";
  * Casa. O único acoplamento é com a infraestrutura comum (Prisma, guard de auth), que é global.
  */
 @Module({
-  controllers: [CrmCatalogController, CrmCustomersController, CrmLeadsController, CrmResellersController, CrmDashboardController, CrmSearchController],
+  controllers: [CrmCatalogController, CrmCustomersController, CrmLeadsController, CrmResellersController, CrmDashboardController, CrmSearchController, CrmPanelController],
   providers: [
     { provide: CrmCatalogRepository, useClass: CrmCatalogPrismaRepository },
     { provide: CrmCustomerRepository, useClass: CrmCustomerPrismaRepository },
@@ -40,6 +42,7 @@ import { CrmSearchController } from "./interface/crm-search.controller";
     CrmResellersService,
     CrmDashboardService,
     CrmSearchService,
+    CrmPanelService,
     CrmAuditService,
   ],
 })

@@ -65,6 +65,11 @@ export interface RenewData {
   notes?: string | null;
   /** Preenchido só quando é a primeira assinatura do cliente. */
   firstSubscribedAt?: Date | null;
+  /**
+   * Créditos do painel que esta renovação consome. Debitado dentro da mesma transação: pagamento
+   * gravado sem baixa de crédito faria o saldo desviar do painel real a cada renovação, em silêncio.
+   */
+  creditCost: number;
 }
 
 export interface CustomerRevenue {

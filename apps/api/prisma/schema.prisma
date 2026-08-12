@@ -200,6 +200,8 @@ model User {
   crmCreditMovements      CrmCreditMovement[]
   crmCreditPriceChanges   CrmCreditPriceChange[]
   crmApproxClientsChanges CrmApproxClientsChange[]
+  crmPanelRecharges       CrmPanelRecharge[]
+  crmPanelCreditMovements CrmPanelCreditMovement[]
   crmMessageTemplates     CrmMessageTemplate[]
   crmSettings             CrmSettings?
   crmAuditLogs            CrmAuditLog[]
@@ -1350,6 +1352,20 @@ enum CrmTemplateCategory {
   OTHER
 }
 
+/// Moeda do serviço. O que é vendido em dólar também é recebido em dólar, e o custo do crédito
+/// daquele painel também é em dólar — a moeda acompanha o serviço inteiro, não só o preço.
+enum CrmCurrency {
+  BRL
+  USD
+}
+
+/// Movimentação do estoque próprio de créditos (o painel de cima).
+enum CrmPanelMovementKind {
+  RECHARGE
+  CONSUMPTION
+  ADJUSTMENT
+}
+
 enum CrmBillingPeriod {
   MONTHLY
   BIMONTHLY
@@ -1367,11 +1383,14 @@ model CrmPortfolio {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
   color     String   @default("#6366f1")
+  currency  CrmCurrency @default(BRL)
   order     Int      @default(0)
   active    Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  panelRecharges     CrmPanelRecharge[]
+  panelMovements     CrmPanelCreditMovement[]
   customers          CrmCustomer[]
   subscriptions      CrmSubscription[]
   payments           CrmPayment[]
@@ -1393,6 +1412,9 @@ model CrmPlan {
   portfolio     CrmPortfolio     @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   name          String
   price         Decimal          @db.Decimal(12, 2)
+  /// Quantos créditos do painel uma renovação deste pacote consome. Mensal costuma ser 1 e anual
+  /// 12, mas quem define é o painel de cima — por isso é campo, não cálculo.
+  creditCost    Int              @default(1)
   billingPeriod CrmBillingPeriod @default(MONTHLY)
   /// Só quando billingPeriod = CUSTOM.
   customDays    Int?
@@ -1552,6 +1574,8 @@ model CrmSubscription {
   startDate       DateTime
   dueDate         DateTime
   amount          Decimal               @db.Decimal(12, 2)
+  /// Sobrescreve o custo do plano nesta assinatura específica. Nulo = herda do plano.
+  creditCost      Int?
   billingPeriod   CrmBillingPeriod      @default(MONTHLY)
   customDays      Int?
   paymentMethodId String?
@@ -1818,6 +1842,11 @@ model CrmSettings {
   resellerAttentionDays     Int      @default(30)
   resellerInactiveDays      Int      @default(60)
   defaultLowCreditThreshold Int      @default(10)
+  /// Alerta quando o estoque do painel de um serviço cai até aqui.
+  panelLowCreditThreshold   Int      @default(20)
+  /// Quando ligado, dar créditos a um revendedor sai do seu próprio estoque — que é como funciona
+  /// quando o revendedor usa um sub-painel do seu. Desligue se o painel dele for comprado à parte.
+  deductResellerRechargesFromPanel Boolean @default(true)
   createdAt                 DateTime @default(now())
   updatedAt                 DateTime @updatedAt
 
@@ -1838,4 +1867,57 @@ model CrmAuditLog {
   @@index([userId, entity, entityId])
   @@index([userId, createdAt])
   @@map("crm_audit_logs")
+}
+
+/// Compra de créditos no painel de cima — o estoque que abastece as renovações.
+///
+/// É a contraparte de CrmRecharge: lá o revendedor compra de você, aqui você compra de quem está
+/// acima. Tabelas distintas porque uma é receita e a outra é custo, e confundir as duas inverteria
+/// o sinal do lucro.
+model CrmPanelRecharge {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId String
+  portfolio   CrmPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  date        DateTime
+  quantity    Int
+  /// Preço pago por crédito, congelado nesta compra. É dele que sai o custo médio do estoque.
+  unitPrice   Decimal      @db.Decimal(12, 4)
+  totalAmount Decimal      @db.Decimal(12, 2)
+  /// Cópia da moeda do serviço no momento da compra: trocar a moeda do serviço depois não pode
+  /// reinterpretar o que já foi pago.
+  currency    CrmCurrency  @default(BRL)
+  notes       String?
+  createdAt   DateTime     @default(now())
+
+  movements CrmPanelCreditMovement[]
+
+  @@index([userId, portfolioId, date])
+  @@map("crm_panel_recharges")
+}
+
+/// Extrato do estoque próprio. Mesma regra do extrato de revendedor: o saldo é a soma daqui, nunca
+/// um número guardado, e linha nenhuma é apagada.
+model CrmPanelCreditMovement {
+  id             String               @id @default(cuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId    String
+  portfolio      CrmPortfolio         @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  kind           CrmPanelMovementKind
+  /// Assinado: positivo entra (compra), negativo sai (renovação, repasse a revendedor).
+  quantity       Int
+  panelRechargeId String?
+  panelRecharge  CrmPanelRecharge?    @relation(fields: [panelRechargeId], references: [id], onDelete: SetNull)
+  /// Qual renovação consumiu — é o que liga o extrato ao cliente e permite auditar o consumo.
+  subscriptionId String?
+  customerId     String?
+  /// Repasse pra revendedor, quando a configuração debita do estoque.
+  rechargeId     String?
+  note           String?
+  createdAt      DateTime             @default(now())
+
+  @@index([userId, portfolioId, createdAt])
+  @@map("crm_panel_credit_movements")
 }

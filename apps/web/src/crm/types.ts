@@ -9,6 +9,10 @@ export type CrmCustomerStatus =
   | "INACTIVE"
   | "RECOVERY";
 
+export type CrmCurrency = "BRL" | "USD";
+
+export type CrmPanelMovementKind = "RECHARGE" | "CONSUMPTION" | "ADJUSTMENT";
+
 export type CrmLeadStage = "NEW" | "CONTACTED" | "INTERESTED" | "TRIAL" | "CONVERTED" | "LOST";
 export type CrmResellerStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "NEGOTIATING" | "BLOCKED";
 export type CrmActivity = "ACTIVE" | "ATTENTION" | "INACTIVE";
@@ -26,6 +30,8 @@ export type CrmTemplateCategory =
 export interface CrmPortfolio {
   id: string;
   name: string;
+  /** Serviço em dólar é recebido em dólar e tem o crédito comprado em dólar. */
+  currency: CrmCurrency;
   color: string;
   order: number;
   active: boolean;
@@ -36,6 +42,8 @@ export interface CrmPlan {
   portfolioId: string;
   name: string;
   price: string | number;
+  /** Créditos do painel que uma renovação deste pacote consome. */
+  creditCost: number;
   billingPeriod: CrmBillingPeriod;
   customDays: number | null;
   active: boolean;
@@ -78,6 +86,8 @@ export interface CrmSubscription {
   startDate: string;
   dueDate: string;
   amount: string | number;
+  /** Sobrescreve o custo do plano. Nulo = herda do pacote. */
+  creditCost: number | null;
   billingPeriod: CrmBillingPeriod;
   customDays: number | null;
   paymentMethodId: string | null;
@@ -311,6 +321,8 @@ export interface CrmDashboard {
   };
   resellers: CrmResellerDashboard;
   churn: { lost: number; gained: number; netGrowth: number; churnRate: number | null; growthRate: number | null };
+  byCurrency: CrmCurrencyBucket[];
+  panel: { portfolio: CrmPortfolio; currency: CrmCurrency; balance: number; lowCredit: boolean }[];
   alerts: { kind: string; tone: "info" | "warning" | "danger"; message: string }[];
 }
 
@@ -399,6 +411,56 @@ export interface CrmRenderedMessage {
   whatsappUrl: string | null;
 }
 
+export interface CrmPanelBalance {
+  portfolio: CrmPortfolio;
+  currency: CrmCurrency;
+  balance: number;
+  averagePrice: number | null;
+  stockValue: number | null;
+  lowCredit: boolean;
+  threshold: number;
+}
+
+export interface CrmPanelMovement {
+  id: string;
+  kind: CrmPanelMovementKind;
+  quantity: number;
+  note: string | null;
+  createdAt: string;
+}
+
+export interface CrmPanelRecharge {
+  id: string;
+  date: string;
+  quantity: number;
+  unitPrice: string | number;
+  totalAmount: string | number;
+  currency: CrmCurrency;
+  notes: string | null;
+}
+
+export interface CrmPanelOverview extends CrmPanelBalance {
+  purchased: number;
+  used: number;
+  totalSpent: number;
+  movements: CrmPanelMovement[];
+  recharges: CrmPanelRecharge[];
+}
+
+/** Um bloco por moeda — real e dólar nunca somados num total único. */
+export interface CrmCurrencyBucket {
+  currency: CrmCurrency;
+  direct: number;
+  reseller: number;
+  total: number;
+  fees: number;
+  creditCost: number;
+  profit: number;
+  creditsConsumed: number;
+  /** Quando true, algum serviço não tem preço de crédito e a margem está otimista. */
+  costUnknown: boolean;
+}
+
 export interface CrmSettings {
   vipMinMonths: number | null;
   vipMinRevenue: string | null;
@@ -406,6 +468,8 @@ export interface CrmSettings {
   resellerAttentionDays: number;
   resellerInactiveDays: number;
   defaultLowCreditThreshold: number;
+  panelLowCreditThreshold: number;
+  deductResellerRechargesFromPanel: boolean;
 }
 
 export interface CrmSearchResults {

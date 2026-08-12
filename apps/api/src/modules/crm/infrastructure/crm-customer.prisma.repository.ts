@@ -194,12 +194,26 @@ export class CrmCustomerPrismaRepository extends CrmCustomerRepository {
         },
       });
 
+      // Baixa do estoque próprio, na mesma transação. O saldo do painel é a soma deste extrato, e
+      // renovar sem debitar faria ele divergir do painel de verdade sem deixar rastro.
+      await tx.crmPanelCreditMovement.create({
+        data: {
+          userId: data.userId,
+          portfolioId: data.portfolioId,
+          kind: "CONSUMPTION",
+          quantity: -Math.abs(data.creditCost),
+          subscriptionId: data.subscriptionId,
+          customerId: data.customerId,
+          note: `Renovação — ${data.creditCost} crédito(s)`,
+        },
+      });
+
       await tx.crmCustomerEvent.create({
         data: {
           userId: data.userId,
           customerId: data.customerId,
           kind: "RENEWAL",
-          description: "Assinatura renovada",
+          description: `Assinatura renovada · ${data.creditCost} crédito(s)`,
           amount: data.amount,
         },
       });

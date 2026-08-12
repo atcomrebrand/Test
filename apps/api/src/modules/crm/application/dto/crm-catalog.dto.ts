@@ -15,6 +15,8 @@ import {
 } from "class-validator";
 
 export const BILLING_PERIODS = ["MONTHLY", "BIMONTHLY", "QUARTERLY", "SEMIANNUAL", "ANNUAL", "CUSTOM"] as const;
+export const CURRENCIES = ["BRL", "USD"] as const;
+
 export const TEMPLATE_CATEGORIES = [
   "RENEWAL",
   "DUE",
@@ -28,12 +30,15 @@ export const TEMPLATE_CATEGORIES = [
 
 export class CreateCrmPortfolioDto {
   @IsString() @MinLength(1) @MaxLength(60) name!: string;
+  /** Serviço vendido em dólar também é recebido em dólar, e o crédito dele é comprado em dólar. */
+  @IsOptional() @IsEnum(CURRENCIES) currency?: (typeof CURRENCIES)[number];
   @IsOptional() @IsHexColor() color?: string;
   @IsOptional() @Type(() => Number) @IsInt() order?: number;
 }
 
 export class UpdateCrmPortfolioDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(60) name?: string;
+  @IsOptional() @IsEnum(CURRENCIES) currency?: (typeof CURRENCIES)[number];
   @IsOptional() @IsHexColor() color?: string;
   @IsOptional() @Type(() => Number) @IsInt() order?: number;
   @IsOptional() @IsBoolean() active?: boolean;
@@ -43,6 +48,8 @@ export class CreateCrmPlanDto {
   @IsString() portfolioId!: string;
   @IsString() @MinLength(1) @MaxLength(80) name!: string;
   @Type(() => Number) @IsNumber() @Min(0) price!: number;
+  /** Quantos créditos do painel a renovação deste pacote consome. */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) creditCost?: number;
   @IsOptional() @IsEnum(BILLING_PERIODS) billingPeriod?: (typeof BILLING_PERIODS)[number];
   @IsOptional() @Type(() => Number) @IsInt() @IsPositive() customDays?: number;
   @IsOptional() @Type(() => Number) @IsInt() order?: number;
@@ -51,6 +58,7 @@ export class CreateCrmPlanDto {
 export class UpdateCrmPlanDto {
   @IsOptional() @IsString() @MinLength(1) @MaxLength(80) name?: string;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) price?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) creditCost?: number;
   @IsOptional() @IsEnum(BILLING_PERIODS) billingPeriod?: (typeof BILLING_PERIODS)[number];
   @IsOptional() @Type(() => Number) @IsInt() @IsPositive() customDays?: number;
   @IsOptional() @IsBoolean() active?: boolean;
@@ -111,4 +119,6 @@ export class UpdateCrmSettingsDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) resellerAttentionDays?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) resellerInactiveDays?: number;
   @IsOptional() @Type(() => Number) @IsInt() @Min(0) defaultLowCreditThreshold?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(0) panelLowCreditThreshold?: number;
+  @IsOptional() @IsBoolean() deductResellerRechargesFromPanel?: boolean;
 }

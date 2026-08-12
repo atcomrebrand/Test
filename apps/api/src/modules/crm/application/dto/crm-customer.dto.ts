@@ -55,6 +55,8 @@ export class CreateCrmSubscriptionDto {
   @IsDateString() startDate!: string;
   @IsDateString() dueDate!: string;
   @Type(() => Number) @IsNumber() @Min(0) amount!: number;
+  /** Sobrescreve o custo em créditos do plano nesta assinatura. Nulo = herda do pacote. */
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) creditCost?: number;
   @IsOptional() @IsEnum(BILLING_PERIODS) billingPeriod?: (typeof BILLING_PERIODS)[number];
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) customDays?: number;
   @IsOptional() @IsString() paymentMethodId?: string;
@@ -65,6 +67,7 @@ export class UpdateCrmSubscriptionDto {
   @IsOptional() @IsString() planId?: string;
   @IsOptional() @IsDateString() dueDate?: string;
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) amount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) creditCost?: number;
   @IsOptional() @IsEnum(BILLING_PERIODS) billingPeriod?: (typeof BILLING_PERIODS)[number];
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) customDays?: number;
   @IsOptional() @IsString() paymentMethodId?: string;
@@ -77,6 +80,7 @@ export class UpdateCrmSubscriptionDto {
  */
 export class RenewSubscriptionDto {
   @IsOptional() @Type(() => Number) @IsNumber() @Min(0) amount?: number;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) creditCost?: number;
   @IsOptional() @IsEnum(BILLING_PERIODS) billingPeriod?: (typeof BILLING_PERIODS)[number];
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) customDays?: number;
   @IsOptional() @IsString() paymentMethodId?: string;
