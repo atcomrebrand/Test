@@ -1,6 +1,7 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
+  ArrowUpDown,
   Plus,
   LineChart,
   Trash2,
@@ -22,6 +23,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Tabs } from "@/components/ui/Tabs";
+import { Select } from "@/components/ui/Input";
 import { cn } from "@/lib/cn";
 import { formatCurrency, formatDate } from "@/lib/format";
 import {
@@ -35,6 +37,16 @@ import {
   useUnredeemFixedIncome,
 } from "../api";
 import { AssetClass, InvestmentAsset, InvestmentFixedIncome } from "../types";
+import {
+  ASSET_SORT_OPTIONS,
+  AssetSort,
+  FIXED_INCOME_SORT_OPTIONS,
+  FixedIncomeSort,
+  sortAssets,
+  sortFixedIncomes,
+  summarizeAssets,
+} from "../sortPortfolio";
+import { usePortfolioSort } from "../usePortfolioSort";
 import { AssetFormModal } from "../components/AssetFormModal";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
@@ -244,8 +256,21 @@ export default function Portfolio() {
   const { data: fixedIncomes, isLoading: fixedIncomesLoading } = useFixedIncomes();
   const unredeemFixedIncome = useUnredeemFixedIncome();
   const removeFixedIncome = useDeleteFixedIncome();
-  const activeFixedIncomes = fixedIncomes?.filter((f) => !f.redeemedAt) ?? [];
-  const redeemedFixedIncomes = fixedIncomes?.filter((f) => f.redeemedAt) ?? [];
+  const [assetSort, setAssetSort] = usePortfolioSort<AssetSort>("assets", "default");
+  const [fixedSort, setFixedSort] = usePortfolioSort<FixedIncomeSort>("fixed", "default");
+
+  // useMemo porque a ordenação copia e percorre a lista, e a tela re-renderiza a cada modal aberto.
+  const sortedAssets = useMemo(() => sortAssets(data ?? [], assetSort), [data, assetSort]);
+  const totals = useMemo(() => summarizeAssets(sortedAssets), [sortedAssets]);
+
+  const activeFixedIncomes = useMemo(
+    () => sortFixedIncomes(fixedIncomes?.filter((f) => !f.redeemedAt) ?? [], fixedSort),
+    [fixedIncomes, fixedSort],
+  );
+  const redeemedFixedIncomes = useMemo(
+    () => sortFixedIncomes(fixedIncomes?.filter((f) => f.redeemedAt) ?? [], fixedSort),
+    [fixedIncomes, fixedSort],
+  );
 
   const [formOpen, setFormOpen] = useState(false);
   const [transactionTarget, setTransactionTarget] = useState<string | null>(null);
@@ -279,6 +304,56 @@ export default function Portfolio() {
       </div>
 
       <Tabs value={tab} onChange={(v) => setTab(v as PortfolioTab)} options={TAB_OPTIONS} />
+
+      {/* Ordenação + total do que está na tela. Ficam juntos porque, depois de ordenar, a pergunta
+          seguinte costuma ser "e isso tudo dá quanto". */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="h-4 w-4 shrink-0 text-muted" />
+          {isFixedIncome ? (
+            <Select
+              options={FIXED_INCOME_SORT_OPTIONS}
+              value={fixedSort}
+              onChange={(e) => setFixedSort(e.target.value as FixedIncomeSort)}
+              className="w-56"
+            />
+          ) : (
+            <Select
+              options={ASSET_SORT_OPTIONS}
+              value={assetSort}
+              onChange={(e) => setAssetSort(e.target.value as AssetSort)}
+              className="w-56"
+            />
+          )}
+        </div>
+
+        {!isFixedIncome && totals.count > 0 && (
+          <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-right">
+            <span className="text-xs text-muted">
+              {totals.count} ativo{totals.count > 1 ? "s" : ""}
+            </span>
+            <span>
+              <span className="block text-[11px] leading-none text-muted">Valor</span>
+              <span className="font-bold">{formatCurrency(totals.value)}</span>
+            </span>
+            <span>
+              <span className="block text-[11px] leading-none text-muted">Lucro</span>
+              <span className={cn("font-bold", totals.profit >= 0 ? "text-emerald-500" : "text-red-500")}>
+                {formatCurrency(totals.profit)}
+              </span>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Sem cotação não entra na soma. Dizer isso evita a conclusão errada de que o ativo some ou
+          de que o total já contempla tudo. */}
+      {!isFixedIncome && totals.withoutPrice > 0 && (
+        <p className="-mt-1 text-xs text-amber-600 dark:text-amber-400">
+          {totals.withoutPrice} ativo{totals.withoutPrice > 1 ? "s" : ""} sem cotação — fica{totals.withoutPrice > 1 ? "m" : ""} no fim da
+          lista e fora do total.
+        </p>
+      )}
 
       {isFixedIncome ? (
         <>
@@ -369,7 +444,7 @@ export default function Portfolio() {
           )}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {data?.map((asset) => (
+            {sortedAssets.map((asset) => (
               <Card key={asset.id}>
                 <CardContent className="flex flex-col gap-4">
                   <div className="flex items-start justify-between">
