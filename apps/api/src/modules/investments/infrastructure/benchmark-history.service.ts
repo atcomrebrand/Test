@@ -102,7 +102,13 @@ export class BenchmarkHistoryService {
     const faltaPonta = !ultima || ultima.date.getTime() < fimPedido.getTime();
 
     if (!faltaComeco && !faltaPonta) return;
-    if (!faltaComeco && Date.now() - (this.lastTailFetch.get(key) ?? 0) < TAIL_TTL_MS) return;
+    // O TTL vale TAMBÉM quando não há nada guardado — era o furo: com a fonte fora do ar o banco
+    // ficava vazio pra sempre, `faltaComeco` nunca deixava de ser verdade, e cada abertura da
+    // Carteira recomeçava a fila de candidatos contra um provedor morto. Três símbolos × 8s de
+    // timeout é o gráfico inteiro esperando 24s por uma linha que não vai vir. Mesma lição da
+    // quarentena da cotação: insistir num provedor que acabou de estourar só entrega o timeout
+    // de novo, agora com o usuário parado olhando pra tela.
+    if (Date.now() - (this.lastTailFetch.get(key) ?? 0) < TAIL_TTL_MS) return;
 
     this.lastTailFetch.set(key, Date.now());
 

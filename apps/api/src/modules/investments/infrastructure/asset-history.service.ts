@@ -96,7 +96,10 @@ export class AssetHistoryService {
     const faltaPonta = !ultima || ultima.date.getTime() < fim.getTime();
 
     if (!faltaComeco && !faltaPonta) return;
-    if (!faltaComeco && Date.now() - (this.lastTailFetch.get(ticker) ?? 0) < TAIL_TTL_MS) return;
+    // Vale também pro ativo que ainda não tem nada guardado: sem série no banco `faltaComeco`
+    // nunca deixa de ser verdade, e um ticker que o provedor não conhece seria buscado de novo a
+    // cada abertura da tela — 8s de timeout por vez, multiplicados pelos ativos da carteira.
+    if (Date.now() - (this.lastTailFetch.get(ticker) ?? 0) < TAIL_TTL_MS) return;
 
     this.lastTailFetch.set(ticker, Date.now());
 
