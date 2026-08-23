@@ -84,6 +84,44 @@ Isso já foi mexido duas vezes por entender errado o que o usuário estava compa
 - Requisições simultâneas do mesmo símbolo compartilham a mesma promise (`inFlight`). O log mostrava o mesmo lote falhando duas vezes com 1s de diferença — Portfolio e Dashboard carregam juntos.
 - **Diagnóstico**: `Quote refresh failed ... aborted due to timeout` em rajadas de 4 a cada ~8s = provedor fora, não app lento. Confirmar com `free -h` e o `CPU` do `systemctl status` antes de culpar o código: em 2026-08-10 a VPS estava com 559Mi livres e a API com 12,5s de CPU em 55min, ou seja, presa em I/O de rede.
 
+## Evolução da carteira: o passado é remontado, não gravado
+
+O gráfico acima das abas da Carteira (`/investimentos/carteira`) mostra a classe inteira — não ativo
+por ativo — com valor, custo e rentabilidade, mais CDI, Ibovespa e IFIX na mesma escala.
+
+- **O app nunca guardou retrato diário de patrimônio.** A curva é remontada de duas coisas que já
+  estavam no banco: **posição no dia D** (varrendo o extrato de transações com preço médio) **×
+  fechamento no dia D**. Renda Fixa é o caso fácil: não depende de fechamento nenhum, o valor em
+  qualquer data é calculável da série do CDI que já está em `economic_daily_rates`.
+- **Comparar patrimônio cru com o CDI é o erro clássico** — um aporte de R$ 5.000 faz a linha saltar
+  e parecer que "bateu o CDI" num dia em que nada rendeu. Por isso cada série carrega um **índice de
+  retorno time-weighted** base 100 (`buildReturnIndex`): cada intervalo mede `valor_final /
+  (valor_inicial + aporte)`, encadeado. É esse índice, e só ele, que vai pro modo "Comparar".
+- **Ativo sem histórico de preço sai dos DOIS lados da conta.** Ficar fora do valor mas com o
+  dinheiro ainda no fluxo fazia o índice ver R$ 3.255 entrarem e nada aparecer: a aba inteira
+  cravava −100% só porque a BRAPI estava fora do ar. Fora da soma = fora do valor e do fluxo, com o
+  ticker devolvido em `withoutHistory` pra tela avisar.
+- **A série de preços precisa do fechamento anterior à janela.** Janela começando num sábado não tem
+  fechamento próprio, e sem o de sexta os primeiros dias caíam no preço médio — a carteira
+  "começava" valendo o custo e inventava uma alta na segunda. Confirmado: 3M e um CUSTOM começando
+  numa segunda davam 13,5% e 18,45% pro mesmo trecho; hoje dão 18,45% os dois.
+- **O último ponto da Renda Fixa vem do `FixedIncomesService`, não de recálculo.** As duas contas
+  diferem por um dia útil de rendimento (uns R$ 5 numa posição de R$ 8.000 a 130% do CDI) por causa
+  da regra de liquidação/dias não publicados — e um gráfico que termina num número diferente do card
+  logo abaixo parece bug mesmo estando quase certo. Conferido: os dois mostram R$ 11.307,70.
+- **`historical_prices` agora tem três produtores**: o backfill do COTAHIST (tickers da B3), os
+  fechamentos dos ativos da carteira e os índices de referência (`^BVSP`, `^IFIX`). Cripto vai com
+  prefixo (`CRYPTO:BTC`) porque o namespace é compartilhado com ticker de bolsa. O
+  `getArchivedHistory` do MarketPriceService só devolve datas **anteriores** ao que o provedor ao
+  vivo cobre, então as fontes não se sobrepõem — e quando a BRAPI cai, ele passa a ter de onde tirar
+  preço.
+- **Uma requisição serve as quatro abas.** O que pesa é ir à rede buscar histórico, não somar; e
+  comparar as abas entre si era metade do pedido. Resposta inteira em cache de 10min por janela, e a
+  série de cada ativo com TTL de 1h só na ponta — sem isso, abrir a Carteira eram ~18 requisições
+  HTTP com timeout de 8s cada, a mesma armadilha que já derrubou a cotação.
+- Índice fora do ar nunca vira erro: a linha some, o chip fica desabilitado e o resto do gráfico
+  continua. IFIX tem lista de símbolos candidatos porque a cobertura varia entre as fontes.
+
 ## Financiamentos: valor do bem e patrimônio
 
 - `Financing.assetValue`/`assetValueAt` (nullable) = quanto o bem vale **hoje** (FIPE do veículo, valor de mercado do imóvel). `FinancingAssetValue` guarda a **série** de avaliações — a FIPE muda todo mês, então a avaliação nova não substitui a anterior, ela se soma ao histórico (mesmo padrão de `FinancingPayoffQuote`). O campo desnormalizado é sempre a **última escrita**, não necessariamente a avaliação de data mais recente; o gráfico ordena por data (`summarizeAssetValueHistory`), então backdatar uma avaliação faz os dois divergirem de propósito.

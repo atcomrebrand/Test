@@ -56,6 +56,7 @@ import { FixedIncomeFormModal } from "../components/FixedIncomeFormModal";
 import { AddInterestModal } from "../components/AddInterestModal";
 import { RedeemFixedIncomeModal } from "../components/RedeemFixedIncomeModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { PortfolioEvolutionChart } from "../components/PortfolioEvolutionChart";
 
 type PortfolioTab = AssetClass | "RENDA_FIXA";
 
@@ -302,6 +303,10 @@ export default function Portfolio() {
           </Button>
         </div>
       </div>
+
+      {/* Antes das abas de propósito: a primeira pergunta é "como está indo", e só depois "o que
+          tem dentro". O gráfico é da aba selecionada — a classe inteira, não ativo por ativo. */}
+      <PortfolioEvolutionChart tab={tab} />
 
       <Tabs value={tab} onChange={(v) => setTab(v as PortfolioTab)} options={TAB_OPTIONS} />
 

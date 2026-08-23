@@ -418,3 +418,55 @@ export interface DashboardSummary {
   ultimosLancamentos: { id: string; entity: string; action: string; changes: unknown; createdAt: string }[];
   evolucaoPatrimonial: { series: { month: string; capitalInvestido: number }[]; currentPatrimony: number };
 }
+
+// ---------------------------------------------------------------------------
+// Evolução da carteira (gráfico acima das abas)
+// ---------------------------------------------------------------------------
+
+export type EvolutionRange = "1M" | "3M" | "6M" | "12M" | "CUSTOM";
+
+export type EvolutionSeriesKey = "STOCK" | "FII" | "CRYPTO" | "RENDA_FIXA" | "TOTAL";
+
+export interface EvolutionSeriesPoint {
+  date: string;
+  value: number;
+  invested: number;
+  profit: number;
+  /** Retorno acumulado base 100 — é essa a linha comparável com CDI/IBOV/IFIX. */
+  index: number;
+}
+
+export interface EvolutionSeries {
+  key: EvolutionSeriesKey;
+  label: string;
+  points: EvolutionSeriesPoint[];
+  value: number;
+  invested: number;
+  profit: number;
+  returnPercent: number | null;
+  /** Tickers sem histórico de preço nenhum — ficaram fora da soma. */
+  withoutHistory: string[];
+  hasData: boolean;
+}
+
+export interface EvolutionBenchmark {
+  key: "CDI" | "IBOV" | "IFIX";
+  label: string;
+  points: { date: string; index: number | null }[];
+  returnPercent: number | null;
+  available: boolean;
+}
+
+export interface EvolutionResponse {
+  range: EvolutionRange;
+  from: string;
+  to: string;
+  series: EvolutionSeries[];
+  benchmarks: EvolutionBenchmark[];
+}
+
+export interface EvolutionParams {
+  range: EvolutionRange;
+  from?: string;
+  to?: string;
+}

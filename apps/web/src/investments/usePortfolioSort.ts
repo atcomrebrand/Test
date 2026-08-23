@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 
 /**
- * Guarda a ordenação escolhida no localStorage.
+ * Preferência de exibição da Carteira guardada no localStorage.
  *
- * Preferência de exibição que reseta a cada visita vira uma tarefa recorrente: quem gosta de ver a
- * carteira do maior pro menor quer isso sempre, não uma vez. Fica no localStorage e não no servidor
- * porque é preferência de tela, não dado — não vale uma coluna no banco nem uma requisição.
+ * Preferência que reseta a cada visita vira uma tarefa recorrente: quem gosta de ver a carteira do
+ * maior pro menor, ou o gráfico em 6 meses, quer isso sempre — não uma vez. Fica no localStorage e
+ * não no servidor porque é preferência de tela, não dado: não vale uma coluna no banco nem uma
+ * requisição a cada troca.
  */
 function read<T extends string>(key: string, fallback: T): T {
   try {
@@ -16,21 +17,30 @@ function read<T extends string>(key: string, fallback: T): T {
   }
 }
 
-export function usePortfolioSort<T extends string>(key: string, fallback: T) {
-  const storageKey = `investments-sort-${key}`;
-  const [sort, setSortState] = useState<T>(() => read(storageKey, fallback));
+function usePersisted<T extends string>(storageKey: string, fallback: T) {
+  const [value, setValueState] = useState<T>(() => read(storageKey, fallback));
 
-  const setSort = useCallback(
-    (value: T) => {
-      setSortState(value);
+  const setValue = useCallback(
+    (next: T) => {
+      setValueState(next);
       try {
-        localStorage.setItem(storageKey, value);
+        localStorage.setItem(storageKey, next);
       } catch {
-        // Sem persistência a ordenação ainda funciona nesta sessão — só não sobrevive ao refresh.
+        // Sem persistência a escolha ainda vale nesta sessão — só não sobrevive ao refresh.
       }
     },
     [storageKey],
   );
 
-  return [sort, setSort] as const;
+  return [value, setValue] as const;
+}
+
+export function usePortfolioSort<T extends string>(key: string, fallback: T) {
+  return usePersisted(`investments-sort-${key}`, fallback);
+}
+
+/** Mesmo mecanismo, prefixo próprio: o que o gráfico de evolução guarda (período, modo) não é
+ *  ordenação, e misturar os dois no mesmo namespace acabaria em chave colidindo. */
+export function usePortfolioPreference<T extends string>(key: string, fallback: T) {
+  return usePersisted(`investments-pref-${key}`, fallback);
 }

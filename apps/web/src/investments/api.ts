@@ -11,6 +11,8 @@ import {
   CatalogEntry,
   ChartRangeParams,
   DashboardSummary,
+  EvolutionParams,
+  EvolutionResponse,
   HistoricalPricePoint,
   DividendCalendarEntry,
   ImportedIncome,
@@ -24,6 +26,22 @@ import {
 
 function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
   qc.invalidateQueries({ queryKey: ["investments"] });
+}
+
+/**
+ * Evolução da carteira por classe + CDI/IBOV/IFIX, pro gráfico acima das abas.
+ *
+ * Uma consulta só pras quatro abas e pros três índices: o servidor já monta tudo junto (o custo
+ * está em buscar as séries de preço, não em somar), e assim trocar de aba não dispara requisição
+ * nenhuma. Só o período muda a chave.
+ */
+export function usePortfolioEvolution(params: EvolutionParams) {
+  return useQuery({
+    queryKey: ["investments", "evolution", params],
+    queryFn: () => api.get<EvolutionResponse>("/investments/evolution", { params }),
+    enabled: params.range !== "CUSTOM" || (!!params.from && !!params.to),
+    staleTime: 5 * 60 * 1000,
+  });
 }
 
 // ---------------------------------------------------------------------------

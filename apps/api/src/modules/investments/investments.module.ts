@@ -43,6 +43,10 @@ import { LaunchesController } from "./interface/launches.controller";
 import { InvestmentsResetService } from "./application/investments-reset.service";
 import { InvestmentsResetController } from "./interface/investments-reset.controller";
 import { AssetAnalysisService } from "./application/asset-analysis.service";
+import { AssetHistoryService } from "./infrastructure/asset-history.service";
+import { BenchmarkHistoryService } from "./infrastructure/benchmark-history.service";
+import { PortfolioEvolutionService } from "./application/portfolio-evolution.service";
+import { PortfolioEvolutionController } from "./interface/portfolio-evolution.controller";
 
 @Module({
   imports: [NotificationsModule],
@@ -57,6 +61,7 @@ import { AssetAnalysisService } from "./application/asset-analysis.service";
     B3ImportController,
     LaunchesController,
     InvestmentsResetController,
+    PortfolioEvolutionController,
   ],
   providers: [
     { provide: StockQuoteProvider, useClass: BrapiProvider },
@@ -78,6 +83,9 @@ import { AssetAnalysisService } from "./application/asset-analysis.service";
     DividendNotificationsService,
     B3ImportService,
     InvestmentsResetService,
+    AssetHistoryService,
+    BenchmarkHistoryService,
+    PortfolioEvolutionService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },
     FixedIncomesService,
     { provide: AssetRepository, useClass: AssetPrismaRepository },

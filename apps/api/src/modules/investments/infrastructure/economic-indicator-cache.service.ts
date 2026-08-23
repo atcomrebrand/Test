@@ -83,6 +83,28 @@ export class EconomicIndicatorCacheService {
     return { rates: rows.map((r) => Number(r.value)), lastDate: rows[rows.length - 1].date };
   }
 
+  /**
+   * A mesma série da `getDailyCdiWindow`, mas **datada** e no intervalo fechado [from, to].
+   *
+   * O gráfico de evolução precisa saber em que dia cada taxa caiu pra encaixá-la no ponto certo da
+   * linha — e cada aplicação de renda fixa tem uma data de início diferente, então uma lista solta
+   * de taxas (que serve pra uma janela só) não resolve. Mesmo cache, mesma tabela, mesma ponta com
+   * TTL: muda só o formato da resposta.
+   */
+  async getDailyCdiSeries(from: Date, to: Date): Promise<{ date: string; value: number }[]> {
+    const inicio = atUtcMidnight(from);
+    const fim = atUtcMidnight(to);
+    if (inicio.getTime() > fim.getTime()) return [];
+
+    await this.ensureSeriesCovers(inicio, fim);
+
+    const rows = await this.prisma.economicDailyRate.findMany({
+      where: { series: CDI_DAILY_SERIES, date: { gte: inicio, lte: fim } },
+      orderBy: { date: "asc" },
+    });
+    return rows.map((r) => ({ date: r.date.toISOString().slice(0, 10), value: Number(r.value) }));
+  }
+
   /** Busca no Bacen só o pedaço do intervalo que ainda não está no banco. */
   private async ensureSeriesCovers(from: Date, to: Date): Promise<void> {
     const [primeira, ultima] = await Promise.all([
