@@ -119,8 +119,18 @@ por ativo — com valor, custo e rentabilidade, mais CDI, Ibovespa e IFIX na mes
   comparar as abas entre si era metade do pedido. Resposta inteira em cache de 10min por janela, e a
   série de cada ativo com TTL de 1h só na ponta — sem isso, abrir a Carteira eram ~18 requisições
   HTTP com timeout de 8s cada, a mesma armadilha que já derrubou a cotação.
+- **Índice vem da BRAPI, não do Yahoo.** A ordem já foi a inversa e não funcionou em produção: o
+  Yahoo devolve **429 pro IP da VPS** em tudo (conferido em 2026-08-23 — `^BVSP`, `^IFIX` e
+  `IFIX.SA`), enquanto a BRAPI responde os dois com o token que a API já tem. Faixa de datacenter
+  tomando rate limit do Yahoo é comum e não tem conserto do nosso lado — ele fica só como reserva.
+  Símbolo: `^BVSP` nas duas; IFIX é `IFIX` na BRAPI (que normaliza pra `IFIX.SA` sozinha) e `^IFIX`
+  no Yahoo.
 - Índice fora do ar nunca vira erro: a linha some, o chip fica desabilitado e o resto do gráfico
-  continua. IFIX tem lista de símbolos candidatos porque a cobertura varia entre as fontes.
+  continua. Cada índice tem lista de candidatos (fonte + símbolo) porque a cobertura varia.
+- **O recuo de 1h vale também quando não há nada guardado.** Com a fonte fora do ar o banco nunca
+  enche, `faltaComeco` nunca deixa de ser verdade, e sem essa guarda cada abertura da Carteira
+  recomeçava a fila inteira de candidatos contra um provedor morto — quatro símbolos a 8s de
+  timeout. Mesma lição da quarentena da cotação.
 
 ## Financiamentos: valor do bem e patrimônio
 
