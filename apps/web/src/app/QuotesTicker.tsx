@@ -1,6 +1,25 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { QuoteTickerItem, useQuotesTicker } from "@/features/useQuotes";
+
+/**
+ * Velocidade da faixa, em pixels por segundo. **É a única constante pra mexer se ficar rápida ou
+ * lenta demais** — menor é mais devagar.
+ *
+ * Em px/s e não em "segundos por item" porque item não tem largura fixa: "🪙 BTC R$ 300.000,00"
+ * ocupa quase o triplo de "🇺🇸 USD R$ 5,09", então a conta por item passa voando numa carteira com
+ * cripto e arrastada numa sem.
+ */
+const PIXELS_POR_SEGUNDO = 20;
+
+/**
+ * Quanto tempo a faixa fica parada depois que a pessoa solta.
+ *
+ * Não é só respeitar a inércia do toque (que continua rolando sozinha por um tempo depois do dedo
+ * sair): é dar chance de recomeçar o gesto. Voltar a andar no instante em que solta faz o ativo que
+ * a pessoa estava lendo escapar bem na hora de ler.
+ */
+const RETOMAR_APOS_MS = 1200;
 
 /**
  * Moeda leva uma casa a mais que o resto do app: com 2 dígitos o movimento minuto a minuto de um
@@ -21,43 +40,187 @@ function formatRate(value: number, kind: QuoteTickerItem["kind"]) {
 }
 
 /**
- * Velocidade da faixa, em pixels por segundo. **É a única constante pra mexer se ficar rápida ou
- * lenta demais** — menor é mais devagar.
+ * Ticker rolante estilo jornal: dólar mais os ativos em carteira, na ordem que o backend mandar.
  *
- * A duração da animação sai daqui e da largura medida do conteúdo, não da contagem de itens. Contar
- * item não funciona porque item não tem largura fixa: "🪙 BTC R$ 300.000,00" ocupa quase o triplo
- * de "🇺🇸 USD R$ 5,09", então uma carteira com cripto passaria voando e uma sem passaria arrastada,
- * com a mesma configuração. Medindo, a leitura fica no mesmo ritmo em qualquer carteira.
+ * A rolagem é **de verdade** (`overflow-x`), não uma animação de CSS. A animação era mais simples,
+ * mas não dá pra pegar no meio: pra deixar arrastar seria preciso ler o transform corrente, trocar
+ * pra manual e depois retomar de onde parou com `animation-delay` negativo. Com rolagem nativa o
+ * dedo no celular e o trackpad no desktop já funcionam de graça, o teclado também, e o passo
+ * automático vira um `requestAnimationFrame` somando pixels.
+ *
+ * O conteúdo é duplicado e a posição volta meia largura ao cruzar a emenda — como as duas cópias
+ * são idênticas, o salto é invisível e a faixa não tem começo nem fim nos dois sentidos.
  */
-const PIXELS_POR_SEGUNDO = 20;
-
-/** Piso de duração pra faixa curta (um item só) não dar a volta a cada poucos segundos. */
-const DURACAO_MINIMA_S = 20;
-
-/** Ticker rolante estilo jornal: dólar mais os ativos em carteira, na ordem que o backend mandar.
- *  Duplica os itens uma vez e anima translateX até -50% em loop infinito, então a "emenda" fica
- *  invisível (o segundo bloco é idêntico ao primeiro). */
 export function QuotesTicker() {
   const { data } = useQuotesTicker();
   const faixa = useRef<HTMLDivElement>(null);
-  const [duracao, setDuracao] = useState(DURACAO_MINIMA_S);
+  /** Enquanto > 0, o passo automático está segurado (mouse em cima, arrasto, inércia). */
+  const pausas = useRef(0);
+  const retomarEm = useRef(0);
+  const arrasto = useRef<{ x: number } | null>(null);
+  /**
+   * Posição em ponto flutuante.
+   *
+   * O `scrollLeft` do navegador é arredondado, e a 20 px/s cada quadro soma 0,33px — jogando isso
+   * direto no elemento, a fração é descartada toda vez e a faixa fica parada pra sempre. O
+   * acumulador vive aqui e o elemento só recebe o valor já somado.
+   */
+  const posicao = useRef(0);
+  /**
+   * Quantas vezes o conjunto de itens é repetido lado a lado.
+   *
+   * Duas cópias bastariam se a faixa fosse um `transform` (foi o que a animação de CSS fazia), mas
+   * rolagem de verdade tem teto: o navegador limita o `scrollLeft` a `scrollWidth - clientWidth`.
+   * Se uma cópia é mais estreita que a tela — carteira pequena, monitor largo —, o ponto pra onde a
+   * emenda precisaria pular fica além do teto, o valor é cortado e a faixa trava na ponta. Daí a
+   * conta ser pela largura medida, e não um "2" fixo.
+   */
+  const [copias, setCopias] = useState(3);
 
-  // Mede depois de pintar: a largura só existe com os itens já renderizados, e ela muda quando a
-  // carteira muda (ativo novo, cotação que passa de 3 pra 6 dígitos).
   useLayoutEffect(() => {
     const el = faixa.current;
-    if (!el) return;
-    // Metade porque o conteúdo está duplicado — a animação percorre exatamente uma cópia.
-    const distancia = el.scrollWidth / 2;
-    if (distancia <= 0) return;
+    const conteudo = el?.firstElementChild as HTMLElement | null;
+    if (!el || !conteudo) return;
 
-    const proxima = Math.max(DURACAO_MINIMA_S, distancia / PIXELS_POR_SEGUNDO);
-    // Mudar a duração reinicia a animação, e a faixa dá um salto de volta pro começo. Como o
-    // ticker revalida sozinho a cada 5min, um preço que ganha um dígito (R$ 9,99 → R$ 10,01)
-    // bastaria pra isso acontecer na cara de quem está lendo. Só vale o ajuste quando ele é grande
-    // o bastante pra ser percebido como velocidade.
-    setDuracao((atual) => (Math.abs(proxima - atual) > 1 ? proxima : atual));
-  }, [data]);
+    const umaCopia = conteudo.scrollWidth / copias;
+    if (umaCopia <= 0) return;
+
+    // +2 (e nunca menos de 3): uma cópia de folga de cada lado da tela. É essa folga que permite
+    // manter a posição sempre no miolo da faixa — sem ela, a emenda precisaria pular pra um ponto
+    // além do teto de rolagem e o navegador cortaria o valor.
+    const necessarias = Math.max(3, Math.ceil(el.clientWidth / umaCopia) + 2);
+    if (necessarias !== copias) {
+      setCopias(necessarias);
+      return;
+    }
+
+    // Começa na segunda cópia, não em zero.
+    //
+    // Isso não é estética: com a faixa parada em zero, "está no começo" e "arrastaram pra trás
+    // além do começo" viram o mesmo valor, porque o navegador corta scrollLeft negativo. Era o que
+    // fazia a faixa dar um salto de uma cópia inteira no primeiro quadro. Partindo do miolo, zero
+    // deixa de ser uma posição de repouso e volta a significar só uma coisa.
+    if (el.scrollLeft === 0) {
+      el.scrollLeft = umaCopia;
+      posicao.current = umaCopia;
+    }
+  }, [data, copias]);
+
+  const segurar = useCallback(() => {
+    pausas.current += 1;
+  }, []);
+
+  const soltar = useCallback(() => {
+    pausas.current = Math.max(0, pausas.current - 1);
+    retomarEm.current = performance.now() + RETOMAR_APOS_MS;
+  }, []);
+
+  useEffect(() => {
+    const el = faixa.current;
+    if (!el) return;
+
+    // Quem pediu menos movimento não quer uma faixa andando sozinha no topo da Home. A rolagem
+    // manual continua valendo — o que sai é só o passo automático.
+    const menosMovimento = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+
+    let raf = 0;
+    let anterior = 0;
+    /** Último valor que NÓS escrevemos: o que sair disso veio de fora (dedo, trackpad, teclado). */
+    let ultimoEscrito = -1;
+
+    const passo = (agora: number) => {
+      raf = requestAnimationFrame(passo);
+
+      const dt = anterior ? (agora - anterior) / 1000 : 0;
+      anterior = agora;
+
+      const umaCopia = el.scrollWidth / copias;
+      if (umaCopia <= 0) return;
+
+      // Rolagem que não foi nossa: adota a posição real e segura o passo automático. É isto que
+      // cobre o dedo no celular e o trackpad no desktop sem precisar de um handler pra cada um —
+      // enquanto a inércia do toque estiver correndo, ela renova o adiamento a cada quadro.
+      if (ultimoEscrito >= 0 && Math.abs(el.scrollLeft - ultimoEscrito) > 2) {
+        posicao.current = el.scrollLeft;
+        retomarEm.current = agora + RETOMAR_APOS_MS;
+      }
+
+      const parado = menosMovimento || pausas.current > 0 || agora < retomarEm.current;
+      // Aba em segundo plano acumula um dt gigante no primeiro quadro ao voltar; sem o teto a
+      // faixa daria um salto de vários itens na cara de quem acabou de voltar pra ela.
+      if (!parado) posicao.current += PIXELS_POR_SEGUNDO * Math.min(dt, 0.1);
+
+      // A emenda: as cópias são idênticas, então andar uma cópia pra frente ou pra trás cai num
+      // ponto de aparência igual e o salto é invisível. A posição fica sempre normalizada em
+      // [umaCopia, 2×umaCopia) — o miolo da faixa —, o que deixa uma cópia inteira de sobra pros
+      // dois lados e faz a volta funcionar tanto pra frente quanto pra trás.
+      const precisaEmendar = posicao.current >= umaCopia * 2 || posicao.current < umaCopia;
+      if (precisaEmendar) {
+        posicao.current += posicao.current >= umaCopia * 2 ? -umaCopia : umaCopia;
+      }
+
+      // Escrever durante a inércia do toque a mataria, então só escreve quando há o que aplicar.
+      if (!parado || precisaEmendar) el.scrollLeft = posicao.current;
+      ultimoEscrito = el.scrollLeft;
+    };
+
+    raf = requestAnimationFrame(passo);
+    return () => cancelAnimationFrame(raf);
+  }, [data, copias]);
+
+  /** Arrasto com o mouse. No toque não entra: `touch-action: pan-x` já dá a rolagem nativa, com
+   *  inércia, e tratar os dois faria a faixa andar o dobro a cada gesto. */
+  const aoApertar = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const el = faixa.current;
+      if (!el || e.pointerType !== "mouse") return;
+      el.setPointerCapture(e.pointerId);
+      arrasto.current = { x: e.clientX };
+      segurar();
+    },
+    [segurar],
+  );
+
+  /**
+   * Move pelo deslocamento desde o evento anterior, e não pela distância até onde o arrasto
+   * começou. A diferença aparece na emenda: com a âncora fixa, a volta que o laço dá ao cruzar o
+   * começo da faixa era desfeita no `pointermove` seguinte (que recalculava tudo a partir do ponto
+   * inicial), e arrastar pra trás batia numa parede no zero em vez de continuar.
+   */
+  const aoMover = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const el = faixa.current;
+      if (!el || !arrasto.current) return;
+
+      const dx = e.clientX - arrasto.current.x;
+      arrasto.current.x = e.clientX;
+
+      // A emenda também aqui, e não só no laço: um gesto rápido dispara vários `pointermove` entre
+      // dois quadros, e nesse intervalo o valor negativo já teria sido cortado pelo navegador — a
+      // faixa encostaria na ponta antes de alguém ter a chance de emendar.
+      const umaCopia = el.scrollWidth / copias;
+      let alvo = el.scrollLeft - dx;
+      if (umaCopia > 0) {
+        if (alvo >= umaCopia * 2) alvo -= umaCopia;
+        else if (alvo < umaCopia) alvo += umaCopia;
+      }
+
+      el.scrollLeft = alvo;
+      posicao.current = alvo;
+    },
+    [copias],
+  );
+
+  const aoLargar = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const el = faixa.current;
+      if (!el || !arrasto.current) return;
+      arrasto.current = null;
+      if (el.hasPointerCapture(e.pointerId)) el.releasePointerCapture(e.pointerId);
+      soltar();
+    },
+    [soltar],
+  );
 
   if (!data || data.length === 0) return null;
 
@@ -78,14 +241,22 @@ export function QuotesTicker() {
     });
 
   return (
-    <div className="group overflow-hidden border-b border-[rgb(var(--border))] surface-2 py-2">
-      <div
-        ref={faixa}
-        className="flex w-max animate-marquee group-hover:[animation-play-state:paused]"
-        style={{ animationDuration: `${duracao}s` }}
-      >
-        {renderItems("a")}
-        {renderItems("b")}
+    <div
+      ref={faixa}
+      onPointerDown={aoApertar}
+      onPointerMove={aoMover}
+      onPointerUp={aoLargar}
+      onPointerCancel={aoLargar}
+      onMouseEnter={segurar}
+      onMouseLeave={soltar}
+      // `overscroll-x-contain` impede que arrastar a faixa até a ponta vire "voltar página" no
+      // gesto do navegador. A barra de rolagem some porque isto é uma faixa decorativa: quem
+      // arrasta descobre no gesto, e uma barra atravessada no topo da Home seria feia.
+      className="cursor-grab select-none overflow-x-auto overscroll-x-contain border-b border-[rgb(var(--border))] surface-2 py-2 [scrollbar-width:none] active:cursor-grabbing [&::-webkit-scrollbar]:hidden"
+      style={{ touchAction: "pan-x" }}
+    >
+      <div className="flex w-max">
+        {Array.from({ length: copias }, (_, i) => renderItems(`c${i}`))}
       </div>
     </div>
   );
