@@ -2,6 +2,8 @@ import { ReactNode, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   ArrowUpDown,
+  LayoutGrid,
+  List,
   Plus,
   LineChart,
   Trash2,
@@ -46,7 +48,7 @@ import {
   sortFixedIncomes,
   summarizeAssets,
 } from "../sortPortfolio";
-import { usePortfolioSort } from "../usePortfolioSort";
+import { usePortfolioSort, usePortfolioPreference } from "../usePortfolioSort";
 import { AssetFormModal } from "../components/AssetFormModal";
 import { TransactionModal } from "../components/TransactionModal";
 import { AssetIncomeModal } from "../components/AssetIncomeModal";
@@ -57,8 +59,13 @@ import { AddInterestModal } from "../components/AddInterestModal";
 import { RedeemFixedIncomeModal } from "../components/RedeemFixedIncomeModal";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { PortfolioEvolutionChart } from "../components/PortfolioEvolutionChart";
+import { AssetRow, FixedIncomeRow } from "../components/PortfolioListRow";
 
 type PortfolioTab = AssetClass | "RENDA_FIXA";
+
+/** Card mostra tudo de um ativo; lista alinha a mesma informação em colunas pra comparar vários.
+ *  A escolha vale pras quatro abas — é preferência de como a pessoa lê, não de qual aba está. */
+type PortfolioView = "CARD" | "LIST";
 
 const TAB_OPTIONS = [
   { value: "STOCK", label: "Ações" },
@@ -87,12 +94,16 @@ function AccordionSection({
   count,
   open,
   onToggle,
+  dense,
   children,
 }: {
   title: string;
   count: number;
   open: boolean;
   onToggle: () => void;
+  /** Visão em lista: uma coluna, linhas coladas — a grade de duas colunas quebraria o alinhamento
+   *  que é justamente o motivo de existir a lista. */
+  dense?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -109,7 +120,7 @@ function AccordionSection({
       </button>
       {open &&
         (count > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">{children}</div>
+          <div className={dense ? "flex flex-col gap-2" : "grid grid-cols-1 gap-4 md:grid-cols-2"}>{children}</div>
         ) : (
           <p className="px-1 text-sm text-muted">Nada por aqui.</p>
         ))}
@@ -259,6 +270,11 @@ export default function Portfolio() {
   const removeFixedIncome = useDeleteFixedIncome();
   const [assetSort, setAssetSort] = usePortfolioSort<AssetSort>("assets", "default");
   const [fixedSort, setFixedSort] = usePortfolioSort<FixedIncomeSort>("fixed", "default");
+  const [view, setView] = usePortfolioPreference<PortfolioView>("view", "CARD");
+
+  // Card e linha recebem exatamente as mesmas props, então a escolha é de qual componente montar —
+  // não de duplicar a lista inteira em dois ramos de JSX que depois saem de sincronia.
+  const FixedIncomeItem = view === "LIST" ? FixedIncomeRow : FixedIncomeCard;
 
   // useMemo porque a ordenação copia e percorre a lista, e a tela re-renderiza a cada modal aberto.
   const sortedAssets = useMemo(() => sortAssets(data ?? [], assetSort), [data, assetSort]);
@@ -332,6 +348,36 @@ export default function Portfolio() {
           )}
         </div>
 
+        {/* Alternância de visão. Fica colada na ordenação porque as duas respondem à mesma
+            pergunta — "como eu quero olhar isso" — e separá-las obrigaria a procurar em dois
+            cantos da tela. */}
+        <div className="flex rounded-lg surface-2 p-0.5">
+          {(
+            [
+              ["CARD", "Cards", LayoutGrid],
+              ["LIST", "Lista", List],
+            ] as [PortfolioView, string, typeof LayoutGrid][]
+          ).map(([value, label, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setView(value)}
+              aria-pressed={view === value}
+              // O rótulo some em tela estreita (fica só o ícone), então o nome acessível não pode
+              // depender dele — sem isso o leitor de tela anuncia um botão mudo no celular.
+              aria-label={`Ver em ${label.toLowerCase()}`}
+              title={`Ver em ${label.toLowerCase()}`}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                view === value ? "surface shadow-sm" : "text-muted hover:text-[rgb(var(--text))]",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+
         {!isFixedIncome && totals.count > 0 && (
           <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-right">
             <span className="text-xs text-muted">
@@ -390,9 +436,10 @@ export default function Portfolio() {
               count={activeFixedIncomes.length}
               open={openFixedIncomeSections.active}
               onToggle={() => setOpenFixedIncomeSections((s) => ({ ...s, active: !s.active }))}
+              dense={view === "LIST"}
             >
               {activeFixedIncomes.map((f) => (
-                <FixedIncomeCard
+                <FixedIncomeItem
                   key={f.id}
                   f={f}
                   onRegisterInterest={() => setInterestTarget(f.id)}
@@ -409,9 +456,10 @@ export default function Portfolio() {
               count={redeemedFixedIncomes.length}
               open={openFixedIncomeSections.redeemed}
               onToggle={() => setOpenFixedIncomeSections((s) => ({ ...s, redeemed: !s.redeemed }))}
+              dense={view === "LIST"}
             >
               {redeemedFixedIncomes.map((f) => (
-                <FixedIncomeCard
+                <FixedIncomeItem
                   key={f.id}
                   f={f}
                   onRegisterInterest={() => setInterestTarget(f.id)}
@@ -427,9 +475,13 @@ export default function Portfolio() {
       ) : (
         <>
           {isLoading && (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <Skeleton key={i} className="h-56 rounded-2xl" />
+            <div
+              className={
+                view === "LIST" ? "flex flex-col gap-2" : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+              }
+            >
+              {Array.from({ length: view === "LIST" ? 5 : 3 }).map((_, i) => (
+                <Skeleton key={i} className={view === "LIST" ? "h-16 rounded-2xl" : "h-56 rounded-2xl"} />
               ))}
             </div>
           )}
@@ -448,8 +500,24 @@ export default function Portfolio() {
             />
           )}
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {sortedAssets.map((asset) => (
+          <div
+            className={
+              view === "LIST" ? "flex flex-col gap-2" : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+            }
+          >
+            {sortedAssets.map((asset) =>
+              view === "LIST" ? (
+                <AssetRow
+                  key={asset.id}
+                  asset={asset}
+                  assetClass={tab as AssetClass}
+                  onTransaction={() => setTransactionTarget(asset.id)}
+                  onIncome={() => setIncomeTarget(asset.id)}
+                  onStaking={() => setStakingTarget(asset)}
+                  onToggleFavorite={() => toggleFavorite.mutate({ id: asset.id, favorite: !asset.favorite })}
+                  onRemove={() => remove.mutate(asset.id)}
+                />
+              ) : (
               <Card key={asset.id}>
                 <CardContent className="flex flex-col gap-4">
                   <div className="flex items-start justify-between">
@@ -551,7 +619,8 @@ export default function Portfolio() {
                   </div>
                 </CardContent>
               </Card>
-            ))}
+              ),
+            )}
           </div>
         </>
       )}
