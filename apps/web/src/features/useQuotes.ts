@@ -9,6 +9,8 @@ export interface QuoteTickerItem {
   /** Previous trading day's close — null when the source that answered doesn't expose one, in
    *  which case the rising/falling arrow is simply omitted. */
   previousClose: number | null;
+  /** Moeda e ativo não se escrevem com o mesmo número de casas — ver formatRate no QuotesTicker. */
+  kind: "CURRENCY" | "ASSET";
 }
 
 /** Cotação já vem cacheada no servidor (2min de TTL), então um refetch a cada poucos minutos no

@@ -13,7 +13,7 @@ const TAIL_TTL_MS = 60 * 60 * 1000;
  * backfill do COTAHIST (tickers da B3). "BTC" hoje não colide com nada, mas o dia em que colidir
  * seria um gráfico silenciosamente errado — o prefixo custa nada e fecha a porta.
  */
-function storageTicker(assetClass: InvestmentAssetClass, ticker: string): string {
+export function storageTicker(assetClass: InvestmentAssetClass, ticker: string): string {
   const upper = ticker.toUpperCase();
   return assetClass === "CRYPTO" ? `CRYPTO:${upper}` : upper;
 }

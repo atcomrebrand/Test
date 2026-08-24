@@ -394,7 +394,7 @@ export class AssistantService {
   }
 
   private async cotacaoDolar() {
-    const [usd] = await this.quotes.ticker();
+    const [usd] = await this.quotes.currencies();
     if (!usd || usd.rate === null) return { error: "Cotação do dólar indisponível no momento." };
     return { moeda: "USD/BRL", cotacao: usd.rate, fechamentoAnterior: usd.previousClose };
   }

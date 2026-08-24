@@ -56,7 +56,7 @@ export class HomeDashboardService {
       this.investments.summary(userId),
       this.tracking.summary(userId),
       this.financings.summary(userId),
-      this.quotes.ticker(),
+      this.quotes.ticker(userId),
     ]);
 
     // O Parcelamento já embute a dívida de financiamento em committedThisMonth/committedNextMonth/
