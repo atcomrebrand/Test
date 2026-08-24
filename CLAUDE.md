@@ -9,7 +9,11 @@ App pessoal de finanças (nome do repo/pnpm workspace ainda é `credit-installme
 - **Investimentos** (`investments`) — renda fixa, ações/FIIs, cripto, proventos, análise fundamentalista (BRAPI + Fundamentus + Yahoo Finance como fontes, com fallback entre elas).
 - **Horas** (`tracking`) — controle de ponto/trabalhos freelance e fixos.
 - **Financiamentos** (`financings`) — módulo próprio (saiu de dentro do Parcelas): financiamento de veículo/imóvel, parcelas, cotação de quitação, valor do bem e patrimônio. Frontend em `apps/web/src/financings/`, rotas em `/financiamentos`; `/financing` ficou como redirect pra não quebrar link salvo. Os hooks continuam em `features/useFinancings.ts` de propósito — a Home e o Dashboard do Parcelas também consomem financiamento, então não é código exclusivo do módulo.
-- **Cotações** (`quotes`) — ticker de câmbio na Home.
+- **Cotações** (`quotes`) — ticker rolante da Home: dólar + os ativos em carteira. Não busca preço
+  próprio — o dólar sai do cache do Horas (`TrackingFxService`) e os ativos do `MarketPriceService`,
+  que serve o guardado na hora e atualiza por fora. Ativo zerado ou sem cotação fica de fora (com a
+  carteira inteira, provedor fora do ar viraria uma parede de "indisponível" rolando na tela); a
+  seta de alta/queda sai do fechamento anterior em `historical_prices`, e some quando não há dado.
 
 Backend em Clean Architecture por módulo: `domain/` (regras puras, sem I/O — sempre com `.spec.ts` ao lado), `application/` (services, DTOs), `infrastructure/` (Prisma repos, providers externos), `interface/` ou raiz do módulo (controllers).
 
