@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { QuoteTickerItem, useQuotesTicker } from "@/features/useQuotes";
 
@@ -20,17 +21,17 @@ function formatRate(value: number, kind: QuoteTickerItem["kind"]) {
 }
 
 /**
- * Segundos por item na passagem.
+ * Velocidade da faixa, em pixels por segundo. **É a única constante pra mexer se ficar rápida ou
+ * lenta demais** — menor é mais devagar.
  *
- * A animação tem duração fixa no Tailwind (20s pra percorrer metade da faixa), o que na prática
- * amarra a *velocidade* à quantidade de itens: com o dólar sozinho passa devagar, com a carteira
- * inteira dispararia. Aqui a duração cresce junto com o número de itens, então o que fica constante
- * é a velocidade de leitura — que é o que importa em ticker.
+ * A duração da animação sai daqui e da largura medida do conteúdo, não da contagem de itens. Contar
+ * item não funciona porque item não tem largura fixa: "🪙 BTC R$ 300.000,00" ocupa quase o triplo
+ * de "🇺🇸 USD R$ 5,09", então uma carteira com cripto passaria voando e uma sem passaria arrastada,
+ * com a mesma configuração. Medindo, a leitura fica no mesmo ritmo em qualquer carteira.
  */
-const SEGUNDOS_POR_ITEM = 3.5;
+const PIXELS_POR_SEGUNDO = 20;
 
-/** Piso pra não acelerar demais quando há pouca coisa (é a duração que a faixa já tinha com o dólar
- *  sozinho). */
+/** Piso de duração pra faixa curta (um item só) não dar a volta a cada poucos segundos. */
 const DURACAO_MINIMA_S = 20;
 
 /** Ticker rolante estilo jornal: dólar mais os ativos em carteira, na ordem que o backend mandar.
@@ -38,6 +39,25 @@ const DURACAO_MINIMA_S = 20;
  *  invisível (o segundo bloco é idêntico ao primeiro). */
 export function QuotesTicker() {
   const { data } = useQuotesTicker();
+  const faixa = useRef<HTMLDivElement>(null);
+  const [duracao, setDuracao] = useState(DURACAO_MINIMA_S);
+
+  // Mede depois de pintar: a largura só existe com os itens já renderizados, e ela muda quando a
+  // carteira muda (ativo novo, cotação que passa de 3 pra 6 dígitos).
+  useLayoutEffect(() => {
+    const el = faixa.current;
+    if (!el) return;
+    // Metade porque o conteúdo está duplicado — a animação percorre exatamente uma cópia.
+    const distancia = el.scrollWidth / 2;
+    if (distancia <= 0) return;
+
+    const proxima = Math.max(DURACAO_MINIMA_S, distancia / PIXELS_POR_SEGUNDO);
+    // Mudar a duração reinicia a animação, e a faixa dá um salto de volta pro começo. Como o
+    // ticker revalida sozinho a cada 5min, um preço que ganha um dígito (R$ 9,99 → R$ 10,01)
+    // bastaria pra isso acontecer na cara de quem está lendo. Só vale o ajuste quando ele é grande
+    // o bastante pra ser percebido como velocidade.
+    setDuracao((atual) => (Math.abs(proxima - atual) > 1 ? proxima : atual));
+  }, [data]);
 
   if (!data || data.length === 0) return null;
 
@@ -60,8 +80,9 @@ export function QuotesTicker() {
   return (
     <div className="group overflow-hidden border-b border-[rgb(var(--border))] surface-2 py-2">
       <div
+        ref={faixa}
         className="flex w-max animate-marquee group-hover:[animation-play-state:paused]"
-        style={{ animationDuration: `${Math.max(DURACAO_MINIMA_S, data.length * SEGUNDOS_POR_ITEM)}s` }}
+        style={{ animationDuration: `${duracao}s` }}
       >
         {renderItems("a")}
         {renderItems("b")}
