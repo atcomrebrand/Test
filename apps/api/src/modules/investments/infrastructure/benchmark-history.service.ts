@@ -48,6 +48,16 @@ const BENCHMARK_SYMBOLS: Record<BenchmarkKey, { ticker: string; label: string; c
 /** A ponta da série é a única parte que muda; o resto é histórico imutável, igual ao CDI diário. */
 const TAIL_TTL_MS = 60 * 60 * 1000;
 
+/**
+ * Abaixo disso a resposta não é uma série, é um ponto solto — e ponto solto é pior que nada aqui.
+ *
+ * Foi o que aconteceu com o IFIX em produção: a BRAPI devolveu **1 fechamento** (o IBOV veio com
+ * 64 no mesmo pedido), o candidato passou no antigo `length > 0`, ficou memorizado como "esse
+ * funciona" e os outros nunca foram tentados. No gráfico isso vira uma reta em 0% no trecho final,
+ * que se lê como "o índice não andou" em vez de "não temos o dado".
+ */
+const MIN_SERIES_POINTS = 5;
+
 const YAHOO_USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
 
@@ -203,9 +213,14 @@ export class BenchmarkHistoryService {
             ? await this.fetchBrapi(candidato.symbol, range)
             : await this.fetchYahoo(candidato.symbol, range);
 
-        if (pontos.length > 0) {
+        if (pontos.length >= MIN_SERIES_POINTS) {
           this.resolved.set(key, candidato);
           return pontos;
+        }
+        if (pontos.length > 0) {
+          this.logger.warn(
+            `${key}: ${candidato.source} ${candidato.symbol} devolveu só ${pontos.length} ponto(s) — não dá série, tentando o próximo`,
+          );
         }
       } catch (err) {
         this.logger.warn(`${key}: ${candidato.source} ${candidato.symbol} falhou (${(err as Error).message})`);
