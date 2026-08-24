@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
-import { DatedClose } from "../domain/portfolio-evolution";
+import { DatedClose, isoOf } from "../domain/portfolio-evolution";
+import { todayInBrazil } from "../domain/fixed-income-calculator";
 
 export type BenchmarkKey = "IBOV" | "IFIX";
 
@@ -73,8 +74,17 @@ interface YahooChartResponse {
 
 interface BrapiQuoteResponse {
   results?: {
+    regularMarketPrice?: number;
+    /** ISO ou epoch, conforme o endpoint — o app trata os dois. */
+    regularMarketTime?: string | number;
     historicalDataPrice?: { date?: number; close?: number; adjustedClose?: number }[];
   }[];
+}
+
+export interface BenchmarkQuote {
+  close: number;
+  /** Instante do último negócio, quando a fonte informa. */
+  marketTime?: string | number;
 }
 
 /** Yahoo e BRAPI usam o mesmo vocabulário de `range`, então um mapeamento serve pras duas. */
@@ -114,6 +124,30 @@ export function parseYahooHistory(body: YahooChartResponse): DatedClose[] {
   return timestamps
     .map((t, i) => toDatedClose(t, closes[i]))
     .filter((p): p is DatedClose => p !== null);
+}
+
+/**
+ * A que **dia de pregão** um fechamento pertence.
+ *
+ * Existe porque nem toda fonte serve histórico: o IFIX tem cotação na BRAPI mas não série, então a
+ * série dele é construída dia a dia a partir da cotação — e aí a pergunta "de que dia é esse
+ * número" deixa de ser óbvia.
+ *
+ * Quando a fonte informa o instante do último negócio, é ele que manda: num feriado ou fim de
+ * semana a cotação repete o pregão anterior, e gravar isso como se fosse hoje inventaria um dia de
+ * pregão que não existiu. Sem esse campo, sobra a regra grosseira — só dia útil, pelo calendário
+ * do Brasil, porque o servidor roda em UTC e das 21h à meia-noite de Brasília o UTC já virou.
+ */
+export function resolveQuoteDate(marketTime: string | number | undefined, now: Date): string | null {
+  if (marketTime !== undefined && marketTime !== null && marketTime !== "") {
+    const instante = new Date(typeof marketTime === "number" ? marketTime * 1000 : marketTime);
+    if (!Number.isNaN(instante.getTime())) return isoOf(todayInBrazil(instante));
+  }
+
+  const hoje = todayInBrazil(now);
+  const diaDaSemana = hoje.getUTCDay();
+  if (diaDaSemana === 0 || diaDaSemana === 6) return null;
+  return isoOf(hoje);
 }
 
 /**
@@ -229,6 +263,60 @@ export class BenchmarkHistoryService {
 
     this.logger.warn(`${key}: nenhuma fonte respondeu — a comparação fica sem essa linha`);
     return [];
+  }
+
+  /**
+   * Guarda o fechamento de hoje de um índice — o caminho pro que a fonte de histórico não cobre.
+   *
+   * O IFIX é o caso: a BRAPI devolve a cotação dele mas só 1 ponto de série, e o Yahoo responde 429
+   * pro IP da VPS. Sem isso a linha simplesmente não existe; com isso ela começa hoje e cresce
+   * sozinha, um pregão por dia. Não recupera o passado, e é justamente por isso que o gráfico
+   * continua desabilitando o chip nos períodos que o dado ainda não cobre em vez de desenhar meia
+   * linha.
+   */
+  async recordDailyClose(key: BenchmarkKey, now = new Date()): Promise<"gravado" | "repetido" | "sem-cotacao" | "fora-do-pregao"> {
+    const quote = await this.fetchQuoteWithFallback(key);
+    if (!quote) return "sem-cotacao";
+
+    const date = resolveQuoteDate(quote.marketTime, now);
+    if (!date) return "fora-do-pregao";
+
+    const { count } = await this.prisma.historicalPrice.createMany({
+      data: [{ ticker: BENCHMARK_SYMBOLS[key].ticker, date: new Date(`${date}T00:00:00Z`), close: quote.close }],
+      skipDuplicates: true,
+    });
+
+    // `repetido` não é erro: o job pode rodar duas vezes no mesmo pregão (reinício do serviço), e o
+    // unique (ticker, date) resolve sem sobrescrever o fechamento que já estava certo.
+    return count > 0 ? "gravado" : "repetido";
+  }
+
+  private async fetchQuoteWithFallback(key: BenchmarkKey): Promise<BenchmarkQuote | null> {
+    for (const candidato of BENCHMARK_SYMBOLS[key].candidates) {
+      if (candidato.source !== "brapi") continue;
+      try {
+        const quote = await this.fetchBrapiQuote(candidato.symbol);
+        if (quote) return quote;
+      } catch (err) {
+        this.logger.warn(`${key}: cotação de ${candidato.symbol} falhou (${(err as Error).message})`);
+      }
+    }
+    return null;
+  }
+
+  private async fetchBrapiQuote(symbol: string): Promise<BenchmarkQuote | null> {
+    const token = process.env.BRAPI_TOKEN;
+    const res = await fetch(`https://brapi.dev/api/quote/${encodeURIComponent(symbol)}`, {
+      signal: AbortSignal.timeout(8000),
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const body = (await res.json()) as BrapiQuoteResponse;
+    const result = body.results?.[0];
+    const close = result?.regularMarketPrice;
+    if (typeof close !== "number" || !Number.isFinite(close) || close <= 0) return null;
+    return { close, marketTime: result?.regularMarketTime };
   }
 
   private async fetchBrapi(symbol: string, range: string): Promise<DatedClose[]> {

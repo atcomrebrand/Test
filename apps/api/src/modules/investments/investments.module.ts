@@ -46,6 +46,7 @@ import { AssetAnalysisService } from "./application/asset-analysis.service";
 import { AssetHistoryService } from "./infrastructure/asset-history.service";
 import { BenchmarkHistoryService } from "./infrastructure/benchmark-history.service";
 import { PortfolioEvolutionService } from "./application/portfolio-evolution.service";
+import { BenchmarkRecorderService } from "./application/benchmark-recorder.service";
 import { PortfolioEvolutionController } from "./interface/portfolio-evolution.controller";
 
 @Module({
@@ -86,6 +87,7 @@ import { PortfolioEvolutionController } from "./interface/portfolio-evolution.co
     AssetHistoryService,
     BenchmarkHistoryService,
     PortfolioEvolutionService,
+    BenchmarkRecorderService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },
     FixedIncomesService,
     { provide: AssetRepository, useClass: AssetPrismaRepository },

@@ -1,4 +1,4 @@
-import { benchmarkRangeFor, parseBrapiHistory, parseYahooHistory } from "./benchmark-history.service";
+import { BenchmarkHistoryService, benchmarkRangeFor, parseBrapiHistory, parseYahooHistory, resolveQuoteDate } from "./benchmark-history.service";
 
 describe("parseBrapiHistory", () => {
   // Payload real do `/api/quote/^BVSP?range=3mo&interval=1d`, copiado da VPS em 2026-08-23 — a
@@ -103,5 +103,103 @@ describe("benchmarkRangeFor", () => {
     expect(benchmarkRangeFor(92)).toBe("6mo");
     expect(benchmarkRangeFor(183)).toBe("1y");
     expect(benchmarkRangeFor(365)).toBe("2y");
+  });
+});
+
+describe("resolveQuoteDate", () => {
+  // 24/08/2026 é uma segunda; 22 e 23 são sábado e domingo.
+  const SEGUNDA_19H = new Date("2026-08-24T22:00:00Z");
+
+  it("quando a fonte informa o instante do negócio, é ele que manda", () => {
+    expect(resolveQuoteDate("2026-08-21T20:15:00Z", SEGUNDA_19H)).toBe("2026-08-21");
+  });
+
+  it("aceita epoch em segundos, do jeito que a BRAPI publica no histórico", () => {
+    expect(resolveQuoteDate(1779764400, SEGUNDA_19H)).toBe("2026-05-26");
+  });
+
+  it("feriado não inventa pregão: a cotação repete a sexta e é na sexta que ela é gravada", () => {
+    // Rodando numa segunda de feriado, a fonte devolve o último negócio, que foi na sexta.
+    expect(resolveQuoteDate("2026-08-21T20:15:00Z", SEGUNDA_19H)).toBe("2026-08-21");
+    expect(resolveQuoteDate("2026-08-21T20:15:00Z", SEGUNDA_19H)).not.toBe("2026-08-24");
+  });
+
+  it("sem o instante do negócio, cai na regra do dia útil", () => {
+    expect(resolveQuoteDate(undefined, SEGUNDA_19H)).toBe("2026-08-24");
+  });
+
+  it("fim de semana não vira ponto da série", () => {
+    expect(resolveQuoteDate(undefined, new Date("2026-08-22T22:00:00Z"))).toBeNull();
+    expect(resolveQuoteDate(undefined, new Date("2026-08-23T22:00:00Z"))).toBeNull();
+  });
+
+  it("quem manda é o calendário do Brasil, não o do servidor", () => {
+    // 25/08 02h UTC é 23h de segunda em Brasília: o pregão foi o de segunda, não o de terça.
+    expect(resolveQuoteDate(undefined, new Date("2026-08-25T02:00:00Z"))).toBe("2026-08-24");
+  });
+
+  it("instante ilegível não trava o job: volta pra regra do dia útil", () => {
+    expect(resolveQuoteDate("banana", SEGUNDA_19H)).toBe("2026-08-24");
+    expect(resolveQuoteDate("", SEGUNDA_19H)).toBe("2026-08-24");
+  });
+});
+
+describe("BenchmarkHistoryService.recordDailyClose", () => {
+  const SEGUNDA_19H = new Date("2026-08-24T22:00:00Z");
+  const originalFetch = global.fetch;
+
+  function comResposta(body: unknown, ok = true) {
+    global.fetch = jest.fn().mockResolvedValue({ ok, json: async () => body }) as unknown as typeof fetch;
+  }
+
+  function servico(createMany = jest.fn().mockResolvedValue({ count: 1 })) {
+    const prisma = { historicalPrice: { createMany } };
+    return { service: new BenchmarkHistoryService(prisma as never), createMany };
+  }
+
+  afterEach(() => {
+    global.fetch = originalFetch;
+  });
+
+  it("guarda a cotação do dia sob o ticker do índice", async () => {
+    comResposta({ results: [{ regularMarketPrice: 3682.02, regularMarketTime: "2026-08-24T20:15:00Z" }] });
+    const { service, createMany } = servico();
+
+    await expect(service.recordDailyClose("IFIX", SEGUNDA_19H)).resolves.toBe("gravado");
+    expect(createMany).toHaveBeenCalledWith({
+      data: [{ ticker: "^IFIX", date: new Date("2026-08-24T00:00:00Z"), close: 3682.02 }],
+      skipDuplicates: true,
+    });
+  });
+
+  it("rodar duas vezes no mesmo pregão não sobrescreve o fechamento já guardado", async () => {
+    comResposta({ results: [{ regularMarketPrice: 3682.02, regularMarketTime: "2026-08-24T20:15:00Z" }] });
+    const { service } = servico(jest.fn().mockResolvedValue({ count: 0 }));
+
+    await expect(service.recordDailyClose("IFIX", SEGUNDA_19H)).resolves.toBe("repetido");
+  });
+
+  it("fim de semana sem instante de negócio não grava nada", async () => {
+    comResposta({ results: [{ regularMarketPrice: 3682.02 }] });
+    const { service, createMany } = servico();
+
+    await expect(service.recordDailyClose("IFIX", new Date("2026-08-22T22:00:00Z"))).resolves.toBe("fora-do-pregao");
+    expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it("sem cotação não grava — zero seria um dia em que o índice desapareceu", async () => {
+    comResposta({ results: [{ regularMarketPrice: 0 }] });
+    const { service, createMany } = servico();
+
+    await expect(service.recordDailyClose("IFIX", SEGUNDA_19H)).resolves.toBe("sem-cotacao");
+    expect(createMany).not.toHaveBeenCalled();
+  });
+
+  it("fonte fora do ar devolve status, não exceção — o job tem que seguir pro próximo índice", async () => {
+    global.fetch = jest.fn().mockRejectedValue(new Error("ECONNRESET")) as unknown as typeof fetch;
+    const { service, createMany } = servico();
+
+    await expect(service.recordDailyClose("IFIX", SEGUNDA_19H)).resolves.toBe("sem-cotacao");
+    expect(createMany).not.toHaveBeenCalled();
   });
 });

@@ -127,6 +127,21 @@ por ativo — com valor, custo e rentabilidade, mais CDI, Ibovespa e IFIX na mes
   no Yahoo.
 - Índice fora do ar nunca vira erro: a linha some, o chip fica desabilitado e o resto do gráfico
   continua. Cada índice tem lista de candidatos (fonte + símbolo) porque a cobertura varia.
+- **O IFIX não tem histórico em fonte nenhuma que o app alcance** (conferido em produção
+  2026-08-23/24): a BRAPI devolve a cotação dele mas **1 ponto só** de série (o IBOV vem com 64 no
+  mesmo pedido) e o Yahoo responde 429. Por isso `BenchmarkRecorderService` guarda o fechamento dos
+  índices um pregão por dia (22h UTC = 19h de Brasília, seg–sex, mais uma passada 1min após subir):
+  a série do IFIX é construída daqui pra frente. **O passado não volta**, e o gráfico não finge que
+  voltou — sem cobertura o chip continua desabilitado.
+- **Resposta com menos de 5 pontos é descartada.** Um ponto solto passava no `length > 0`, o
+  candidato ficava memorizado como "esse funciona", os símbolos seguintes nunca eram tentados, e no
+  gráfico aquilo virava uma reta em 0% no trecho final — que se lê como "o índice não andou" em vez
+  de "não temos o dado".
+- **Quando a fonte informa o instante do negócio, é ele que decide o dia do ponto**
+  (`resolveQuoteDate`). Em feriado a cotação repete o pregão anterior; gravar como se fosse hoje
+  inventaria um pregão que não existiu. Sem esse campo sobra a regra grosseira (só dia útil), e o
+  calendário é o **do Brasil** — o servidor roda em UTC e das 21h à meia-noite de Brasília o UTC já
+  virou o dia seguinte.
 - **O recuo de 1h vale também quando não há nada guardado.** Com a fonte fora do ar o banco nunca
   enche, `faltaComeco` nunca deixa de ser verdade, e sem essa guarda cada abertura da Carteira
   recomeçava a fila inteira de candidatos contra um provedor morto — quatro símbolos a 8s de
