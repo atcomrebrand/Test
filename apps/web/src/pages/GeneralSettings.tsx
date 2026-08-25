@@ -8,6 +8,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { DangerConfirmModal } from "@/components/DangerConfirmModal";
 import { ProfileSettingsCard } from "@/components/ProfileSettingsCard";
 import { SecuritySettingsCard } from "@/components/SecuritySettingsCard";
+import { SystemHealthCard } from "@/components/SystemHealthCard";
 import { AssistantMemoryCard } from "@/components/AssistantMemoryCard";
 import { useDeleteAccount } from "@/features/useAccount";
 import { useThemeStore } from "@/store/theme";
@@ -64,6 +65,8 @@ export default function GeneralSettings() {
         <AssistantMemoryCard />
 
         <SecuritySettingsCard />
+
+        <SystemHealthCard />
 
         <Card className="border-red-500/30">
           <CardHeader>

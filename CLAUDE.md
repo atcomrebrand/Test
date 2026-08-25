@@ -17,6 +17,29 @@ App pessoal de finanças (nome do repo/pnpm workspace ainda é `credit-installme
 
 Backend em Clean Architecture por módulo: `domain/` (regras puras, sem I/O — sempre com `.spec.ts` ao lado), `application/` (services, DTOs), `infrastructure/` (Prisma repos, providers externos), `interface/` ou raiz do módulo (controllers).
 
+## Saúde do servidor: o que medir numa VPS de 1GB
+
+Card em **Configurações** (`/configuracoes`), servido por `GET /system/health`. Existe pra responder
+"tem gargalo?" sem abrir SSH.
+
+- **Cache não é memória usada.** O Linux enche a RAM livre de cache de disco de propósito e devolve
+  quando alguém precisa. Quem calcula `usado = total − MemFree` conclui que uma VPS saudável está
+  com 95% de uso e sai caçando vazamento que não existe. Quem manda é o **MemAvailable**, lido
+  direto de `/proc/meminfo` — `os.freemem()` nem sempre é ele, depende da versão do libuv.
+- **Swap em uso pesa no veredito mesmo sobrando memória**: quer dizer que a máquina já mandou página
+  pro disco, e é o começo do gargalo, não o fim.
+- **`loadavg` conta processo esperando I/O, não só CPU.** Carga alta com CPU baixa não é
+  contradição: é a assinatura de espera por disco ou rede — foi exatamente o que aconteceu quando a
+  BRAPI caiu e a API ficou presa em timeout.
+- **Memória por serviço vem do systemd** (`MemoryCurrent`, contabilidade de cgroup), não de somar
+  RSS: o Postgres abre um processo por conexão e somar RSS conta a memória compartilhada várias
+  vezes. `NRestarts` é o rastro de quando o sistema mata o processo por falta de memória — numa VPS
+  de 1GB é o primeiro lugar pra olhar.
+- **Nada nessa tela pode derrubá-la**: cada fonte falha em silêncio pro seu próprio campo (sem
+  systemd, sem `/proc`, sem Postgres) — uma página de diagnóstico que não abre quando a máquina está
+  mal é o oposto do que ela serve. O card só consulta enquanto está **aberto**, com 5s de cache no
+  servidor: medir não pode virar carga.
+
 ## Deploy (VPS de produção)
 
 - Caminho do projeto: `/opt/parcelas`

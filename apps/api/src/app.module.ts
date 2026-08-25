@@ -24,6 +24,7 @@ import { PushModule } from "./modules/push/push.module";
 import { WebAuthnModule } from "./modules/webauthn/webauthn.module";
 import { TrackingModule } from "./modules/tracking/tracking.module";
 import { QuotesModule } from "./modules/quotes/quotes.module";
+import { SystemModule } from "./modules/system/system.module";
 import { HouseholdModule } from "./modules/household/household.module";
 import { AssistantModule } from "./modules/assistant/assistant.module";
 import { HomeModule } from "./modules/home/home.module";
@@ -57,6 +58,7 @@ import { CrmModule } from "./modules/crm/crm.module";
     WebAuthnModule,
     TrackingModule,
     QuotesModule,
+    SystemModule,
     HouseholdModule,
     AssistantModule,
     HomeModule,
