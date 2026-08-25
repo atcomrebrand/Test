@@ -208,6 +208,15 @@ existe decisão — e a decisão é sempre do usuário.
 - **Produto cujas linhas carregam GTINs diferentes o script não toca** — isso quer dizer que a
   chave do nome agrupou itens que não são o mesmo produto, e carimbar um dos dois faria a união
   automática errar depois. Esses saem numa lista no fim pra revisão à mão.
+- **Uma compra é uma ida ao mercado, não uma linha de nota.** Comprando três unidades, o mercado
+  imprime três linhas — e cada uma virava um ponto no gráfico (três bolinhas empilhadas no mesmo
+  dia) e uma "compra" no card. `groupPurchaseOccasions` agrupa por **dia + loja**: o mesmo produto
+  em dois mercados no mesmo dia continua sendo duas observações de preço de verdade. Preço da
+  ocasião com mais de uma linha é média **ponderada pela quantidade**, mesma razão do
+  `averagePrice`. Totais (gasto, quantidade) são soma pura e não mudam com o agrupamento.
+- **O extrato continua linha a linha.** `history` (uma entrada por linha da nota) e `priceSeries`
+  (uma por ida) vão separados na resposta de propósito: a lista embaixo do gráfico tem que mostrar
+  o que o mercado imprimiu, e o gráfico tem que mostrar o que a pessoa fez.
 - **União é ponteiro, nunca exclusão.** `MarketProduct.canonicalId` (nullable, `SetNull`) aponta o
   absorvido pro canônico; a linha continua no banco com o nome que o mercado deu, pelo mesmo motivo
   que `MarketPurchaseItem.description` é guardado literal. Desfazer é limpar um campo.

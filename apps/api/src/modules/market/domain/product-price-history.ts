@@ -30,16 +30,68 @@ export interface ProductPriceSummary {
   cheapestStorePrice: number | null;
 }
 
+export interface ProductPriceOccasion {
+  purchaseDate: string;
+  storeName: string;
+  /** Preço unitário da ocasião, ponderado pela quantidade quando ela teve mais de uma linha. */
+  unitPrice: number;
+  quantity: number;
+  totalPrice: number;
+  /** Quantas linhas de nota este ponto resume. 1 na esmagadora maioria dos casos. */
+  lines: number;
+}
+
+/**
+ * Uma compra é uma **ida ao mercado**, não uma linha de nota.
+ *
+ * Bug real: comprando três unidades do mesmo produto, o mercado imprime três linhas na nota, e cada
+ * uma virava um ponto no gráfico — três bolinhas empilhadas no mesmo dia, com a linha zigue-zagueando
+ * entre elas — além de "3 compras" no card, quando foi uma ida só. Agrupar por dia **e loja** é o que
+ * corresponde ao que a pessoa fez: comprar o mesmo produto em dois mercados no mesmo dia são duas
+ * observações de preço de verdade e continuam sendo dois pontos.
+ *
+ * Quando a ocasião tem mais de uma linha com preços diferentes (parte em promoção, parte não), o
+ * preço do ponto é a média **ponderada pela quantidade** — a mesma razão pela qual `averagePrice` é
+ * ponderado: 10 unidades a um preço e 1 a outro não são evidências iguais do que o produto custa.
+ */
+export function groupPurchaseOccasions(points: ProductPricePoint[]): ProductPriceOccasion[] {
+  const porOcasiao = new Map<string, ProductPriceOccasion>();
+
+  for (const point of points) {
+    const chave = `${point.purchaseDate}|${point.storeName}`;
+    const atual = porOcasiao.get(chave);
+    if (!atual) {
+      porOcasiao.set(chave, { ...point, lines: 1 });
+      continue;
+    }
+    atual.quantity += point.quantity;
+    atual.totalPrice += point.totalPrice;
+    atual.lines += 1;
+    // Recalculado a cada linha em vez de acumulado: é sempre total ÷ quantidade, então não depende
+    // da ordem em que as linhas chegaram.
+    atual.unitPrice = atual.quantity > 0 ? atual.totalPrice / atual.quantity : point.unitPrice;
+  }
+
+  return [...porOcasiao.values()].sort(
+    (a, b) => a.purchaseDate.localeCompare(b.purchaseDate) || a.storeName.localeCompare(b.storeName, "pt-BR"),
+  );
+}
+
 /**
  * Condenses every time a product was bought into the numbers the price-history view answers
  * questions with: is it getting more expensive, how much have I spent on it, which store sells it
  * cheapest. Pure and order-independent — points are sorted internally, so callers can hand over
  * rows in whatever order the database returned them.
+ *
+ * Tudo o que fala de **preço** ou de **quantas vezes** é medido por ocasião de compra, não por linha
+ * de nota (ver groupPurchaseOccasions). Os totais — gasto e quantidade — são soma pura e não mudam
+ * com o agrupamento. O que isso garante é que o card e o gráfico logo abaixo dele contem a mesma
+ * história: número que não bate com o gráfico ao lado parece bug mesmo quando os dois estão certos.
  */
 export function summarizeProductPrices(points: ProductPricePoint[]): ProductPriceSummary | null {
   if (points.length === 0) return null;
 
-  const sorted = [...points].sort((a, b) => a.purchaseDate.localeCompare(b.purchaseDate));
+  const sorted = groupPurchaseOccasions(points);
   const first = sorted[0];
   const last = sorted[sorted.length - 1];
 

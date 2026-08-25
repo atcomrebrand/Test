@@ -1,14 +1,28 @@
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatCurrency } from "@/lib/format";
-import { ProductPricePoint } from "../types";
+import { ProductPriceOccasion } from "../types";
 
-/** Unit price over time — the line answers "estou pagando mais caro que antes?", which the total
- *  spent per purchase can't, since that moves with how much was bought. */
-export function PriceHistoryChart({ history }: { history: ProductPricePoint[] }) {
-  const data = history.map((point) => ({
-    label: new Date(`${point.purchaseDate}T12:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+/**
+ * Unit price over time — the line answers "estou pagando mais caro que antes?", which the total
+ * spent per purchase can't, since that moves with how much was bought.
+ *
+ * Recebe a série por **ida ao mercado**, já agrupada no servidor. Desenhar linha por linha de nota
+ * era o bug: três unidades compradas juntas viravam três bolinhas empilhadas no mesmo dia.
+ */
+export function PriceHistoryChart({ series }: { series: ProductPriceOccasion[] }) {
+  // Com mais de um ano de histórico, dois "05/08" de anos diferentes ficam idênticos no eixo.
+  const anos = new Set(series.map((p) => p.purchaseDate.slice(0, 4)));
+  const mostrarAno = anos.size > 1;
+
+  const data = series.map((point) => ({
+    label: new Date(`${point.purchaseDate}T12:00:00`).toLocaleDateString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      ...(mostrarAno ? { year: "2-digit" as const } : {}),
+    }),
     preco: point.unitPrice,
     loja: point.storeName,
+    linhas: point.lines,
   }));
 
   return (
@@ -27,7 +41,12 @@ export function PriceHistoryChart({ history }: { history: ProductPricePoint[] })
           width={52}
         />
         <Tooltip
-          formatter={(value: number) => [formatCurrency(value), "Preço"]}
+          formatter={(value: number, _name, item) => {
+            // Quando o ponto resume várias linhas, o preço é a média ponderada delas — dizer isso
+            // evita a leitura de que o mercado cobrou exatamente esse valor por unidade.
+            const linhas = (item?.payload as { linhas?: number } | undefined)?.linhas ?? 1;
+            return [formatCurrency(value), linhas > 1 ? `Preço médio de ${linhas} linhas` : "Preço"];
+          }}
           labelFormatter={(label, payload) => {
             const loja = payload?.[0]?.payload?.loja;
             return loja ? `${label} · ${loja}` : String(label);

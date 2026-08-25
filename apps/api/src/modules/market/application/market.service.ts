@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { MarketRepository } from "../domain/market.repository";
 import { groupByCanonical, resolveCanonicalId, suggestProductMerges } from "../domain/product-merge";
-import { ProductPricePoint, summarizeProductPrices } from "../domain/product-price-history";
+import { groupPurchaseOccasions, ProductPricePoint, summarizeProductPrices } from "../domain/product-price-history";
 import { summarizeSpending } from "../domain/spending-summary";
 
 function isoDate(date: Date): string {
@@ -115,7 +115,12 @@ export class MarketService {
       unit: canonico.unit,
       gtin: canonico.gtin,
       summary: summarizeProductPrices(points),
+      /** O extrato: uma entrada por linha de nota, do jeito que o mercado imprimiu. */
       history: points,
+      /** O que o gráfico desenha: uma entrada por ida ao mercado. Três unidades compradas juntas
+       *  são um ponto, não três bolinhas empilhadas no mesmo dia. Vai separado de `history` porque
+       *  a lista embaixo do gráfico tem que continuar mostrando cada linha da nota. */
+      priceSeries: groupPurchaseOccasions(points),
       /** Os nomes que os mercados deram e que foram unidos aqui — é o que a tela mostra pra você
        *  poder conferir a união e desfazer se estiver errada. */
       mergedFrom: grupo.filter((p) => p.id !== canonico.id).map((p) => ({ id: p.id, name: p.name })),

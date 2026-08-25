@@ -139,13 +139,13 @@ export default function ProdutoDetalhe() {
             </Card>
           </div>
 
-          {product.history.length > 1 && (
+          {product.priceSeries.length > 1 && (
             <Card className="mb-4">
               <CardHeader>
                 <CardTitle>Preço por {product.unit} ao longo do tempo</CardTitle>
               </CardHeader>
               <CardContent>
-                <PriceHistoryChart history={product.history} />
+                <PriceHistoryChart series={product.priceSeries} />
               </CardContent>
             </Card>
           )}

@@ -96,8 +96,17 @@ export interface MarketProduct {
   summary: ProductPriceSummary | null;
 }
 
+/** Uma ida ao mercado, não uma linha de nota — ver groupPurchaseOccasions no domínio da API. */
+export interface ProductPriceOccasion extends ProductPricePoint {
+  /** Quantas linhas de nota este ponto resume. 1 na esmagadora maioria dos casos. */
+  lines: number;
+}
+
 export interface MarketProductDetail extends MarketProduct {
+  /** Extrato: uma entrada por linha de nota. */
   history: ProductPricePoint[];
+  /** O que o gráfico desenha: uma entrada por ida ao mercado. */
+  priceSeries: ProductPriceOccasion[];
   /** Os nomes que outros mercados deram e que foram unidos aqui — a tela mostra pra dar como
    *  desfazer, já que unir errado é o único jeito de estragar o histórico de preço. */
   mergedFrom: { id: string; name: string }[];
