@@ -1,17 +1,21 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Package, Store } from "lucide-react";
+import { ArrowLeft, Merge, Package, Store, Undo2 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
-import { useMarketProduct } from "../api";
+import { Button } from "@/components/ui/Button";
+import { useMarketProduct, useUnmergeProduct } from "../api";
 import { PriceHistoryChart } from "../components/PriceHistoryChart";
 
 export default function ProdutoDetalhe() {
   const { id } = useParams<{ id: string }>();
   const { data: product, isLoading, isError } = useMarketProduct(id);
+  // Antes de qualquer `return` condicional: hook depois de early return quebra a ordem entre
+  // renders e o React derruba a tela com "Rendered more hooks than during the previous render".
+  const unmerge = useUnmergeProduct();
 
   if (isLoading) return <Skeleton className="h-96 rounded-2xl" />;
 
@@ -44,6 +48,36 @@ export default function ProdutoDetalhe() {
         title={product.name}
         description={summary ? `${summary.timesBought} ${summary.timesBought === 1 ? "compra" : "compras"} · ${formatCurrency(summary.totalSpent)} no total` : undefined}
       />
+
+      {/* Os nomes unidos aqui, com o desfazer ao lado. União errada é o único jeito de estragar o
+          histórico de preço, então ela nunca pode virar algo invisível: quem abre o produto vê de
+          quantos nomes ele é feito e desfaz num clique. */}
+      {product.mergedFrom.length > 0 && (
+        <Card className="mb-4 border-sky-500/30 bg-sky-500/5">
+          <CardContent className="flex flex-col gap-2 py-3">
+            <p className="flex items-center gap-1.5 text-sm font-medium">
+              <Merge className="h-4 w-4 shrink-0 text-sky-500" />
+              Inclui o histórico de {product.mergedFrom.length}{" "}
+              {product.mergedFrom.length === 1 ? "outro nome" : "outros nomes"}
+            </p>
+            {product.mergedFrom.map((unido) => (
+              <div key={unido.id} className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate text-sm text-muted">{unido.name}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  loading={unmerge.isPending}
+                  onClick={() => unmerge.mutate(unido.id)}
+                  className="shrink-0 gap-1.5"
+                >
+                  <Undo2 className="h-3.5 w-3.5" />
+                  Separar
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {summary && (
         <>

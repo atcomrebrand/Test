@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from "@n
 import { Throttle } from "@nestjs/throttler";
 import { AuthUser, CurrentUser } from "../../../common/decorators/current-user.decorator";
 import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
-import { CommitNotaDto, ListPurchasesQueryDto, ScanNotaDto } from "../application/dto/market.dto";
+import { CommitNotaDto, ListPurchasesQueryDto, MergeProductsDto, ScanNotaDto } from "../application/dto/market.dto";
 import { MarketImportService } from "../application/market-import.service";
 import { MarketService } from "../application/market.service";
 
@@ -57,5 +57,21 @@ export class MarketController {
   @Get("products/:id")
   getProduct(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.market.getProduct(user.userId, id);
+  }
+
+  @Get("products-merge/suggestions")
+  suggestMerges(@CurrentUser() user: AuthUser, @Query("minScore") minScore?: string) {
+    const limiar = Number(minScore);
+    return this.market.suggestMerges(user.userId, Number.isFinite(limiar) && limiar > 0 ? limiar : undefined);
+  }
+
+  @Post("products-merge")
+  mergeProducts(@CurrentUser() user: AuthUser, @Body() dto: MergeProductsDto) {
+    return this.market.mergeProducts(user.userId, dto.canonicalId, dto.ids);
+  }
+
+  @Delete("products-merge/:id")
+  unmergeProduct(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.market.unmergeProduct(user.userId, id);
   }
 }

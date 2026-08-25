@@ -84,3 +84,16 @@ export class ListPurchasesQueryDto {
   @IsDateString()
   to?: string;
 }
+
+/** Une produtos sob um canônico. `ids` pode conter o próprio canônico — ele é ignorado, porque a
+ *  tela naturalmente manda "os selecionados" e o escolhido está entre eles. */
+export class MergeProductsDto {
+  @IsString()
+  @MinLength(1)
+  canonicalId!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsString({ each: true })
+  ids!: string[];
+}

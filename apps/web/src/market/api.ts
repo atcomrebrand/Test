@@ -6,6 +6,7 @@ import {
   MarketProductDetail,
   MarketPurchaseDetail,
   MarketPurchaseSummary,
+  MergeSuggestion,
   NotaItem,
   NotaPreview,
   SpendingSummary,
@@ -87,6 +88,38 @@ export function useMarketProduct(id: string | undefined) {
     queryKey: ["market", "product", id],
     queryFn: () => api.get<MarketProductDetail>(`/market/products/${id}`),
     enabled: Boolean(id),
+  });
+}
+
+/** Pares que parecem o mesmo produto com nomes diferentes em cada mercado. */
+export function useMergeSuggestions() {
+  return useQuery({
+    queryKey: ["market", "merge-suggestions"],
+    queryFn: () => api.get<MergeSuggestion[]>("/market/products-merge/suggestions"),
+  });
+}
+
+export function useMergeProducts() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { canonicalId: string; ids: string[] }) => api.post("/market/products-merge", payload),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Produtos unidos — o histórico agora é um só.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUnmergeProduct() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/market/products-merge/${id}`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("União desfeita — o produto voltou a ter histórico próprio.");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 

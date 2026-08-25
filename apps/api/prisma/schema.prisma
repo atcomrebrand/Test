@@ -1253,12 +1253,21 @@ model MarketProduct {
   normalizedKey String
   unit          String?
   category      String?
+  /// Quando preenchido, este produto foi unido a outro: as compras dele passam a contar pro
+  /// histórico do canônico. É ponteiro, não exclusão — a linha continua aqui com o nome que o
+  /// mercado deu (o mesmo motivo pelo qual MarketPurchaseItem.description é guardado literal), e
+  /// desfazer a união é limpar o campo. `SetNull` porque, se o canônico sumisse, o certo é o
+  /// absorvido voltar a ter histórico próprio, não desaparecer junto.
+  canonicalId   String?
+  canonical     MarketProduct?  @relation("MarketProductMerge", fields: [canonicalId], references: [id], onDelete: SetNull)
+  absorbed      MarketProduct[] @relation("MarketProductMerge")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   items MarketPurchaseItem[]
 
   @@unique([userId, normalizedKey])
+  @@index([userId, canonicalId])
   @@map("market_products")
 }
 

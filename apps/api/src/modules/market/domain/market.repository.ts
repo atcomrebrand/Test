@@ -38,4 +38,8 @@ export abstract class MarketRepository {
 
   abstract listProducts(userId: string): Promise<(MarketProduct & { items: ItemWithContext[] })[]>;
   abstract findProductById(userId: string, id: string): Promise<(MarketProduct & { items: ItemWithContext[] }) | null>;
+  abstract findProductsByIds(userId: string, ids: string[]): Promise<MarketProduct[]>;
+  /** Aponta (ou desaponta, com null) produtos pro canônico. Em lote porque unir três produtos de
+   *  uma vez tem que ser uma coisa só: metade unida é um histórico partido no meio. */
+  abstract setProductsCanonical(userId: string, ids: string[], canonicalId: string | null): Promise<void>;
 }

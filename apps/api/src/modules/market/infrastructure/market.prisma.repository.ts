@@ -91,4 +91,13 @@ export class MarketPrismaRepository extends MarketRepository {
       include: { items: { where: { purchase: { deletedAt: null } }, include: { purchase: true } } },
     });
   }
+
+  findProductsByIds(userId: string, ids: string[]) {
+    return this.prisma.marketProduct.findMany({ where: { userId, id: { in: ids } } });
+  }
+
+  async setProductsCanonical(userId: string, ids: string[], canonicalId: string | null) {
+    // `userId` no where junto do id: sem ele, um id chutado apontaria produto de outra conta.
+    await this.prisma.marketProduct.updateMany({ where: { userId, id: { in: ids } }, data: { canonicalId } });
+  }
 }

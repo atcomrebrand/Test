@@ -177,6 +177,32 @@ Sempre, antes de reportar uma feature/fix como pronta:
 
 Ambiente de dev local costuma cair sozinho (Postgres e/ou os processos `start:dev`/`vite dev`) entre sessões — checar com `pg_isready` e `curl` antes de assumir que subiu.
 
+## Mercado: o mesmo produto com nome diferente em cada mercado
+
+`marketProductKey` normaliza **grafia** (abreviação, acento, "5 KG" vs "5KG"). O que ela não
+resolve, e nem tem como, é cada mercado escolher **palavras diferentes** pro mesmo item: "PAO
+BRIOCHE 520G" num, "PAO DE LEITE BRIOCHE WICKBOLD 520G" no outro. Aí não existe normalização,
+existe decisão — e a decisão é sempre do usuário.
+
+- **União é ponteiro, nunca exclusão.** `MarketProduct.canonicalId` (nullable, `SetNull`) aponta o
+  absorvido pro canônico; a linha continua no banco com o nome que o mercado deu, pelo mesmo motivo
+  que `MarketPurchaseItem.description` é guardado literal. Desfazer é limpar um campo.
+- **A agregação é na leitura**, não reescrevendo o `productId` das compras. É isso que torna a
+  união reversível de graça e mantém rastreável o que cada mercado chamou o produto.
+- **O app sugere, nunca une sozinho** (`suggestProductMerges`). Vale a regra que já estava no
+  `market-product-key.ts`: separar um produto em dois é um incômodo visível e corrigível; juntar
+  dois diferentes estraga o histórico de preço sem ninguém perceber.
+- **Embalagem diferente derruba a sugestão na hora**: "PAO BRIOCHE 520G" e "PAO BRIOCHE 300G" têm
+  as mesmas palavras e não são o mesmo produto. Tamanho declarado só de um lado não é conflito.
+- **Duas palavras em comum, no mínimo**, e a pontuação é por **continência** (quanto do nome mais
+  curto cabe no outro) — é o que faz o mercado que escreve a marca inteira casar com o que escreve
+  só o essencial. Uma palavra genérica em comum ("PAO FRANCES" vs "PAO BRIOCHE") vira uma lista de
+  sugestões que ninguém lê.
+- Sugestão dispensada fica no **localStorage**: dizer "esses dois são diferentes" é preferência de
+  tela, não dado que valha tabela e migration.
+- Limite conhecido: a comparação é de palavra inteira, então "RECHEADA" e "RECHEADO" não se
+  encontram. Errar pro lado de não sugerir é o certo.
+
 ## CRM: as quatro regras que sustentam o módulo
 
 Módulo independente (`crm`), sem `imports` de outros módulos — em particular não toca no Contas da

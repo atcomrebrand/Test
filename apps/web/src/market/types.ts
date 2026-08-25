@@ -88,11 +88,25 @@ export interface MarketProduct {
   id: string;
   name: string;
   unit: string;
+  /** Quantos outros nomes foram unidos neste produto. 0 = ninguém uniu nada nele. */
+  mergedCount: number;
   summary: ProductPriceSummary | null;
 }
 
 export interface MarketProductDetail extends MarketProduct {
   history: ProductPricePoint[];
+  /** Os nomes que outros mercados deram e que foram unidos aqui — a tela mostra pra dar como
+   *  desfazer, já que unir errado é o único jeito de estragar o histórico de preço. */
+  mergedFrom: { id: string; name: string }[];
+}
+
+/** Um par que o servidor achou parecido o bastante pra perguntar. Ele nunca une sozinho. */
+export interface MergeSuggestion {
+  ids: [string, string];
+  names: [string, string];
+  /** 0..1 — quanto das palavras do nome mais curto aparece também no outro. */
+  score: number;
+  shared: string[];
 }
 
 export interface MonthlySpending {
