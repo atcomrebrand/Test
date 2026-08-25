@@ -184,6 +184,21 @@ resolve, e nem tem como, é cada mercado escolher **palavras diferentes** pro me
 BRIOCHE 520G" num, "PAO DE LEITE BRIOCHE WICKBOLD 520G" no outro. Aí não existe normalização,
 existe decisão — e a decisão é sempre do usuário.
 
+- **O "Código:" da nota é o código de barras, na maioria das vezes.** Ele é o `cProd` (interno do
+  mercado), mas boa parte do varejo usa o próprio EAN como código interno. Conferido numa nota real
+  (Shibata/Pindamonhangaba, 2026-08): os quatro embalados vieram com EAN-13 válido e os três de
+  balança com código curto da loja (`6339`, `5707`, `354`). Quem separa um do outro é o **dígito
+  verificador GS1** (`parseGtin`) — sem ele, a numeração própria de um mercado viraria "identidade
+  global". Normalizado em 14 dígitos porque o mesmo produto vem como UPC-12 num lugar e EAN-13
+  noutro.
+- **Identidade em duas camadas na importação**: GTIN primeiro, chave normalizada do nome depois.
+  A segunda é o que atende balança e mercado que numera do seu jeito, que nunca terão código.
+- **Adoção é o que alcança o que já estava em produção.** Quando um item novo tem GTIN e bate pela
+  chave do nome com um produto que já existe, o código é carimbado **naquele produto** — mesma
+  linha, mesmas compras, agora identificável entre mercados. Nada é recriado nem re-chaveado.
+- **União automática só quando o GTIN prova.** Se o nome desta linha já era um produto separado e o
+  código aponta pra outro, os dois são o mesmo — e esse é o único momento em que a prova existe.
+  Continua visível e reversível na tela de detalhe, como qualquer união.
 - **União é ponteiro, nunca exclusão.** `MarketProduct.canonicalId` (nullable, `SetNull`) aponta o
   absorvido pro canônico; a linha continua no banco com o nome que o mercado deu, pelo mesmo motivo
   que `MarketPurchaseItem.description` é guardado literal. Desfazer é limpar um campo.

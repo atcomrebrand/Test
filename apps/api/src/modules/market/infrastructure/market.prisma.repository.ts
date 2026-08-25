@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
-import { CreatePurchaseData, MarketRepository } from "../domain/market.repository";
+import { CreatePurchaseData, CreatePurchaseItemData, MarketRepository } from "../domain/market.repository";
 
 const ITEMS_INCLUDE = { items: { include: { product: true } } } as const;
 
@@ -26,14 +27,7 @@ export class MarketPrismaRepository extends MarketRepository {
       });
 
       for (const item of data.items) {
-        // upsert, not create-if-missing: the same product legitimately appears twice in one nota
-        // (two lines of the same item), and across notas it must land on the existing row so the
-        // price history accumulates instead of forking.
-        const product = await tx.marketProduct.upsert({
-          where: { userId_normalizedKey: { userId: data.userId, normalizedKey: item.normalizedKey } },
-          create: { userId: data.userId, name: item.description, normalizedKey: item.normalizedKey, unit: item.unit },
-          update: {},
-        });
+        const product = await resolveProduct(tx, data.userId, item);
 
         await tx.marketPurchaseItem.create({
           data: {
@@ -42,6 +36,7 @@ export class MarketPrismaRepository extends MarketRepository {
             productId: product.id,
             description: item.description,
             storeCode: item.storeCode,
+            gtin: item.gtin,
             quantity: item.quantity,
             unit: item.unit,
             unitPrice: item.unitPrice,
@@ -100,4 +95,63 @@ export class MarketPrismaRepository extends MarketRepository {
     // `userId` no where junto do id: sem ele, um id chutado apontaria produto de outra conta.
     await this.prisma.marketProduct.updateMany({ where: { userId, id: { in: ids } }, data: { canonicalId } });
   }
+}
+
+/**
+ * Em que produto esta linha da nota entra.
+ *
+ * Duas camadas de identidade, nesta ordem:
+ *
+ * 1. **Código de barras**, quando a nota trouxe um. É global — o mesmo produto tem o mesmo número
+ *    em qualquer mercado —, então é a única evidência que dispensa adivinhação.
+ * 2. **Chave normalizada do nome**, o comportamento de sempre. É o que atende balança e mercado que
+ *    numera do seu jeito, que nunca terão GTIN.
+ *
+ * O upsert por chave normalizada continua sendo upsert e não create-if-missing: o mesmo produto
+ * aparece duas vezes numa nota só (duas linhas do mesmo item) e precisa cair na mesma linha entre
+ * notas, senão o histórico de preço bifurca.
+ */
+async function resolveProduct(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  item: CreatePurchaseItemData,
+): Promise<{ id: string }> {
+  const porNome = { userId_normalizedKey: { userId, normalizedKey: item.normalizedKey } };
+
+  if (!item.gtin) {
+    return tx.marketProduct.upsert({
+      where: porNome,
+      create: { userId, name: item.description, normalizedKey: item.normalizedKey, unit: item.unit },
+      update: {},
+    });
+  }
+
+  const porCodigo = await tx.marketProduct.findFirst({ where: { userId, gtin: item.gtin } });
+  const existentePeloNome = await tx.marketProduct.findUnique({ where: porNome });
+
+  // Nome novo pra um código já conhecido: é exatamente o caso do mesmo produto com nome diferente
+  // em cada mercado, e a linha entra direto no produto que já existe.
+  if (porCodigo) {
+    // ...e se o nome desta linha já tinha virado um produto separado antes do código aparecer, o
+    // código acabou de provar que os dois são o mesmo. Unir aqui não é chute — é o único momento em
+    // que a prova existe. Fica visível e reversível na tela de detalhe do produto.
+    if (existentePeloNome && existentePeloNome.id !== porCodigo.id && existentePeloNome.canonicalId === null) {
+      await tx.marketProduct.update({ where: { id: existentePeloNome.id }, data: { canonicalId: porCodigo.id } });
+    }
+    return porCodigo;
+  }
+
+  // Código novo num produto que já existe pelo nome: **adoção**. É assim que o histórico antigo
+  // ganha identidade global sem ser recriado nem re-chaveado — o produto continua sendo a mesma
+  // linha, com as mesmas compras, agora identificável entre mercados.
+  if (existentePeloNome) {
+    if (existentePeloNome.gtin === null) {
+      await tx.marketProduct.update({ where: { id: existentePeloNome.id }, data: { gtin: item.gtin } });
+    }
+    return existentePeloNome;
+  }
+
+  return tx.marketProduct.create({
+    data: { userId, name: item.description, normalizedKey: item.normalizedKey, unit: item.unit, gtin: item.gtin },
+  });
 }

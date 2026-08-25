@@ -1261,6 +1261,13 @@ model MarketProduct {
   canonicalId   String?
   canonical     MarketProduct?  @relation("MarketProductMerge", fields: [canonicalId], references: [id], onDelete: SetNull)
   absorbed      MarketProduct[] @relation("MarketProductMerge")
+  /// Código de barras normalizado em 14 dígitos, quando a nota trouxe um que passa no dígito
+  /// verificador GS1 (ver gtin.ts). É identidade **global**: o mesmo produto tem o mesmo número em
+  /// qualquer mercado, então quando dois produtos batem aqui não há o que adivinhar. Null é o caso
+  /// normal de balança e de mercado que numera do seu jeito — esses seguem agrupados pelo nome.
+  /// Não é unique: dois produtos podem carregar o mesmo GTIN pelo tempo entre um ser descoberto e
+  /// a união acontecer, e uma constraint transformaria isso em erro 500 no meio de uma importação.
+  gtin          String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -1268,6 +1275,7 @@ model MarketProduct {
 
   @@unique([userId, normalizedKey])
   @@index([userId, canonicalId])
+  @@index([userId, gtin])
   @@map("market_products")
 }
 
@@ -1285,6 +1293,9 @@ model MarketPurchaseItem {
   /// the store actually called it.
   description String
   storeCode   String?
+  /// O GTIN lido do `storeCode` desta linha, quando era um. Guardado por linha (e não só no
+  /// produto) pra dar pra rastrear de qual nota veio o código que identificou o produto.
+  gtin        String?
   quantity    Decimal        @db.Decimal(12, 4)
   unit        String
   unitPrice   Decimal        @db.Decimal(12, 4)

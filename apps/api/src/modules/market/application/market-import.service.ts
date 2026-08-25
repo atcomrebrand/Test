@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { marketProductKey } from "../domain/market-product-key";
+import { parseGtin } from "../domain/gtin";
 import { MarketRepository } from "../domain/market.repository";
 import { extractAccessKey, extractQrPayload, parseNfcePage, ParsedNfceItem } from "../domain/nfce-parser";
 import { SefazSpProvider } from "../infrastructure/providers/sefaz-sp.provider";
@@ -105,6 +106,10 @@ export class MarketImportService {
         unitPrice: item.unitPrice,
         totalPrice: item.totalPrice,
         normalizedKey: marketProductKey(item.description),
+        // O "Código:" da nota é o código interno do mercado — só que boa parte do varejo usa o
+        // próprio código de barras como código interno, e aí ele vale entre lojas. parseGtin separa
+        // um caso do outro pelo dígito verificador.
+        gtin: parseGtin(item.storeCode),
       })),
     });
   }

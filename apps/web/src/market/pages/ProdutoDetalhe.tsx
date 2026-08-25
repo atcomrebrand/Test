@@ -1,5 +1,5 @@
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Merge, Package, Store, Undo2 } from "lucide-react";
+import { ArrowLeft, Barcode, Merge, Package, Store, Undo2 } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -48,6 +48,16 @@ export default function ProdutoDetalhe() {
         title={product.name}
         description={summary ? `${summary.timesBought} ${summary.timesBought === 1 ? "compra" : "compras"} · ${formatCurrency(summary.totalSpent)} no total` : undefined}
       />
+
+      {/* O código de barras é a razão de várias uniões acontecerem sozinhas — mostrar deixa isso
+          explicável em vez de mágico. Só aparece quando existe: balança nunca tem. */}
+      {product.gtin && (
+        <p className="-mt-2 mb-4 flex items-center gap-1.5 text-xs text-muted">
+          <Barcode className="h-3.5 w-3.5 shrink-0" />
+          {/* Sem os zeros de normalização: o que está impresso na embalagem é o EAN. */}
+          {product.gtin.replace(/^0+/, "")}
+        </p>
+      )}
 
       {/* Os nomes unidos aqui, com o desfazer ao lado. União errada é o único jeito de estragar o
           histórico de preço, então ela nunca pode virar algo invisível: quem abre o produto vê de

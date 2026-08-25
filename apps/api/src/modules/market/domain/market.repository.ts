@@ -9,6 +9,9 @@ export interface CreatePurchaseItemData {
   totalPrice: number;
   /** Grouping key produced by marketProductKey() — decides which MarketProduct the line joins. */
   normalizedKey: string;
+  /** Código de barras normalizado (parseGtin), quando o "Código:" da nota era um. Quando vem, ele
+   *  manda: é identidade global, a chave do nome é só o fallback. */
+  gtin: string | null;
 }
 
 export interface CreatePurchaseData {

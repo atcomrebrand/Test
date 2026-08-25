@@ -84,6 +84,7 @@ export class MarketService {
           id: canonico.id,
           name: canonico.name,
           unit: canonico.unit,
+          gtin: canonico.gtin,
           mergedCount: absorvidos.length,
           summary: summarizeProductPrices(grupo.flatMap((p) => p.items).map(toPricePoint)),
         };
@@ -112,6 +113,7 @@ export class MarketService {
       id: canonico.id,
       name: canonico.name,
       unit: canonico.unit,
+      gtin: canonico.gtin,
       summary: summarizeProductPrices(points),
       history: points,
       /** Os nomes que os mercados deram e que foram unidos aqui — é o que a tela mostra pra você

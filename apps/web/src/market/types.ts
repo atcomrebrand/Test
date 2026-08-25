@@ -88,6 +88,9 @@ export interface MarketProduct {
   id: string;
   name: string;
   unit: string;
+  /** Código de barras normalizado em 14 dígitos, quando a nota trouxe um. Null é o caso normal de
+   *  balança e de mercado que numera do seu jeito. */
+  gtin: string | null;
   /** Quantos outros nomes foram unidos neste produto. 0 = ninguém uniu nada nele. */
   mergedCount: number;
   summary: ProductPriceSummary | null;
