@@ -12,11 +12,12 @@ import { cn } from "@/lib/cn";
 import { useMarketProducts, useMergeProducts } from "../api";
 import { MergeSelectionBar, MergeSuggestions } from "../components/MergeSuggestions";
 
-type SortKey = "gasto" | "alta" | "nome";
+type SortKey = "gasto" | "alta" | "baixa" | "nome";
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: "gasto", label: "Mais gasto" },
   { key: "alta", label: "Maior alta" },
+  { key: "baixa", label: "Maior baixa" },
   { key: "nome", label: "Nome" },
 ];
 
@@ -35,15 +36,18 @@ export default function Produtos() {
 
     return [...filtered].sort((a, b) => {
       if (sort === "nome") return a.name.localeCompare(b.name, "pt-BR");
-      // Products with a single purchase have no changePercent; they sort last under "maior alta"
-      // rather than being treated as 0%, which would read as "não mudou de preço".
-      if (sort === "alta") {
+
+      // Produto comprado uma vez só não tem variação: uma observação de preço não é tendência.
+      // Ele vai pro fim nos DOIS sentidos — tratar como 0% o colocaria no meio da lista dizendo
+      // "não mudou de preço", que é uma afirmação que o dado não sustenta.
+      if (sort === "alta" || sort === "baixa") {
         const ca = a.summary?.changePercent;
         const cb = b.summary?.changePercent;
         if (ca === null || ca === undefined) return 1;
         if (cb === null || cb === undefined) return -1;
-        return cb - ca;
+        return sort === "alta" ? cb - ca : ca - cb;
       }
+
       return (b.summary?.totalSpent ?? 0) - (a.summary?.totalSpent ?? 0);
     });
   }, [products, query, sort]);
@@ -98,12 +102,12 @@ export default function Produtos() {
           Unir
         </Button>
 
-        <div className="flex gap-1 rounded-xl border border-[rgb(var(--border))] p-1">
+        <div className="flex flex-wrap gap-1 rounded-xl border border-[rgb(var(--border))] p-1">
           {SORTS.map((option) => (
             <button
               key={option.key}
               onClick={() => setSort(option.key)}
-              className={`flex-1 whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+              className={`flex-1 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
                 sort === option.key ? "bg-sky-500/10 text-sky-600 dark:text-sky-400" : "text-muted hover:surface-2"
               }`}
             >
