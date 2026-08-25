@@ -199,6 +199,15 @@ existe decisão — e a decisão é sempre do usuário.
 - **União automática só quando o GTIN prova.** Se o nome desta linha já era um produto separado e o
   código aponta pra outro, os dois são o mesmo — e esse é o único momento em que a prova existe.
   Continua visível e reversível na tela de detalhe, como qualquer união.
+- **O histórico que já estava no banco é alcançado por script, não por rebusca.** O `storeCode`
+  sempre foi guardado em cada linha de compra, então `pnpm run backfill:market-gtin` (em
+  `apps/api`) reinterpreta o que já existe: valida os códigos, grava na linha, carimba o produto e
+  une o que o GTIN provar. Simulação por padrão, `--write` pra aplicar, `--user=<id>` pra testar em
+  um só. Idempotente. Rebuscar as notas no SEFAZ **não** é alternativa: só a chave de acesso é
+  guardada, sem o payload assinado do QR, e a consulta só por chave pode cair em captcha.
+- **Produto cujas linhas carregam GTINs diferentes o script não toca** — isso quer dizer que a
+  chave do nome agrupou itens que não são o mesmo produto, e carimbar um dos dois faria a união
+  automática errar depois. Esses saem numa lista no fim pra revisão à mão.
 - **União é ponteiro, nunca exclusão.** `MarketProduct.canonicalId` (nullable, `SetNull`) aponta o
   absorvido pro canônico; a linha continua no banco com o nome que o mercado deu, pelo mesmo motivo
   que `MarketPurchaseItem.description` é guardado literal. Desfazer é limpar um campo.

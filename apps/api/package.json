@@ -12,7 +12,8 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "ts-node prisma/seed.ts",
     "import:cotahist": "ts-node scripts/import-cotahist.ts",
-    "test": "jest"
+    "test": "jest",
+    "backfill:market-gtin": "ts-node scripts/backfill-market-gtin.ts"
   },
   "jest": {
     "rootDir": "src",
