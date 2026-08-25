@@ -57,3 +57,24 @@ export function useRegister() {
     onSuccess: (data) => login(data.token, data.user),
   });
 }
+
+export interface RegistrationStatus {
+  open: boolean;
+  reason: string;
+}
+
+/**
+ * Se este servidor aceita conta nova. Público e sem token — é o que a tela de login consulta antes
+ * de mostrar o link de cadastro.
+ *
+ * Enquanto não responde, o padrão é **fechado**: piscar "Criar conta" e depois esconder é pior do
+ * que aparecer meio segundo depois, e a decisão real acontece no servidor de qualquer forma.
+ */
+export function useRegistrationStatus() {
+  return useQuery({
+    queryKey: ["auth", "registration-status"],
+    queryFn: () => api.get<RegistrationStatus>("/auth/registration-status"),
+    staleTime: 5 * 60 * 1000,
+    retry: false,
+  });
+}

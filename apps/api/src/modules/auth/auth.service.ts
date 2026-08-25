@@ -1,9 +1,10 @@
-import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcryptjs";
 import { PrismaService } from "../../prisma/prisma.service";
 import { RegisterDto, LoginDto } from "./dto/auth.dto";
 import { DEFAULT_CATEGORIES } from "../categories/default-categories";
+import { decideRegistration, RegistrationDecision } from "./domain/registration-policy";
 
 @Injectable()
 export class AuthService {
@@ -16,7 +17,19 @@ export class AuthService {
     return this.jwt.sign({ sub: user.id, email: user.email });
   }
 
+  /** Se dá pra criar conta agora. A tela de login usa isso pra esconder o link em vez de mandar a
+   *  pessoa pra um formulário que vai recusar. */
+  async registrationStatus(): Promise<RegistrationDecision> {
+    const existingUsers = await this.prisma.user.count();
+    return decideRegistration(process.env.ALLOW_REGISTRATION, existingUsers);
+  }
+
   async register(dto: RegisterDto) {
+    // Checado no servidor, sempre: esconder o link no frontend é conforto, não tranca — o endpoint
+    // continua alcançável por curl.
+    const decisao = await this.registrationStatus();
+    if (!decisao.open) throw new ForbiddenException(decisao.reason);
+
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) {
       throw new ConflictException("Este e-mail já está cadastrado.");

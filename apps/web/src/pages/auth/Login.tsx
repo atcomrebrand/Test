@@ -6,7 +6,7 @@ import { CreditCard, ScanFace } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useLogin } from "@/features/useAuth";
+import { useLogin, useRegistrationStatus } from "@/features/useAuth";
 import { useLoginWithFaceId } from "@/features/useWebAuthn";
 import { useAuthStore } from "@/store/auth";
 
@@ -18,6 +18,7 @@ export default function Login() {
   const login = useLogin();
   const loginWithFaceId = useLoginWithFaceId();
   const navigate = useNavigate();
+  const { data: registration } = useRegistrationStatus();
 
   useEffect(() => {
     if (!browserSupportsWebAuthn()) return;
@@ -86,12 +87,17 @@ export default function Login() {
           </>
         )}
 
-        <p className="mt-6 text-center text-sm text-muted">
-          Não tem conta?{" "}
-          <Link to="/register" className="font-medium text-accent-500 hover:underline">
-            Criar conta
-          </Link>
-        </p>
+        {/* Só aparece quando o servidor aceita cadastro. Num app pessoal exposto na internet, o
+            normal é estar fechado — e convidar pra um formulário que vai recusar é pior que não
+            convidar. */}
+        {registration?.open && (
+          <p className="mt-6 text-center text-sm text-muted">
+            Não tem conta?{" "}
+            <Link to="/register" className="font-medium text-accent-500 hover:underline">
+              Criar conta
+            </Link>
+          </p>
+        )}
       </motion.div>
     </div>
   );

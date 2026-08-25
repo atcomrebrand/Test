@@ -15,6 +15,13 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  /** Público de propósito: a tela de login precisa saber antes de mostrar (ou não) o link de criar
+   *  conta, e o dado — "este servidor aceita cadastro" — não é segredo. */
+  @Get("registration-status")
+  registrationStatus() {
+    return this.authService.registrationStatus();
+  }
+
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   @Post("login")
   login(@Body() dto: LoginDto) {

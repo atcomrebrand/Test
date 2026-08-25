@@ -40,6 +40,23 @@ Card em **Configurações** (`/configuracoes`), servido por `GET /system/health`
   mal é o oposto do que ela serve. O card só consulta enquanto está **aberto**, com 5s de cache no
   servidor: medir não pode virar carga.
 
+## Cadastro de contas: fechado por padrão, sem travar instalação nova
+
+`ALLOW_REGISTRATION` (em `apps/api/.env`) decide quem pode criar conta. A regra pura está em
+`decideRegistration`:
+
+- **`true`/`1`** → aberto. É o que o `.env` de desenvolvimento usa.
+- **`false`/`0`** → fechado sempre, inclusive numa base vazia (travar de propósito é escolha válida).
+- **Ausente** → aberto **só enquanto não existe nenhum usuário**. A instalação nova cria o dono e se
+  fecha sozinha no instante seguinte, sem depender de alguém lembrar de configurar. Em produção,
+  onde já há conta, isso significa fechado.
+
+O `POST /auth/register` valida no servidor e responde **403** — esconder o link no frontend é
+conforto, não tranca, porque o endpoint continua alcançável por curl. `GET /auth/registration-status`
+é público de propósito: a tela de login precisa saber se mostra o link, e "este servidor aceita
+cadastro" não é segredo. Enquanto a resposta não chega, o frontend assume **fechado**: piscar
+"Criar conta" e depois esconder é pior do que aparecer meio segundo depois.
+
 ## Deploy (VPS de produção)
 
 - Caminho do projeto: `/opt/parcelas`

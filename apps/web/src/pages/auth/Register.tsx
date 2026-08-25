@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { CreditCard } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { useRegister } from "@/features/useAuth";
+import { useRegister, useRegistrationStatus } from "@/features/useAuth";
 import { useAuthStore } from "@/store/auth";
 
 export default function Register() {
@@ -13,6 +13,10 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const register = useRegister();
+  const { data: registration, isLoading: verificando } = useRegistrationStatus();
+  // Enquanto não sabe, não mostra nem um nem outro: piscar o formulário e depois trocar por
+  // "indisponível" é pior do que esperar meio segundo.
+  const fechado = !verificando && registration?.open === false;
   const navigate = useNavigate();
 
   if (isAuthenticated) return <Navigate to="/" replace />;
@@ -35,11 +39,25 @@ export default function Register() {
             <CreditCard className="h-6 w-6" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Crie sua conta</h1>
-            <p className="text-sm text-muted">Comece a organizar suas parcelas em minutos.</p>
+            <h1 className="text-xl font-bold">{fechado ? "Cadastro indisponível" : "Crie sua conta"}</h1>
+            <p className="text-sm text-muted">
+              {fechado ? registration?.reason : "Comece a organizar suas parcelas em minutos."}
+            </p>
           </div>
         </div>
 
+        {/* Quem chegou aqui por link direto vê a porta fechada em vez de preencher um formulário
+            que o servidor vai recusar no envio. */}
+        {fechado && (
+          <div className="surface flex flex-col gap-3 rounded-2xl border border-[rgb(var(--border))] p-6 text-center shadow-soft">
+            <p className="text-sm text-muted">Este servidor não está aceitando contas novas.</p>
+            <Link to="/login" className="text-sm font-medium text-accent-500 hover:underline">
+              Voltar pro login
+            </Link>
+          </div>
+        )}
+
+        {!fechado && (
         <form onSubmit={onSubmit} className="surface flex flex-col gap-4 rounded-2xl border border-[rgb(var(--border))] p-6 shadow-soft">
           <Input label="Nome" value={name} onChange={(e) => setName(e.target.value)} required />
           <Input label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -55,13 +73,16 @@ export default function Register() {
             Criar conta
           </Button>
         </form>
+        )}
 
-        <p className="mt-6 text-center text-sm text-muted">
-          Já tem conta?{" "}
-          <Link to="/login" className="font-medium text-accent-500 hover:underline">
-            Entrar
-          </Link>
-        </p>
+        {!fechado && (
+          <p className="mt-6 text-center text-sm text-muted">
+            Já tem conta?{" "}
+            <Link to="/login" className="font-medium text-accent-500 hover:underline">
+              Entrar
+            </Link>
+          </p>
+        )}
       </motion.div>
     </div>
   );
