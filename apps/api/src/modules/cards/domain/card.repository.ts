@@ -23,6 +23,8 @@ export abstract class CardRepository {
   abstract create(data: CreateCardData): Promise<Card>;
   abstract update(id: string, data: UpdateCardData): Promise<Card>;
   abstract delete(id: string): Promise<void>;
+  /** Compras deste cartão, **incluindo as que estão na lixeira** — é o que a chave estrangeira do
+   *  banco enxerga, e a guarda de exclusão precisa enxergar o mesmo pra não virar erro 500. */
   abstract countPurchases(id: string): Promise<number>;
   abstract sumSpentByCard(id: string): Promise<number>;
 }

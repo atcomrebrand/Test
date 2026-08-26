@@ -49,7 +49,8 @@ export class CardsService {
     const purchaseCount = await this.cards.countPurchases(id);
     if (purchaseCount > 0) {
       throw new BadRequestException(
-        "Não é possível excluir um cartão com compras associadas. Desative-o em vez disso.",
+        "Não é possível excluir um cartão com compras associadas — inclusive as que estão na lixeira. " +
+          "Esvazie a lixeira ou desative o cartão em vez disso.",
       );
     }
     await this.cards.delete(id);

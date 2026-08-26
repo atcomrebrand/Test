@@ -35,7 +35,7 @@ function addDaysIso(iso: string, days: number): string {
   return isoOf(new Date(Date.parse(`${iso}T00:00:00Z`) + days * MS_PER_DAY));
 }
 
-export function daysBetweenIso(from: string, to: string): number {
+function daysBetweenIso(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS_PER_DAY);
 }
 

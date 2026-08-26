@@ -35,7 +35,6 @@ import {
   useToggleFavorite,
   useFixedIncomes,
   useDeleteFixedIncome,
-  useRedeemFixedIncome,
   useUnredeemFixedIncome,
 } from "../api";
 import { AssetClass, InvestmentAsset, InvestmentFixedIncome } from "../types";

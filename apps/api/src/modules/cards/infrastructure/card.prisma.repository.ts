@@ -32,7 +32,11 @@ export class CardPrismaRepository extends CardRepository {
   }
 
   countPurchases(id: string) {
-    return this.prisma.purchase.count({ where: { cardId: id, deletedAt: null } });
+    // Conta TAMBÉM as apagadas. Compra na lixeira continua sendo uma linha em `purchases` com
+    // `cardId` apontando pra cá — filtrar por `deletedAt: null` fazia a guarda dizer "nenhuma
+    // compra", o delete seguir e o banco recusar pela chave estrangeira, virando 500 na cara do
+    // usuário. A guarda tem que enxergar a mesma coisa que a constraint enxerga.
+    return this.prisma.purchase.count({ where: { cardId: id } });
   }
 
   async sumSpentByCard(id: string) {

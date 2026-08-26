@@ -576,10 +576,14 @@ export class CrmDashboardService {
       this.financial(userId, portfolioId, "month"),
     ]);
 
-    const alerts: { kind: string; tone: "info" | "warning" | "danger"; message: string }[] = [];
+    // `id` é a identidade da linha; `kind` é o **tipo** dela e pode repetir — PANEL_LOW_CREDIT sai
+    // um por serviço. Sem separar os dois, a tela usava o tipo como chave de lista e o React
+    // reclamava de chave duplicada (e trocaria os alertas de lugar entre atualizações).
+    const alerts: { id: string; kind: string; tone: "info" | "warning" | "danger"; message: string }[] = [];
 
     if (customers.dueTomorrow > 0) {
       alerts.push({
+        id: "DUE_TOMORROW",
         kind: "DUE_TOMORROW",
         tone: "warning",
         message: `${customers.dueTomorrow} cliente(s) vencem amanhã.`,
@@ -587,6 +591,7 @@ export class CrmDashboardService {
     }
     if (customers.delinquent > 0) {
       alerts.push({
+        id: "DELINQUENT",
         kind: "DELINQUENT",
         tone: "danger",
         message: `${customers.delinquent} cliente(s) estão vencidos há mais de ${DELINQUENT_AFTER_DAYS} dias.`,
@@ -594,6 +599,7 @@ export class CrmDashboardService {
     }
     if (financial.pending.amount > 0) {
       alerts.push({
+        id: "PENDING_REVENUE",
         kind: "PENDING_REVENUE",
         tone: "warning",
         message: `Você tem R$ ${financial.pending.amount.toFixed(2)} em pagamentos pendentes.`,
@@ -601,6 +607,7 @@ export class CrmDashboardService {
     }
     if (resellers.lowCredit > 0) {
       alerts.push({
+        id: "LOW_CREDIT",
         kind: "LOW_CREDIT",
         tone: "warning",
         message: `${resellers.lowCredit} revendedor(es) com saldo baixo.`,
@@ -608,6 +615,7 @@ export class CrmDashboardService {
     }
     if (resellers.inactive > 0) {
       alerts.push({
+        id: "RESELLER_INACTIVE",
         kind: "RESELLER_INACTIVE",
         tone: "info",
         message: `${resellers.inactive} revendedor(es) sem recarga há muito tempo.`,
@@ -654,6 +662,8 @@ export class CrmDashboardService {
     const panelAlerts = panel
       .filter((p) => p.lowCredit)
       .map((p) => ({
+        // Discriminado pelo serviço: dois painéis com saldo baixo são dois alertas distintos.
+        id: `PANEL_LOW_CREDIT:${p.portfolio.id}`,
         kind: "PANEL_LOW_CREDIT",
         tone: (p.balance <= 0 ? "danger" : "warning") as "danger" | "warning",
         message:

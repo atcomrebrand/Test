@@ -85,7 +85,7 @@ export default function Dashboard() {
         <div className="flex flex-col gap-2">
           {alerts.map((a) => (
             <motion.div
-              key={a.kind}
+              key={a.id}
               initial={{ opacity: 0, x: -6 }}
               animate={{ opacity: 1, x: 0 }}
               className={cn(

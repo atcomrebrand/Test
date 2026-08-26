@@ -51,6 +51,24 @@ nginx -t && systemctl reload nginx # validar e recarregar config do Nginx
 cat /root/.parcelas_db_password    # senha gerada do banco (se precisar)
 ```
 
+## Primeira conta (e por que só a primeira)
+
+Abra o app no navegador e crie sua conta normalmente. **Depois dela, o cadastro se fecha sozinho** —
+o servidor só aceita conta nova enquanto não existe nenhuma, justamente pra ninguém que ache o
+endereço entrar autenticado e ficar explorando a API por dentro.
+
+Se um dia precisar criar outra conta, ligue de propósito, crie e desligue de volta:
+
+```bash
+echo 'ALLOW_REGISTRATION="true"' >> /opt/parcelas/apps/api/.env
+systemctl restart parcelas-api
+# ...crie a conta pelo navegador...
+sed -i 's/^ALLOW_REGISTRATION=.*/ALLOW_REGISTRATION="false"/' /opt/parcelas/apps/api/.env
+systemctl restart parcelas-api
+```
+
+Pra conferir o estado atual: `curl -s https://SEU-HOST/api/v1/auth/registration-status`
+
 ## Domínio próprio + HTTPS (opcional)
 
 Se você apontar um domínio para o IP da VPS, pode ativar HTTPS gratuito com:

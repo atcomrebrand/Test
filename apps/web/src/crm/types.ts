@@ -323,7 +323,7 @@ export interface CrmDashboard {
   churn: { lost: number; gained: number; netGrowth: number; churnRate: number | null; growthRate: number | null };
   byCurrency: CrmCurrencyBucket[];
   panel: { portfolio: CrmPortfolio; currency: CrmCurrency; balance: number; lowCredit: boolean }[];
-  alerts: { kind: string; tone: "info" | "warning" | "danger"; message: string }[];
+  alerts: { id: string; kind: string; tone: "info" | "warning" | "danger"; message: string }[];
 }
 
 export interface CrmFinancial {
