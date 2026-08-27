@@ -67,18 +67,30 @@ cadastro" não é segredo. Enquanto a resposta não chega, o frontend assume **f
   sudo journalctl -u parcelas-api -f
   ```
 - Frontend é servido estático via **Caddy** (`/etc/caddy/Caddyfile`), buildado direto em `apps/web/dist`. Não precisa reiniciar nada pra mudanças só de frontend — só rebuildar.
-- **VPS tem só 1GB de RAM.** O `vite build` do frontend estoura o heap padrão do Node e crasha com OOM. Sempre buildar com:
+- **VPS tem só 1GB de RAM, e OS DOIS builds estouram o heap padrão do Node.** O `vite build` do
+  frontend sempre estourou; o `nest build` da API passou a estourar também (2026-08-27), com o
+  V8 abortando em **487 MB** — que é o teto que o Node se impõe sozinho numa máquina desse tamanho,
+  não o limite da máquina. **`free -h` nesse momento mostrava 578 Mi livres**: memória tinha, o que
+  faltava era permissão pra usar. Sempre buildar as duas pontas com o teto levantado:
   ```bash
   NODE_OPTIONS=--max-old-space-size=4096 pnpm build
   ```
+  O flag **não cria memória, só levanta o limite do V8** — passar muito além do que a máquina tem
+  troca o erro do V8 pelo OOM killer do kernel, que é pior porque morre sem dizer por quê. Se o
+  build da API apertar, parar a API antes (`systemctl stop parcelas-api`) libera o que ela ocupa;
+  ela vai reiniciar depois do build de qualquer jeito.
 - Fluxo de deploy padrão:
   ```bash
   cd /opt/parcelas
   git pull origin <branch>
-  cd apps/api && pnpm install && pnpm exec prisma generate && pnpm exec prisma migrate deploy && pnpm build
+  cd apps/api && pnpm install && pnpm exec prisma generate && pnpm exec prisma migrate deploy && \
+    NODE_OPTIONS=--max-old-space-size=4096 pnpm build
   cd ../web && pnpm install && NODE_OPTIONS=--max-old-space-size=4096 pnpm build
   sudo systemctl restart parcelas-api   # só necessário se apps/api mudou
   ```
+  **Pule o que não mudou**: sem migration nova, nada de `prisma generate`/`migrate deploy`; sem
+  `package.json` alterado, nada de `pnpm install`. Num deploy só de código são dois builds e o
+  restart.
   **`prisma migrate deploy` não roda `prisma generate` sozinho** (diferente do `migrate dev` usado em desenvolvimento) — sempre rodar `prisma generate` manualmente antes do `pnpm build` da API depois de qualquer migration nova, senão o TypeScript compila contra o Prisma Client desatualizado e quebra o build.
 - Migrations sempre devem ser aditivas/não-destrutivas — já tem dados reais em produção. Coluna nova = nullable, nunca reaproveitar/renomear coluna existente sem plano de dado.
 
