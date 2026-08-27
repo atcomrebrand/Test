@@ -92,6 +92,31 @@ Isso já causou bastante confusão em sessões anteriores — documentando pra n
 - **Casa (fatura presumida) agrupa por vencimento real** (`dueDate`), não por competência — porque pra orçamento doméstico o que importa é "quanto preciso ter em mãos esse mês", não o nome da fatura. Ver `InstallmentsService.getMonthlyTotalsForCards()`.
 - Consequência: comparar "mês X no Parcelamento" com "mês X na Casa" pra um cartão que fecha depois de vencer **não bate direto** — é preciso comparar com o mês anterior de competência. Já foi verificado exaustivamente à mão contra dados reais de produção (múltiplos cartões, meses diferentes) e o cálculo está correto; a aparência de erro é só a diferença de convenção entre os dois módulos.
 
+## Simulador: o que é projeção e o que não é
+
+Aba **Simular** (`/investimentos/simular`), com renda fixa até o vencimento e projeção de aporte
+mensal. A distinção que sustenta a tela:
+
+- **A taxa é projeção; o imposto não é.** Olhando pra frente não existe série do CDI pra consultar,
+  então a conta repete a taxa de hoje pro período inteiro — e as duas abas dizem isso na tela. Já o
+  IR e o IOF saem do mesmo `calculateFixedIncome` que a tela de Renda Fixa usa e que bate cent a
+  cent com o extrato do banco: chamado com a data futura e **sem** `cdiAccrualFactor`, ele cai
+  sozinho no caminho da extrapolação.
+- **`official: false` quando alguma taxa veio do valor de reserva.** Os métodos antigos do
+  `BacenProvider` engolem a falha e devolvem o fallback em silêncio — certo pras telas de posição,
+  onde a conta precisa sair. Numa projeção de anos não: 14,1% vs 14,9% viram milhares de reais. Daí
+  o `fetchAnnualRatesOrNull`, que devolve `null` no que não veio, só pro simulador poder avisar.
+- **Taxa mensal não é a anual dividida por 12.** 12% a.a. são 0,9489% a.m.; dividir ignora que o
+  juro do mês rende no mês seguinte e subestima o resultado justamente no horizonte longo, que é o
+  motivo da tela existir.
+- **O aporte entra no fim do mês** (convenção padrão): o do mês 1 só rende a partir do mês 2.
+- **Poupança**: 70% da Selic quando ela está ≤ 8,5% a.a., senão 0,5% a.m. (~6,17% a.a.). A TR entra
+  como zero, então o número é um **piso** — e como a poupança serve de régua, errar a favor dela é
+  o lado seguro de errar.
+- Simular um papel sozinho responde "quanto rende" e não "vale a pena", então a resposta sempre traz
+  **poupança e CDB de 100% do CDI** ao lado, que são as duas réguas que todo mundo tem.
+- Nada é gravado: simular não encosta na carteira.
+
 ## Renda Fixa: principal vs. aportado no resgate parcial (armadilha recorrente)
 
 Isso já foi mexido duas vezes por entender errado o que o usuário estava comparando — documentando.

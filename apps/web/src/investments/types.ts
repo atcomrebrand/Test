@@ -470,3 +470,56 @@ export interface EvolutionParams {
   from?: string;
   to?: string;
 }
+
+// ---------------------------------------------------------------------------
+// Simulador
+// ---------------------------------------------------------------------------
+
+export interface SimulationRates {
+  cdiAnnual: number;
+  ipcaAnnual: number;
+  selicAnnual: number;
+  /** Derivada da Selic pela regra pós-2012, com TR tratada como zero. */
+  poupancaAnnual: number;
+  /** false = alguma taxa veio do valor de reserva porque o Bacen não respondeu. */
+  official: boolean;
+}
+
+export interface FixedIncomeSimulationResult {
+  maturityDate: string;
+  days: number;
+  invested: number;
+  grossValue: number;
+  grossYield: number;
+  irRate: number;
+  irAmount: number;
+  iofRate: number;
+  iofAmount: number;
+  netValue: number;
+  netYield: number;
+  netPercent: number;
+  netAnnualPercent: number;
+}
+
+export interface FixedIncomeSimulationResponse {
+  rates: SimulationRates;
+  result: FixedIncomeSimulationResult;
+  benchmarks: { label: string; result: FixedIncomeSimulationResult }[];
+}
+
+export interface ContributionPoint {
+  month: number;
+  contributed: number;
+  interest: number;
+  total: number;
+}
+
+export interface ContributionSimulationResponse {
+  points: ContributionPoint[];
+  contributed: number;
+  interest: number;
+  total: number;
+  interestShare: number;
+  /** Meses até alcançar a meta, quando ela foi informada. null = não alcança. */
+  monthsToTarget: number | null;
+}

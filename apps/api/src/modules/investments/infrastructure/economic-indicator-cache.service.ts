@@ -35,6 +35,8 @@ export class EconomicIndicatorCacheService {
   private readonly logger = new Logger(EconomicIndicatorCacheService.name);
   private cdi: { value: number; fetchedAt: number } | null = null;
   private ipca: { value: number; fetchedAt: number } | null = null;
+  private selic: { value: number; fetchedAt: number } | null = null;
+  private annualRates: { value: { cdi: number | null; ipca: number | null; selic: number | null }; fetchedAt: number } | null = null;
   private lastTailFetchAt = 0;
 
   constructor(
@@ -46,6 +48,21 @@ export class EconomicIndicatorCacheService {
     if (this.cdi && Date.now() - this.cdi.fetchedAt < TTL_MS) return this.cdi.value;
     const value = await this.provider.fetchAnnualCdiRate();
     this.cdi = { value, fetchedAt: Date.now() };
+    return value;
+  }
+
+  /** Idem `fetchAnnualRatesOrNull` do provedor, com o mesmo cache de 6h das outras taxas. */
+  async getAnnualRatesOrNull(): Promise<{ cdi: number | null; ipca: number | null; selic: number | null }> {
+    if (this.annualRates && Date.now() - this.annualRates.fetchedAt < TTL_MS) return this.annualRates.value;
+    const value = await this.provider.fetchAnnualRatesOrNull();
+    this.annualRates = { value, fetchedAt: Date.now() };
+    return value;
+  }
+
+  async getAnnualSelicRate(): Promise<number> {
+    if (this.selic && Date.now() - this.selic.fetchedAt < TTL_MS) return this.selic.value;
+    const value = await this.provider.fetchAnnualSelicRate();
+    this.selic = { value, fetchedAt: Date.now() };
     return value;
   }
 

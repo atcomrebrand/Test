@@ -5,6 +5,8 @@ import { DailyRatePoint, EconomicIndicatorProvider } from "../../domain/market-d
 const CDI_ANNUALIZED_SERIES = 4392;
 const CDI_DAILY_SERIES = 12;
 const IPCA_12M_ACCUMULATED_SERIES = 13522;
+/** Meta Selic ao ano. Só o simulador precisa dela, e só pra calcular a poupança. */
+const SELIC_TARGET_SERIES = 432;
 
 /**
  * Só entra em cena se o Bacen estiver fora do ar ou devolver algo inesperado — a conta continua
@@ -13,8 +15,9 @@ const IPCA_12M_ACCUMULATED_SERIES = 13522;
  * pode passar despercebido. Mantido perto do patamar atual justamente pra que, se um dia escapar,
  * o estrago seja pequeno.
  */
-const FALLBACK_CDI_RATE = 14.1;
-const FALLBACK_IPCA_RATE = 4.5;
+export const FALLBACK_CDI_RATE = 14.1;
+export const FALLBACK_IPCA_RATE = 4.5;
+export const FALLBACK_SELIC_RATE = 15.0;
 
 /** A janela máxima que o SGS aceita por requisição é de 10 anos; períodos maiores vêm fatiados. */
 const MAX_SERIES_WINDOW_DAYS = 3650;
@@ -59,6 +62,39 @@ export class BacenProvider extends EconomicIndicatorProvider {
     } catch (err) {
       this.logger.warn(`Falling back to default CDI rate: ${describeError(err)}`);
       return FALLBACK_CDI_RATE;
+    }
+  }
+
+  /**
+   * As três taxas de uma vez, **sem** esconder a falha: `null` na que não veio.
+   *
+   * Os métodos acima devolvem o valor de reserva em silêncio, o que é certo pras telas de posição
+   * (a conta precisa sair). Numa projeção de anos, não: um CDI de reserva vira milhares de reais de
+   * diferença, e quem chama tem que poder avisar na tela que o número não é o oficial.
+   */
+  async fetchAnnualRatesOrNull(): Promise<{ cdi: number | null; ipca: number | null; selic: number | null }> {
+    const tentar = async (serie: number) => {
+      try {
+        return await this.fetchLatestSeriesValue(serie);
+      } catch {
+        return null;
+      }
+    };
+
+    const [cdi, ipca, selic] = await Promise.all([
+      tentar(CDI_ANNUALIZED_SERIES),
+      tentar(IPCA_12M_ACCUMULATED_SERIES),
+      tentar(SELIC_TARGET_SERIES),
+    ]);
+    return { cdi, ipca, selic };
+  }
+
+  async fetchAnnualSelicRate(): Promise<number> {
+    try {
+      return await this.fetchLatestSeriesValue(SELIC_TARGET_SERIES);
+    } catch (err) {
+      this.logger.warn(`Falling back to default Selic rate: ${describeError(err)}`);
+      return FALLBACK_SELIC_RATE;
     }
   }
 

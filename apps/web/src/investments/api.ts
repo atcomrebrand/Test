@@ -11,8 +11,11 @@ import {
   CatalogEntry,
   ChartRangeParams,
   DashboardSummary,
+  ContributionSimulationResponse,
   EvolutionParams,
   EvolutionResponse,
+  FixedIncomeSimulationResponse,
+  SimulationRates,
   HistoricalPricePoint,
   DividendCalendarEntry,
   ImportedIncome,
@@ -41,6 +44,55 @@ export function usePortfolioEvolution(params: EvolutionParams) {
     queryFn: () => api.get<EvolutionResponse>("/investments/evolution", { params }),
     enabled: params.range !== "CUSTOM" || (!!params.from && !!params.to),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Simulador
+// ---------------------------------------------------------------------------
+
+export interface FixedIncomeSimulationParams {
+  amount: number;
+  months: number;
+  type: string;
+  indexer: string;
+  cdiPercent?: number;
+  fixedRatePercent?: number;
+}
+
+export interface ContributionSimulationParams {
+  initialAmount: number;
+  monthlyAmount: number;
+  annualRatePercent: number;
+  months: number;
+  target?: number;
+}
+
+/** As taxas de hoje, pra tela já abrir com o CDI real no campo em vez de um número inventado. */
+export function useSimulationRates() {
+  return useQuery({
+    queryKey: ["investments", "simulations", "rates"],
+    queryFn: () => api.get<SimulationRates>("/investments/simulations/rates"),
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+/** A conta roda no servidor porque é a MESMA que a Renda Fixa usa pra bater com o extrato do banco
+ *  — duplicar as regras de IR e IOF no cliente seria criar duas verdades que divergem na primeira
+ *  mudança de faixa. Os parâmetros já chegam aqui com atraso (ver o debounce na tela). */
+export function useFixedIncomeSimulation(params: FixedIncomeSimulationParams | null) {
+  return useQuery({
+    queryKey: ["investments", "simulations", "fixed-income", params],
+    queryFn: () => api.post<FixedIncomeSimulationResponse>("/investments/simulations/fixed-income", params),
+    enabled: !!params,
+  });
+}
+
+export function useContributionSimulation(params: ContributionSimulationParams | null) {
+  return useQuery({
+    queryKey: ["investments", "simulations", "contributions", params],
+    queryFn: () => api.post<ContributionSimulationResponse>("/investments/simulations/contributions", params),
+    enabled: !!params,
   });
 }
 

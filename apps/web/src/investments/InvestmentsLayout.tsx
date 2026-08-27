@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
-import { ArrowLeft, LayoutDashboard, Compass, LineChart, History, Newspaper, CalendarDays, Upload, ClipboardList } from "lucide-react";
+import { ArrowLeft, LayoutDashboard, Compass, LineChart, History, Newspaper, CalendarDays, Upload, ClipboardList, Calculator } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { InvestmentsMobileNav } from "./InvestmentsMobileNav";
 
@@ -7,6 +7,7 @@ export const INVESTMENT_NAV = [
   { to: "/investimentos", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/investimentos/explorar", label: "Explorar", icon: Compass },
   { to: "/investimentos/carteira", label: "Carteira", icon: LineChart },
+  { to: "/investimentos/simular", label: "Simular", icon: Calculator },
   { to: "/investimentos/proventos", label: "Proventos", icon: CalendarDays },
   { to: "/investimentos/noticias", label: "Notícias", icon: Newspaper },
   { to: "/investimentos/historico", label: "Histórico", icon: History },

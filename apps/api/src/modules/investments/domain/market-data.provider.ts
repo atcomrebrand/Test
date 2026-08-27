@@ -172,6 +172,12 @@ export abstract class EconomicIndicatorProvider {
   abstract fetchAnnualCdiRate(): Promise<number>;
   /** IPCA accumulated over the last 12 months, as a percentage. */
   abstract fetchAnnualIpcaRate(): Promise<number>;
+  /** Meta Selic ao ano — usada só pela poupança do simulador, que é a única conta do app que
+   *  depende dela em vez do CDI. */
+  abstract fetchAnnualSelicRate(): Promise<number>;
+  /** As três taxas anuais, com `null` na que a fonte não entregou. Existe pro simulador poder
+   *  dizer na tela que projetou em cima de um valor de reserva. */
+  abstract fetchAnnualRatesOrNull(): Promise<{ cdi: number | null; ipca: number | null; selic: number | null }>;
   /**
    * Série diária do CDI no intervalo [from, to], só dias úteis. É com ela que dá pra chegar no
    * mesmo número do banco: cada dia rende a taxa que valeu naquele dia, e feriado/fim de semana

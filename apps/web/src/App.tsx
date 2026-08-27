@@ -37,6 +37,7 @@ import InvestmentsDashboard from "./investments/pages/InvestmentsDashboard";
 import Explore from "./investments/pages/Explore";
 import MarketAssetDetail from "./investments/pages/MarketAssetDetail";
 import Portfolio from "./investments/pages/Portfolio";
+import Simular from "./investments/pages/Simular";
 import AssetDetail from "./investments/pages/AssetDetail";
 import History from "./investments/pages/History";
 import News from "./investments/pages/News";
@@ -102,6 +103,7 @@ export default function App() {
           <Route path="/investimentos/explorar" element={<Explore />} />
           <Route path="/investimentos/explorar/:class/:ticker" element={<MarketAssetDetail />} />
           <Route path="/investimentos/carteira" element={<Portfolio />} />
+          <Route path="/investimentos/simular" element={<Simular />} />
           <Route path="/investimentos/carteira/:id" element={<AssetDetail />} />
           <Route path="/investimentos/renda-fixa" element={<Navigate to="/investimentos/carteira" replace />} />
           <Route path="/investimentos/historico" element={<History />} />

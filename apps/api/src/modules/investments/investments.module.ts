@@ -47,6 +47,8 @@ import { AssetHistoryService } from "./infrastructure/asset-history.service";
 import { BenchmarkHistoryService } from "./infrastructure/benchmark-history.service";
 import { PortfolioEvolutionService } from "./application/portfolio-evolution.service";
 import { BenchmarkRecorderService } from "./application/benchmark-recorder.service";
+import { SimulationsService } from "./application/simulations.service";
+import { SimulationsController } from "./interface/simulations.controller";
 import { PortfolioEvolutionController } from "./interface/portfolio-evolution.controller";
 
 @Module({
@@ -63,6 +65,7 @@ import { PortfolioEvolutionController } from "./interface/portfolio-evolution.co
     LaunchesController,
     InvestmentsResetController,
     PortfolioEvolutionController,
+    SimulationsController,
   ],
   providers: [
     { provide: StockQuoteProvider, useClass: BrapiProvider },
@@ -88,6 +91,7 @@ import { PortfolioEvolutionController } from "./interface/portfolio-evolution.co
     BenchmarkHistoryService,
     PortfolioEvolutionService,
     BenchmarkRecorderService,
+    SimulationsService,
     { provide: FixedIncomeRepository, useClass: FixedIncomePrismaRepository },
     FixedIncomesService,
     { provide: AssetRepository, useClass: AssetPrismaRepository },
