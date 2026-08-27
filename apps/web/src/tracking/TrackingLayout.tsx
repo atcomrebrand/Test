@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/cn";
 import { TrackingMobileNav } from "./TrackingMobileNav";
 import { FloatingTimerBar } from "./components/FloatingTimerBar";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 export const TRACKING_NAV = [
   { to: "/horas", label: "Modo Foco", icon: Timer, end: true },
@@ -50,6 +51,7 @@ export function TrackingLayout() {
               </div>
               <p className="text-sm font-bold leading-tight">Horas</p>
             </div>
+            <PrivacyToggle />
           </div>
 
           <nav className="hidden items-center gap-1 md:flex">

@@ -16,7 +16,7 @@ import { StatTile } from "@/components/ui/StatTile";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Badge } from "@/components/ui/Badge";
 import { SpendingEvolutionChart } from "@/components/charts/SpendingEvolutionChart";
-import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
+import { formatCurrency, formatDate, formatPercent, maskAmountsInText } from "@/lib/format";
 import { useHomeDashboard, HomeUpcomingEvent } from "@/features/useHomeDashboard";
 
 const EVENT_SOURCE_LABEL: Record<HomeUpcomingEvent["source"], string> = {
@@ -306,7 +306,7 @@ export function HomeDashboardSection() {
                   <ul className="space-y-1.5 border-t border-[rgb(var(--border))] pt-3">
                     {forecast.insights.map((insight, idx) => (
                       <li key={idx} className="text-sm text-muted">
-                        {insight}
+                        {maskAmountsInText(insight)}
                       </li>
                     ))}
                   </ul>
@@ -319,7 +319,7 @@ export function HomeDashboardSection() {
                 <ul className="space-y-1.5">
                   {modules.horas.insights.map((insight, idx) => (
                     <li key={idx} className="text-sm text-muted">
-                      {insight}
+                      {maskAmountsInText(insight)}
                     </li>
                   ))}
                 </ul>

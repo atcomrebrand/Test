@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { ArrowLeft, LayoutDashboard, Landmark, ListChecks, Wallet } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { FinancingsMobileNav } from "./FinancingsMobileNav";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 export const FINANCINGS_NAV = [
   { to: "/financiamentos", label: "Visão Geral", icon: LayoutDashboard, end: true },
@@ -34,6 +35,7 @@ export function FinancingsLayout() {
               </div>
               <p className="text-sm font-bold leading-tight">Financiamentos</p>
             </div>
+            <PrivacyToggle />
           </div>
 
           <nav className="hidden items-center gap-1 md:flex">

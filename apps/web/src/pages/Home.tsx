@@ -22,6 +22,7 @@ import { useThemeStore } from "@/store/theme";
 import { useAuthStore } from "@/store/auth";
 import { QuotesTicker } from "@/app/QuotesTicker";
 import { HomeDashboardSection } from "@/app/HomeDashboardSection";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 interface AppCard {
   to: string;
@@ -178,6 +179,7 @@ export default function Home() {
           <p className="text-sm font-bold leading-tight">Ferramentas do Mauro</p>
         </div>
         <div className="flex items-center gap-2">
+          <PrivacyToggle />
           <button
             onClick={toggle}
             className="flex h-10 w-10 items-center justify-center rounded-xl transition-colors hover:surface-2"

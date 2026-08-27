@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
+import { usePrivacyStore } from "@/store/privacy";
 import { Layout } from "./app/Layout";
 import { ProtectedRoute } from "./app/ProtectedRoute";
 import { CrmLayout } from "./crm/CrmLayout";
@@ -75,6 +76,15 @@ import HouseholdEntradas from "./household/pages/Entradas";
 import HouseholdConfiguracoes from "./household/pages/Configuracoes";
 
 export default function App() {
+  // O assinante que faz o modo privacidade valer na tela inteira.
+  //
+  // `formatCurrency` lê o estado de fora do React (é função pura, chamada de 399 lugares), então
+  // nada re-renderizaria sozinho ao ligar o olho: os valores ficariam na tela até algo mais
+  // acontecer. Assinando aqui em cima, ligar o modo re-renderiza a árvore toda e cada
+  // `formatCurrency` roda de novo. Re-render, não remontagem — mês selecionado, rolagem e modal
+  // aberto continuam onde estavam.
+  usePrivacyStore((s) => s.hidden);
+
   return (
     <Routes>
       <Route path="/login" element={<Login />} />

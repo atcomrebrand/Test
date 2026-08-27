@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { ArrowLeft, LayoutDashboard, Compass, LineChart, History, Newspaper, CalendarDays, Upload, ClipboardList, Calculator, Users } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { InvestmentsMobileNav } from "./InvestmentsMobileNav";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 export const INVESTMENT_NAV = [
   { to: "/investimentos", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -36,6 +37,7 @@ export function InvestmentsLayout() {
               </div>
               <p className="text-sm font-bold leading-tight">Investimentos</p>
             </div>
+            <PrivacyToggle />
           </div>
 
           <nav className="hidden items-center gap-1 md:flex">

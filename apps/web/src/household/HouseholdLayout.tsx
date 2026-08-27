@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { ArrowLeft, Home, LayoutDashboard, Receipt, CreditCard, Wallet, Settings } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { HouseholdMobileNav } from "./HouseholdMobileNav";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 export const HOUSEHOLD_NAV = [
   { to: "/casa", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -31,6 +32,7 @@ export function HouseholdLayout() {
               </div>
               <p className="text-sm font-bold leading-tight">Contas da Casa</p>
             </div>
+            <PrivacyToggle />
           </div>
 
           <nav className="hidden items-center gap-1 md:flex">

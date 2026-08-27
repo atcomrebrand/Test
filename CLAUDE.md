@@ -57,6 +57,35 @@ conforto, não tranca, porque o endpoint continua alcançável por curl. `GET /a
 cadastro" não é segredo. Enquanto a resposta não chega, o frontend assume **fechado**: piscar
 "Criar conta" e depois esconder é pior do que aparecer meio segundo depois.
 
+## Modo privacidade: um lugar só, porque 76 telas não se lembram sozinhas
+
+O olho nos cabeçalhos esconde todo valor em dinheiro. A regra que sustenta isso:
+
+- **A máscara mora no `formatCurrency`**, não nas telas. São 399 chamadas em 76 arquivos; marcar
+  tela por tela garantiria que uma escapasse — e um número sozinho no meio de tudo mascarado é
+  exatamente o que alguém repara.
+- **`formatCurrency` é função pura e lê o estado de fora do React** (`valuesHidden()`), porque virar
+  hook obrigaria a reescrever as 76 telas. Quem faz a tela se redesenhar é o `App`, que **assina a
+  store**: ligar o modo re-renderiza a árvore inteira e cada `formatCurrency` roda de novo. Sem esse
+  assinante no topo os valores continuariam na tela até outra coisa acontecer. É re-render, não
+  remontagem — mês selecionado, rolagem e modal aberto ficam onde estavam.
+- **O que não passa pelo `formatCurrency` precisou ser alcançado à mão**, e foi metade do trabalho:
+  o **eixo dos gráficos** (cada um escreve o próprio `tickFormatter`, resolvido com um borrão de CSS
+  em `html.privacy` que vale pra qualquer gráfico futuro), o **ticker da Home** (formatador próprio,
+  com casas decimais por tipo), o `InlineAmountCell` da Casa, o modal de financiamento, e as
+  **frases prontas do servidor** ("Previsão pro próximo mês...: R$ 1.240,00"), que chegam com o
+  número dentro da string e só dá pra mascarar por regex (`maskAmountsInText`).
+- **A linha e a barra do gráfico continuam visíveis** — a forma da curva não diz quanto se tem, e
+  esconder o gráfico inteiro deixaria a tela parecendo quebrada em vez de protegida. Porcentagem
+  também fica: "rentabilidade 7,84%" não entrega patrimônio.
+- **Máscara de largura fixa (`•••••`), sem símbolo de moeda.** Mascarar só os dígitos preservando o
+  formato (`R$ ••.•••,••`) entregaria a ordem de grandeza, que é justamente o que se quer esconder.
+- **É preferência do aparelho, não da conta** (localStorage, como o tema): ligar no celular pra
+  mostrar o app pra alguém não pode ligar no computador de casa. Lido antes do React montar — começar
+  visível e esconder no primeiro render mostraria tudo por um quadro.
+- **Não é segurança.** Os números continuam na resposta da API e no DevTools. Serve pra plateia, não
+  pra invasor; tranca de verdade é o bloqueio por Face ID (`useAppLockStore`).
+
 ## Deploy (VPS de produção)
 
 - Caminho do projeto: `/opt/parcelas`

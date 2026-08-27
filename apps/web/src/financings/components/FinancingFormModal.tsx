@@ -6,6 +6,7 @@ import { useCreateFinancing, useUpdateFinancing } from "@/features/useFinancings
 import { FINANCING_KIND_OPTIONS } from "@/lib/financingKind";
 import { matchAutomakerIcon, matchCarThumbnail } from "@/lib/carIcons";
 import { Financing, FinancingKind } from "@/types";
+import { formatCurrency } from "@/lib/format";
 
 interface Props {
   open: boolean;
@@ -228,11 +229,11 @@ export function FinancingFormModal({ open, onClose, financing }: Props) {
             <p className="text-sm text-muted">
               {form.installmentsCount}x de{" "}
               <span className="font-semibold text-[rgb(var(--text))]">
-                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(form.installmentAmount) || 0)}
+                {formatCurrency(Number(form.installmentAmount) || 0)}
               </span>{" "}
               = total de{" "}
               <span className="font-semibold text-[rgb(var(--text))]">
-                {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(totalToPay)}
+                {formatCurrency(totalToPay)}
               </span>{" "}
               a pagar.
             </p>

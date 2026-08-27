@@ -1,6 +1,8 @@
 import { PointerEvent as ReactPointerEvent, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TrendingUp, TrendingDown } from "lucide-react";
 import { QuoteTickerItem, useQuotesTicker } from "@/features/useQuotes";
+import { HIDDEN_AMOUNT } from "@/lib/format";
+import { valuesHidden } from "@/store/privacy";
 
 /**
  * Velocidade da faixa, em pixels por segundo. **É a única constante pra mexer se ficar rápida ou
@@ -30,6 +32,9 @@ const RETOMAR_APOS_MS = 1200;
  * três dígitos que ninguém lê.
  */
 function formatRate(value: number, kind: QuoteTickerItem["kind"]) {
+  // O ticker tem formatador próprio (casas decimais por tipo), então não herda a máscara do
+  // `formatCurrency` de graça — e ele fica no topo da Home, que é a primeira coisa que alguém vê.
+  if (valuesHidden()) return HIDDEN_AMOUNT;
   const casas = kind === "CURRENCY" ? 3 : 2;
   return new Intl.NumberFormat("pt-BR", {
     style: "currency",

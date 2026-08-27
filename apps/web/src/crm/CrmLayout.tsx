@@ -16,6 +16,7 @@ import {
 import { cn } from "@/lib/cn";
 import { CrmMobileNav } from "./CrmMobileNav";
 import { PortfolioSwitcher } from "./PortfolioSwitcher";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 export const CRM_NAV = [
   { to: "/crm", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -53,9 +54,12 @@ export function CrmLayout() {
             </div>
           </div>
 
-          {/* O seletor fica no header, não dentro das páginas: ele vale pra todas elas, e escondê-lo
-              numa tela só faria a pessoa perder de vista em qual serviço está olhando. */}
-          <PortfolioSwitcher />
+          <div className="flex items-center gap-2">
+            {/* O seletor fica no header, não dentro das páginas: ele vale pra todas elas, e escondê-lo
+                numa tela só faria a pessoa perder de vista em qual serviço está olhando. */}
+            <PortfolioSwitcher />
+            <PrivacyToggle />
+          </div>
         </div>
 
         <nav className="hidden items-center gap-1 overflow-x-auto px-4 pb-2 md:flex md:px-6">

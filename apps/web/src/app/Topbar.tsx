@@ -8,6 +8,7 @@ import { useAuthStore } from "@/store/auth";
 import { useNotifications, useMarkAllNotificationsRead, useMarkNotificationRead } from "@/features/useNotifications";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 export function Topbar() {
   const { mode, toggle } = useThemeStore();
@@ -104,6 +105,8 @@ export function Topbar() {
             )}
           </AnimatePresence>
         </div>
+
+        <PrivacyToggle />
 
         <button
           onClick={toggle}

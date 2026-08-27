@@ -99,3 +99,20 @@ body {
     font-size: 16px !important;
   }
 }
+
+/*
+ * Modo privacidade: o que o `formatCurrency` não alcança.
+ *
+ * Cada gráfico escreve seu próprio `tickFormatter` (o "12k" do eixo não passa por lugar nenhum
+ * comum), e o tooltip do recharts às vezes formata sozinho. Em vez de sair mexendo em sete
+ * formatadores diferentes — e ter que lembrar do oitavo no próximo gráfico —, o borrão pega todos
+ * de uma vez e passa a valer de graça pra qualquer gráfico novo.
+ *
+ * A LINHA E A BARRA CONTINUAM VISÍVEIS, de propósito: a forma da curva não diz quanto se tem, e
+ * esconder o gráfico inteiro deixaria a tela parecendo quebrada em vez de protegida.
+ */
+html.privacy .recharts-yAxis .recharts-cartesian-axis-tick-value,
+html.privacy .recharts-tooltip-wrapper {
+  filter: blur(5px);
+  user-select: none;
+}

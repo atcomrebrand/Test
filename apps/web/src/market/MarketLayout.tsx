@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { ArrowLeft, LayoutDashboard, Package, QrCode, ShoppingCart } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { MarketMobileNav } from "./MarketMobileNav";
+import { PrivacyToggle } from "@/components/PrivacyToggle";
 
 export const MARKET_NAV = [
   { to: "/mercado", label: "Resumo", icon: LayoutDashboard, end: true },
@@ -30,6 +31,7 @@ export function MarketLayout() {
               </div>
               <p className="text-sm font-bold leading-tight">Mercado</p>
             </div>
+            <PrivacyToggle />
           </div>
 
           <nav className="hidden items-center gap-1 md:flex">

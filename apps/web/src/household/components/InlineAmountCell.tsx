@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Check } from "lucide-react";
 import { parseAmountInput } from "@/lib/format";
+import { formatCurrency } from "@/lib/format";
 
 interface Props {
   value: number;
@@ -41,7 +42,7 @@ export function InlineAmountCell({ value, onSave, disabled, presumedValue }: Pro
   }
 
   if (disabled) {
-    return <span className="text-muted">{Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</span>;
+    return <span className="text-muted">{formatCurrency(Number(value))}</span>;
   }
 
   const showConfirm = isPresumed && !touchedRef.current;

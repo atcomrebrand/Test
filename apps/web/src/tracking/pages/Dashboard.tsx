@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { Button } from "@/components/ui/Button";
 import { CategoryChart } from "@/components/charts/CategoryChart";
-import { formatCurrency, formatHours } from "@/lib/format";
+import { formatCurrency, formatHours, maskAmountsInText } from "@/lib/format";
 import { useTrackingDashboard, useActiveSession } from "../api";
 import { useLiveElapsed } from "../hooks/useLiveElapsed";
 import { formatHMS } from "../lib/sessionTime";
@@ -171,7 +171,7 @@ export default function Dashboard() {
             <ul className="flex flex-col gap-2">
               {data.insights.map((insight, i) => (
                 <li key={i} className="rounded-xl surface-2 px-3 py-2 text-sm">
-                  {insight}
+                  {maskAmountsInText(insight)}
                 </li>
               ))}
             </ul>
