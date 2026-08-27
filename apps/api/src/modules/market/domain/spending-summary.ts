@@ -14,6 +14,9 @@ export interface MonthlySpending {
   purchaseCount: number;
   /** How many of the month's purchases carried a tax figure — the denominator behind totalTax. */
   purchasesWithTax: number;
+  /** O mesmo critério do total: medido só sobre as notas do mês que declararam tributo, nunca
+   *  `totalTax / totalSpent`. Null quando nenhuma nota do mês declarou. */
+  taxSharePercent: number | null;
 }
 
 export interface SpendingSummary {
@@ -46,7 +49,10 @@ function round2(value: number): number {
  * alongside the total, and the percentage is computed only over the purchases that contributed.
  */
 export function summarizeSpending(entries: SpendingEntry[]): SpendingSummary {
-  const months = new Map<string, MonthlySpending>();
+  // Cada mês carrega o gasto das notas que declararam tributo, que é o denominador do peso do
+  // imposto dele — não dá pra derivar isso de fora depois, e é justamente o que permite a tela
+  // trocar de mês sem uma segunda consulta.
+  const months = new Map<string, MonthlySpending & { spentWithTax: number }>();
   let totalSpent = 0;
   let totalTax = 0;
   let spentWithTax = 0;
@@ -54,7 +60,8 @@ export function summarizeSpending(entries: SpendingEntry[]): SpendingSummary {
 
   for (const entry of entries) {
     const key = entry.purchaseDate.slice(0, 7);
-    const month = months.get(key) ?? { month: key, totalSpent: 0, totalTax: 0, purchaseCount: 0, purchasesWithTax: 0 };
+    const month =
+      months.get(key) ?? { month: key, totalSpent: 0, totalTax: 0, purchaseCount: 0, purchasesWithTax: 0, taxSharePercent: null, spentWithTax: 0 };
 
     month.totalSpent += entry.totalAmount;
     month.purchaseCount += 1;
@@ -63,6 +70,7 @@ export function summarizeSpending(entries: SpendingEntry[]): SpendingSummary {
     if (entry.taxAmount !== null) {
       month.totalTax += entry.taxAmount;
       month.purchasesWithTax += 1;
+      month.spentWithTax += entry.totalAmount;
       totalTax += entry.taxAmount;
       spentWithTax += entry.totalAmount;
       purchasesWithTax += 1;
@@ -78,7 +86,12 @@ export function summarizeSpending(entries: SpendingEntry[]): SpendingSummary {
     purchaseCount: entries.length,
     purchasesWithTax,
     byMonth: Array.from(months.values())
-      .map((month) => ({ ...month, totalSpent: round2(month.totalSpent), totalTax: round2(month.totalTax) }))
+      .map(({ spentWithTax, ...month }) => ({
+        ...month,
+        totalSpent: round2(month.totalSpent),
+        totalTax: round2(month.totalTax),
+        taxSharePercent: spentWithTax > 0 ? round2((month.totalTax / spentWithTax) * 100) : null,
+      }))
       .sort((a, b) => a.month.localeCompare(b.month)),
   };
 }

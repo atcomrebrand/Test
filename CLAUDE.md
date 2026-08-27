@@ -335,6 +335,21 @@ existe decisão — e a decisão é sempre do usuário.
   em dois mercados no mesmo dia continua sendo duas observações de preço de verdade. Preço da
   ocasião com mais de uma linha é média **ponderada pela quantidade**, mesma razão do
   `averagePrice`. Totais (gasto, quantidade) são soma pura e não mudam com o agrupamento.
+- **O Resumo pode ser lido num mês só, e o mês não custa uma consulta.** `byMonth` já vinha na
+  resposta pra montar o gráfico, então cada mês carrega também o seu `taxSharePercent` e a tela
+  troca de período na hora, sem ir ao servidor. O peso do imposto do mês segue a mesma regra do
+  total — medido só sobre as **notas do mês que declararam** tributo, nunca `totalTax/totalSpent`:
+  um mês com uma nota de R$ 30,75 declarando R$ 6,15 e outra sem nada declara 20%, não 12,9%. Mês
+  sem nenhuma nota declarando é `null`, que é ausência de dado e não 0%.
+- **O gráfico nunca é filtrado pro mês escolhido** — ele *é* a comparação entre meses, e uma barra
+  sozinha não compara nada. O mês selecionado é destacado e os outros esmaecidos; clicar numa barra
+  escolhe o mês. Só os meses que tiveram compra viram opção: mês vazio seria um período que só pode
+  mostrar zero.
+- **"O que mais subiu de preço" fica fora do recorte de propósito.** Variação se mede entre compras
+  do mesmo item, e dentro de um mês normalmente não há duas — filtrar esvaziaria o card.
+- **O card do canto deixou de ser a contagem de produtos.** Um número de sempre ao lado de três do
+  mês se lê como sendo do mês também; virou média por compra, que responde o mesmo período que os
+  vizinhos. A contagem continua na tela de Produtos.
 - **O extrato continua linha a linha.** `history` (uma entrada por linha da nota) e `priceSeries`
   (uma por ida) vão separados na resposta de propósito: a lista embaixo do gráfico tem que mostrar
   o que o mercado imprimiu, e o gráfico tem que mostrar o que a pessoa fez.

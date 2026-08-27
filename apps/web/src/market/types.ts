@@ -127,6 +127,8 @@ export interface MonthlySpending {
   totalTax: number;
   purchaseCount: number;
   purchasesWithTax: number;
+  /** Medido só sobre as notas do mês que declararam tributo. Null quando nenhuma declarou. */
+  taxSharePercent: number | null;
 }
 
 export interface SpendingSummary {

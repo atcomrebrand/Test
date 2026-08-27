@@ -51,8 +51,28 @@ describe("summarizeSpending", () => {
       { purchaseDate: "2026-08-20", totalAmount: 50, taxAmount: 5 },
     ]);
     expect(summary.byMonth.map((m) => m.month)).toEqual(["2026-06", "2026-08"]);
-    expect(summary.byMonth[1]).toEqual({ month: "2026-08", totalSpent: 150, totalTax: 15, purchaseCount: 2, purchasesWithTax: 2 });
+    expect(summary.byMonth[1]).toEqual({
+      month: "2026-08",
+      totalSpent: 150,
+      totalTax: 15,
+      purchaseCount: 2,
+      purchasesWithTax: 2,
+      taxSharePercent: 10,
+    });
     expect(summary.byMonth[0].purchasesWithTax).toBe(0);
+  });
+
+  it("mede o peso do imposto do mês só sobre as notas do mês que declararam", () => {
+    // Mesma regra do total, aplicada dentro do mês: a nota sem tributo não pode entrar no
+    // denominador, senão agosto apareceria com 5% quando quem declarou foi taxado em 10%.
+    const summary = summarizeSpending([
+      { purchaseDate: "2026-08-05", totalAmount: 1000, taxAmount: 100 },
+      { purchaseDate: "2026-08-06", totalAmount: 1000, taxAmount: null },
+      { purchaseDate: "2026-09-01", totalAmount: 500, taxAmount: null },
+    ]);
+    expect(summary.byMonth[0].taxSharePercent).toBe(10);
+    // Setembro não teve nota nenhuma com tributo declarado: é ausência de dado, não 0%.
+    expect(summary.byMonth[1].taxSharePercent).toBeNull();
   });
 
   it("rounds accumulated cents instead of letting float drift leak into the total", () => {

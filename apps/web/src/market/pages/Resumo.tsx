@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Landmark, Package, QrCode, Receipt, ShoppingCart, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/PageHeader";
@@ -6,17 +7,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { StatTile } from "@/components/ui/StatTile";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { formatCurrency, formatDate, formatPercent } from "@/lib/format";
+import { formatCurrency, formatDate, formatPercent, monthLabel } from "@/lib/format";
 import { useMarketProducts, useMarketPurchases, useMarketSummary } from "../api";
 import { SpendingByMonthChart } from "../components/SpendingByMonthChart";
 import { TaxDisclaimer } from "../components/TaxDisclaimer";
+
+/** "2026-08" → "Agosto de 2026". */
+function labelOf(month: string): string {
+  const [ano, mes] = month.split("-");
+  return monthLabel(Number(mes), Number(ano));
+}
 
 export default function Resumo() {
   const { data: summary, isLoading } = useMarketSummary();
   const { data: purchases } = useMarketPurchases();
   const { data: products } = useMarketProducts();
 
-  const recentes = purchases?.slice(0, 5) ?? [];
+  // `null` = "Tudo" (o histórico inteiro, que era o único jeito até agora). Nenhum mês vira uma
+  // segunda consulta: o `byMonth` já vem na mesma resposta que monta o gráfico, então trocar de
+  // mês é instantâneo.
+  const [mes, setMes] = useState<string | null>(null);
+  const meses = useMemo(() => [...(summary?.byMonth ?? [])].reverse(), [summary]);
+
+  // O mês pedido pode não existir mais (a última nota daquele mês foi apagada) — aí a tela volta
+  // pro histórico inteiro em vez de mostrar zeros que parecem um mês sem compra.
+  const doMes = mes ? (summary?.byMonth.find((m) => m.month === mes) ?? null) : null;
+
+  const recentes = (purchases ?? [])
+    .filter((p) => !mes || p.purchaseDate.slice(0, 7) === mes)
+    .slice(0, 5);
   const maisCaros = (products ?? []).filter((p) => p.summary && p.summary.changePercent !== null).sort((a, b) => (b.summary!.changePercent ?? 0) - (a.summary!.changePercent ?? 0));
 
   if (isLoading) {
@@ -50,6 +69,10 @@ export default function Resumo() {
     );
   }
 
+  // Depois da guarda: `summary` existe daqui pra baixo, e os dois formatos têm exatamente os
+  // mesmos campos — é o que deixa os cards não saberem se estão mostrando um mês ou tudo.
+  const periodo = doMes ?? summary;
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
@@ -65,30 +88,70 @@ export default function Resumo() {
         }
       />
 
+      {/* Só aparece quando há mais de um mês pra escolher: com uma nota importada, um seletor de um
+          item é ruído. */}
+      {meses.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="periodo" className="text-sm text-muted">
+            Período
+          </label>
+          <select
+            id="periodo"
+            value={mes ?? ""}
+            onChange={(e) => setMes(e.target.value || null)}
+            className="rounded-lg border border-[rgb(var(--border))] surface px-3 py-1.5 text-sm font-medium"
+          >
+            <option value="">Tudo ({meses.length} meses)</option>
+            {/* Só os meses que tiveram compra: mês vazio não vira opção, senão a lista encheria de
+                período que só pode mostrar zero. */}
+            {meses.map((m) => (
+              <option key={m.month} value={m.month}>
+                {labelOf(m.month)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatTile label="Gasto total" value={formatCurrency(summary.totalSpent)} icon={<ShoppingCart className="h-4 w-4" />} sublabel={`${summary.purchaseCount} ${summary.purchaseCount === 1 ? "compra" : "compras"}`} />
+        <StatTile
+          label={doMes ? "Gasto no mês" : "Gasto total"}
+          value={formatCurrency(periodo.totalSpent)}
+          icon={<ShoppingCart className="h-4 w-4" />}
+          sublabel={`${periodo.purchaseCount} ${periodo.purchaseCount === 1 ? "compra" : "compras"}`}
+        />
         <StatTile
           label="Tributos"
-          value={formatCurrency(summary.totalTax)}
+          value={formatCurrency(periodo.totalTax)}
           icon={<Landmark className="h-4 w-4" />}
           tone="danger"
           // Saying which slice of the purchases this covers matters as much as the number: a total
           // built from 2 of 9 notas is a very different claim from one built from all 9.
           sublabel={
-            summary.purchasesWithTax === summary.purchaseCount
+            periodo.purchasesWithTax === periodo.purchaseCount
               ? "Declarados em todas as notas"
-              : `Declarados em ${summary.purchasesWithTax} de ${summary.purchaseCount} notas`
+              : `Declarados em ${periodo.purchasesWithTax} de ${periodo.purchaseCount} notas`
           }
           delay={0.05}
         />
         <StatTile
           label="Peso do imposto"
-          value={formatPercent(summary.taxSharePercent)}
+          value={formatPercent(periodo.taxSharePercent)}
           icon={<TrendingUp className="h-4 w-4" />}
           sublabel="Sobre as notas que declararam"
           delay={0.1}
         />
-        <StatTile label="Produtos" value={String(products?.length ?? 0)} icon={<Package className="h-4 w-4" />} sublabel="Rastreando preço" delay={0.15} />
+        {/* Era "Produtos" (a contagem do catálogo inteiro). Num painel que agora pode estar num mês
+            só, um número de sempre no meio de três do mês se lê como sendo do mês também — e a
+            média por compra responde algo do período, que é o que os outros três respondem. A
+            contagem de produtos continua na tela de Produtos. */}
+        <StatTile
+          label="Média por compra"
+          value={formatCurrency(periodo.purchaseCount > 0 ? periodo.totalSpent / periodo.purchaseCount : 0)}
+          icon={<Package className="h-4 w-4" />}
+          sublabel={`${products?.length ?? 0} produtos rastreados`}
+          delay={0.15}
+        />
       </div>
 
       <TaxDisclaimer />
@@ -98,14 +161,16 @@ export default function Resumo() {
           <CardTitle>Gasto e tributos por mês</CardTitle>
         </CardHeader>
         <CardContent>
-          <SpendingByMonthChart months={summary.byMonth} />
+          {/* O histórico inteiro continua na tela mesmo com um mês escolhido — o gráfico É a
+              comparação entre meses. O escolhido fica destacado, e clicar numa barra escolhe ela. */}
+          <SpendingByMonthChart months={summary.byMonth} selected={doMes?.month ?? null} onSelect={setMes} />
         </CardContent>
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Últimas compras</CardTitle>
+            <CardTitle>{doMes ? `Compras de ${labelOf(doMes.month)}` : "Últimas compras"}</CardTitle>
             <Link to="/mercado/compras" className="text-xs font-medium text-sky-500 hover:underline">
               Ver todas
             </Link>
@@ -127,6 +192,8 @@ export default function Resumo() {
 
         <Card>
           <CardHeader>
+            {/* Sempre o histórico inteiro, mesmo com um mês escolhido: variação de preço se mede
+                entre compras, e dentro de um mês costuma não haver duas do mesmo item. */}
             <CardTitle>O que mais subiu de preço</CardTitle>
             <Link to="/mercado/produtos" className="text-xs font-medium text-sky-500 hover:underline">
               Ver todos
