@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
 import { Injectable } from "@nestjs/common";
 import { InvestmentFixedIncome } from "@prisma/client";
+import { PrismaService } from "../../../prisma/prisma.service";
 import { FixedIncomeRepository } from "../domain/fixed-income.repository";
 import {
   accrueCdiFactor,
@@ -19,10 +20,21 @@ export class FixedIncomesService {
   constructor(
     private readonly fixedIncomes: FixedIncomeRepository,
     private readonly indicators: EconomicIndicatorCacheService,
+    private readonly prisma: PrismaService,
   ) {}
 
-  async findAll(userId: string) {
-    const rows = await this.fixedIncomes.findAllByUser(userId);
+  private async assertPortfolio(userId: string, portfolioId: string) {
+    const carteira = await this.prisma.investmentPortfolio.findFirst({
+      where: { id: portfolioId, userId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!carteira) throw new NotFoundException("Carteira não encontrada.");
+  }
+
+  /** Sem carteira = a principal. Ver o comentário em FixedIncomeRepository.findAllByUser: é esse
+   *  padrão que mantém dashboard, patrimônio e gráfico somando só o seu dinheiro. */
+  async findAll(userId: string, portfolioId: string | null = null) {
+    const rows = await this.fixedIncomes.findAllByUser(userId, portfolioId);
     return Promise.all(rows.map((row) => this.enrich(row)));
   }
 
@@ -33,8 +45,14 @@ export class FixedIncomesService {
   }
 
   async create(userId: string, dto: CreateFixedIncomeDto) {
+    // Carteira conferida antes de gravar: sem isso, um id chutado escreveria na carteira de outra
+    // conta. A checagem é aqui e não pelo serviço de carteiras porque aquele depende deste pra
+    // somar — injetar de volta fecharia um ciclo por causa de uma consulta de duas linhas.
+    if (dto.portfolioId) await this.assertPortfolio(userId, dto.portfolioId);
+
     const fixedIncome = await this.fixedIncomes.create({
       userId,
+      portfolioId: dto.portfolioId ?? null,
       institution: dto.institution,
       type: dto.type,
       principalAmount: dto.principalAmount,

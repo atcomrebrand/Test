@@ -21,6 +21,7 @@ import {
   ImportedIncome,
   ImportedTransaction,
   InvestmentAsset,
+  InvestmentPortfolio,
   InvestmentFixedIncome,
   LaunchesResponse,
   MarketQuoteDetailResponse,
@@ -44,6 +45,60 @@ export function usePortfolioEvolution(params: EvolutionParams) {
     queryFn: () => api.get<EvolutionResponse>("/investments/evolution", { params }),
     enabled: params.range !== "CUSTOM" || (!!params.from && !!params.to),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Carteiras separadas
+// ---------------------------------------------------------------------------
+
+export function useInvestmentPortfolios() {
+  return useQuery({
+    queryKey: ["investments", "portfolios"],
+    queryFn: () => api.get<InvestmentPortfolio[]>("/investments/portfolios"),
+  });
+}
+
+export function useInvestmentPortfolio(id: string | undefined) {
+  return useQuery({
+    queryKey: ["investments", "portfolios", id],
+    queryFn: () => api.get<InvestmentPortfolio>(`/investments/portfolios/${id}`),
+    enabled: !!id,
+  });
+}
+
+/** As aplicações de UMA carteira. Rota própria, e não um filtro no endpoint de renda fixa: assim o
+ *  endpoint de sempre continua significando "a minha carteira" e nada existente muda. */
+export function usePortfolioFixedIncomes(id: string | undefined) {
+  return useQuery({
+    queryKey: ["investments", "portfolios", id, "fixed-incomes"],
+    queryFn: () => api.get<InvestmentFixedIncome[]>(`/investments/portfolios/${id}/fixed-incomes`),
+    enabled: !!id,
+  });
+}
+
+export function useCreateInvestmentPortfolio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: { name: string; color?: string; notes?: string }) =>
+      api.post<InvestmentPortfolio>("/investments/portfolios", payload),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["investments"] });
+      toast.success("Carteira criada.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useDeleteInvestmentPortfolio() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/investments/portfolios/${id}`),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["investments"] });
+      toast.success("Carteira excluída.");
+    },
+    onError: (e: Error) => toast.error(e.message),
   });
 }
 

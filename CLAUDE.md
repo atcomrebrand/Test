@@ -117,6 +117,29 @@ mensal. A distinção que sustenta a tela:
   **poupança e CDB de 100% do CDI** ao lado, que são as duas réguas que todo mundo tem.
 - Nada é gravado: simular não encosta na carteira.
 
+## Carteiras separadas: o padrão é que garante o isolamento
+
+Uma conta pode ter carteiras extras (`InvestmentPortfolio`) — o caso que motivou foi cuidar do
+investimento de um filho sem misturar com o próprio dinheiro. Por enquanto só **renda fixa** mora
+numa carteira separada.
+
+- **A carteira principal não tem linha na tabela**: ela é o `portfolioId = null` das aplicações. É
+  isso que faz tudo que já existia em produção continuar sendo dela sem migrar dado nenhum.
+- **`findAllByUser(userId, portfolioId = null)` — o padrão é a principal.** Não é conveniência, é a
+  garantia: dashboard, patrimônio da Home e gráfico de evolução chamam sem argumento e continuam
+  somando só o seu dinheiro, sem nenhum deles precisar saber que carteiras existem. `portfolioId:
+  null` no Prisma vira `IS NULL`, filtro de verdade — não "sem filtro".
+- **As aplicações de uma carteira têm rota própria** (`/investments/portfolios/:id/fixed-incomes`),
+  e não um filtro no endpoint de renda fixa: assim o endpoint de sempre continua significando
+  exatamente o que sempre significou.
+- **Carteira só é excluída vazia.** Mover as aplicações pra principal seria o oposto do que a
+  separação existe pra fazer — o dinheiro da outra pessoa entraria no seu patrimônio por causa de um
+  clique em "excluir".
+- **O cálculo é o mesmo**, chamando o mesmo `FixedIncomesService`: carteira separada é outro
+  recorte, não outra conta. O card na tela é literalmente o mesmo componente.
+- Conferido em produção-simulada: criar uma aplicação de R$ 5.000 numa carteira separada deixou
+  patrimônio e gráfico de evolução **byte a byte idênticos**.
+
 ## Renda Fixa: principal vs. aportado no resgate parcial (armadilha recorrente)
 
 Isso já foi mexido duas vezes por entender errado o que o usuário estava comparando — documentando.

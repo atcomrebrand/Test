@@ -7,6 +7,11 @@ const INDEXERS = ["PREFIXADO", "POS_FIXADO_CDI", "IPCA_MAIS", "OUTRO"] as const;
 const INCOME_TYPES = ["JUROS", "OUTRO"] as const;
 
 export class CreateFixedIncomeDto {
+  /** Omitido = carteira principal. É assim que tudo que já existe continua caindo nela. */
+  @IsOptional()
+  @IsString()
+  portfolioId?: string;
+
   @IsString()
   @MinLength(1)
   institution!: string;

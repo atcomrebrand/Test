@@ -523,3 +523,25 @@ export interface ContributionSimulationResponse {
   /** Meses até alcançar a meta, quando ela foi informada. null = não alcança. */
   monthsToTarget: number | null;
 }
+
+// ---------------------------------------------------------------------------
+// Carteiras separadas (ex.: a de um filho)
+// ---------------------------------------------------------------------------
+
+export interface InvestmentPortfolioSummary {
+  count: number;
+  redeemedCount: number;
+  invested: number;
+  netValue: number;
+  netYield: number;
+  netYieldPercent: number;
+}
+
+export interface InvestmentPortfolio {
+  id: string;
+  name: string;
+  color: string | null;
+  notes: string | null;
+  createdAt: string;
+  summary: InvestmentPortfolioSummary;
+}

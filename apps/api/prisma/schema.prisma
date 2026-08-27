@@ -154,6 +154,7 @@ model User {
   investmentTransactions  InvestmentTransaction[]
   investmentIncomes       InvestmentIncome[]
   investmentFixedIncomes  InvestmentFixedIncome[]
+  investmentPortfolios    InvestmentPortfolio[]
   investmentContributions InvestmentContribution[]
   investmentCashAccounts  InvestmentCashAccount[]
   investmentAuditLogs     InvestmentAuditLog[]
@@ -621,6 +622,31 @@ model InvestmentIncome {
 
 /// CDB/LCI/LCA/Tesouro Direto applications. Always exposes gross AND net (after IR/IOF) value —
 /// see FixedIncomeCalculator. Never hard-deleted; withdraw via redeemedAt/redeemedNetAmount.
+/// Uma carteira separada dentro da mesma conta — pensada pra cuidar do investimento de outra
+/// pessoa (um filho, por exemplo) sem misturar com o seu dinheiro.
+///
+/// A carteira principal NÃO tem linha aqui: ela é representada por `portfolioId = null` nas
+/// aplicações. Isso é de propósito — toda aplicação que já existia em produção continua sendo da
+/// principal sem precisar de migração de dado, e toda consulta que não pede carteira devolve só as
+/// nulas, então nenhum total existente muda.
+model InvestmentPortfolio {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  /// Cor do rótulo na tela. Só visual.
+  color     String?
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  fixedIncomes InvestmentFixedIncome[]
+
+  @@index([userId, deletedAt])
+  @@map("investment_portfolios")
+}
+
 model InvestmentFixedIncome {
   id                String               @id @default(cuid())
   userId            String
@@ -642,6 +668,10 @@ model InvestmentFixedIncome {
   fixedRatePercent  Decimal?             @db.Decimal(7, 4)
   /// POS_FIXADO_CDI only — e.g. 110 = 110% do CDI.
   cdiPercent        Decimal?             @db.Decimal(7, 4)
+  /// null = carteira principal (a sua). Quem lê sem pedir carteira recebe só as nulas — é o que
+  /// mantém o dinheiro de outra carteira fora do seu patrimônio, do dashboard e do gráfico.
+  portfolioId       String?
+  portfolio         InvestmentPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: Restrict)
   redeemedAt        DateTime?
   redeemedNetAmount Decimal?             @db.Decimal(14, 2)
   notes             String?
@@ -653,6 +683,7 @@ model InvestmentFixedIncome {
 
   @@index([userId, deletedAt])
   @@index([userId, maturityDate])
+  @@index([userId, portfolioId])
   @@map("investment_fixed_incomes")
 }
 

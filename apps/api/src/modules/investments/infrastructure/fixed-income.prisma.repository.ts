@@ -8,9 +8,11 @@ export class FixedIncomePrismaRepository extends FixedIncomeRepository {
     super();
   }
 
-  findAllByUser(userId: string) {
+  findAllByUser(userId: string, portfolioId: string | null = null) {
     return this.prisma.investmentFixedIncome.findMany({
-      where: { userId, deletedAt: null },
+      // `portfolioId: null` é filtro de verdade no Prisma (vira `IS NULL`), não "sem filtro" — é
+      // exatamente o que se quer: sem pedir carteira, só vem a principal.
+      where: { userId, deletedAt: null, portfolioId },
       orderBy: [{ redeemedAt: "asc" }, { maturityDate: "asc" }],
     });
   }
@@ -24,6 +26,7 @@ export class FixedIncomePrismaRepository extends FixedIncomeRepository {
       const fixedIncome = await tx.investmentFixedIncome.create({
         data: {
           userId: data.userId,
+          portfolioId: data.portfolioId ?? null,
           institution: data.institution,
           type: data.type as any,
           principalAmount: data.principalAmount,

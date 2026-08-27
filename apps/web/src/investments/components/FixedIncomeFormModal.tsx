@@ -10,6 +10,9 @@ interface Props {
   onClose: () => void;
   /** Preenchido = edição. Ausente = cadastro novo. */
   fixedIncome?: InvestmentFixedIncome | null;
+  /** Em qual carteira a aplicação nova entra. Ausente = a principal, que é o comportamento de
+   *  sempre — só a tela de uma carteira separada preenche isto. */
+  portfolioId?: string | null;
 }
 
 const TYPE_OPTIONS = [
@@ -37,7 +40,7 @@ function todayISO() {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function FixedIncomeFormModal({ open, onClose, fixedIncome }: Props) {
+export function FixedIncomeFormModal({ open, onClose, fixedIncome, portfolioId }: Props) {
   const isEdit = Boolean(fixedIncome);
   const create = useCreateFixedIncome();
   const update = useUpdateFixedIncome();
@@ -107,6 +110,7 @@ export function FixedIncomeFormModal({ open, onClose, fixedIncome }: Props) {
 
     create.mutate(
       {
+        ...(portfolioId ? { portfolioId } : {}),
         institution,
         type,
         principalAmount: Number(principalAmount),

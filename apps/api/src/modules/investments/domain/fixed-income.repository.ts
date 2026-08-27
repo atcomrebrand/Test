@@ -1,6 +1,8 @@
 import { InvestmentFixedIncome, InvestmentIncome } from "@prisma/client";
 
 export interface CreateFixedIncomeData {
+  /** null/omitido = carteira principal. */
+  portfolioId?: string | null;
   userId: string;
   institution: string;
   type: string;
@@ -18,7 +20,15 @@ export interface CreateFixedIncomeData {
 }
 
 export abstract class FixedIncomeRepository {
-  abstract findAllByUser(userId: string): Promise<InvestmentFixedIncome[]>;
+  /**
+   * Aplicações de **uma** carteira. `portfolioId` omitido significa a carteira principal (as linhas
+   * com `portfolioId` nulo), que é tudo que existia antes das carteiras separadas.
+   *
+   * O padrão ser a principal não é conveniência, é a garantia: dashboard, patrimônio da Home e
+   * gráfico de evolução chamam sem argumento e continuam somando só o seu dinheiro, sem nenhum
+   * deles precisar saber que carteiras existem.
+   */
+  abstract findAllByUser(userId: string, portfolioId?: string | null): Promise<InvestmentFixedIncome[]>;
   abstract findById(id: string): Promise<InvestmentFixedIncome | null>;
   abstract create(data: CreateFixedIncomeData): Promise<InvestmentFixedIncome>;
   abstract update(id: string, data: Record<string, unknown>): Promise<InvestmentFixedIncome>;
