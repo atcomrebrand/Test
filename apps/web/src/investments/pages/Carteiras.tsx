@@ -22,6 +22,7 @@ import {
 } from "../api";
 import { InvestmentFixedIncome } from "../types";
 import { FixedIncomeCard } from "../components/FixedIncomeCard";
+import { PortfolioEvolutionChart } from "../components/PortfolioEvolutionChart";
 import { FixedIncomeFormModal } from "../components/FixedIncomeFormModal";
 import { AddInterestModal } from "../components/AddInterestModal";
 import { RedeemFixedIncomeModal } from "../components/RedeemFixedIncomeModal";
@@ -218,6 +219,10 @@ export function CarteiraDetalhe() {
           </div>
         </CardContent>
       </Card>
+
+      {/* O mesmo gráfico da Carteira, com o recorte desta carteira: só renda fixa, mesmos índices.
+          Sem aplicação nenhuma ele seria uma reta no zero — aí o vazio abaixo explica melhor. */}
+      {(ativas.length > 0 || resgatadas.length > 0) && <PortfolioEvolutionChart tab="RENDA_FIXA" portfolioId={id} />}
 
       {ativas.length === 0 && resgatadas.length === 0 && (
         <EmptyState

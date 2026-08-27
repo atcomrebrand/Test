@@ -137,8 +137,29 @@ numa carteira separada.
   clique em "excluir".
 - **O cálculo é o mesmo**, chamando o mesmo `FixedIncomesService`: carteira separada é outro
   recorte, não outra conta. O card na tela é literalmente o mesmo componente.
+- **O resgate parcial nasce na mesma carteira da original.** Foi bug real: a metade resgatada era
+  criada sem `portfolioId` e caía na carteira principal — o dinheiro da outra pessoa entrava no seu
+  patrimônio sozinho, que é exatamente o que a separação existe pra impedir.
+- **O gráfico de evolução é o mesmo motor**, com um 5º parâmetro de recorte
+  (`PortfolioEvolutionService.evolution(..., portfolioId)`) e rota própria
+  (`/investments/portfolios/:id/evolution`), pelo mesmo motivo das aplicações. Na carteira separada
+  só a linha de Renda Fixa é montada: ação e cripto não pertencem a carteira nenhuma, e um "Carteira"
+  idêntico ao "Renda Fixa" ao lado seria só ruído. **Os índices (CDI/IBOV/IFIX) vêm iguais** — "o
+  dinheiro dela rendeu mais que o CDI?" é a pergunta que se faz sobre ela.
+- **A carteira entra na chave do cache do gráfico.** Sem isso, abrir a carteira do filho depois da
+  sua devolveria a sua — a janela é a mesma e o usuário também.
 - Conferido em produção-simulada: criar uma aplicação de R$ 5.000 numa carteira separada deixou
-  patrimônio e gráfico de evolução **byte a byte idênticos**.
+  patrimônio e gráfico de evolução **byte a byte idênticos**; o último ponto do gráfico da carteira
+  separada bate com o card acima dele até o centavo (R$ 3.294,25), e o resgate parcial deixou as duas
+  linhas (R$ 1.888,84 + R$ 3.111,16) dentro dela.
+
+**O cache da curva é esvaziado por quem grava** (`EvolutionCacheService.invalidateUser`), não só pelo
+TTL. A janela fica guardada por 10min porque montá-la são requisições HTTP de histórico de preço —
+mas quem acabou de cadastrar uma aplicação espera vê-la no gráfico agora, e não no fim do TTL. O
+cache mora num serviço próprio justamente pra isso: `FixedIncomesService` e `AssetsService` não podem
+injetar quem calcula a curva (ela já depende deles, fecharia ciclo), e um cache que não depende de
+nada os dois injetam à vontade. A invalidação é do usuário inteiro — descobrir quais janelas e quais
+carteiras um lançamento afeta custaria mais do que recalcular.
 
 ## Renda Fixa: principal vs. aportado no resgate parcial (armadilha recorrente)
 

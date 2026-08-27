@@ -3,6 +3,7 @@ import { AssetRepository } from "../domain/asset.repository";
 import { MarketPriceService } from "../infrastructure/market-price.service";
 import { DividendAutoSyncService } from "./dividend-auto-sync.service";
 import { AssetAnalysisService } from "./asset-analysis.service";
+import { EvolutionCacheService } from "../infrastructure/evolution-cache.service";
 
 function makeAssetRepo(overrides: Partial<AssetRepository> = {}): AssetRepository {
   return {
@@ -28,7 +29,7 @@ describe("AssetsService — dividend sync reaches the portfolio list and dashboa
     const syncAsset = jest.fn().mockResolvedValue(0);
     const asset = { id: "a1", userId: "user-1", class: "STOCK", ticker: "PETR4", stakingApyPercent: null };
     const assets = makeAssetRepo({ findAllByUser: jest.fn().mockResolvedValue([asset]) });
-    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset } as unknown as DividendAutoSyncService, makeAnalysis());
+    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset } as unknown as DividendAutoSyncService, makeAnalysis(), new EvolutionCacheService());
 
     await service.findAll("user-1");
 
@@ -52,7 +53,7 @@ describe("AssetsService — dividend sync reaches the portfolio list and dashboa
       findByIdWithTransactions: jest.fn().mockResolvedValue({ ...asset, transactions: [], incomes: preSync }),
       listIncomes,
     });
-    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset } as unknown as DividendAutoSyncService, makeAnalysis());
+    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset } as unknown as DividendAutoSyncService, makeAnalysis(), new EvolutionCacheService());
 
     const result = await service.findOne("user-1", "a1");
 
@@ -74,7 +75,7 @@ describe("AssetsService — crypto staking estimate only counts the staked % of 
       findByIdWithTransactions: jest.fn().mockResolvedValue({ ...asset, transactions, incomes: [] }),
       listTransactions: jest.fn().mockResolvedValue(transactions),
     });
-    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset: jest.fn().mockResolvedValue(0) } as unknown as DividendAutoSyncService, makeAnalysis());
+    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset: jest.fn().mockResolvedValue(0) } as unknown as DividendAutoSyncService, makeAnalysis(), new EvolutionCacheService());
 
     const result = await service.findOne("user-1", "a1");
 
@@ -90,7 +91,7 @@ describe("AssetsService — crypto staking estimate only counts the staked % of 
       findByIdWithTransactions: jest.fn().mockResolvedValue({ ...asset, transactions, incomes: [] }),
       listTransactions: jest.fn().mockResolvedValue(transactions),
     });
-    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset: jest.fn().mockResolvedValue(0) } as unknown as DividendAutoSyncService, makeAnalysis());
+    const service = new AssetsService(assets, makeMarketPrice(), { syncAsset: jest.fn().mockResolvedValue(0) } as unknown as DividendAutoSyncService, makeAnalysis(), new EvolutionCacheService());
 
     const result = await service.findOne("user-1", "a1");
 

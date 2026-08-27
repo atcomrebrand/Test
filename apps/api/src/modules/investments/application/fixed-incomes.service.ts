@@ -13,6 +13,7 @@ import {
   todayInBrazil,
 } from "../domain/fixed-income-calculator";
 import { DailyCdiWindow, EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
+import { EvolutionCacheService } from "../infrastructure/evolution-cache.service";
 import { AddFixedIncomeInterestDto, CreateFixedIncomeDto, RedeemFixedIncomeDto, UpdateFixedIncomeDto } from "./dto/fixed-income.dto";
 
 @Injectable()
@@ -21,6 +22,7 @@ export class FixedIncomesService {
     private readonly fixedIncomes: FixedIncomeRepository,
     private readonly indicators: EconomicIndicatorCacheService,
     private readonly prisma: PrismaService,
+    private readonly evolutionCache: EvolutionCacheService,
   ) {}
 
   private async assertPortfolio(userId: string, portfolioId: string) {
@@ -64,6 +66,9 @@ export class FixedIncomesService {
       cdiPercent: dto.cdiPercent,
       notes: dto.notes,
     });
+    // O gráfico guarda a janela por minutos pra não refazer as séries de preço a cada aba. Quem
+    // acabou de cadastrar espera ver a aplicação lá agora, não no fim do TTL.
+    this.evolutionCache.invalidateUser(userId);
     return this.enrich(fixedIncome);
   }
 
@@ -82,12 +87,14 @@ export class FixedIncomesService {
     // dinheiro do próprio bolso ainda aplicado — e só o resgate parcial mexe nos dois de uma vez.
     // Corrigir o principal à mão pra bater com o extrato é caso de uso legítimo e documentado.
     const updated = await this.fixedIncomes.update(id, data);
+    this.evolutionCache.invalidateUser(userId);
     return this.enrich(updated);
   }
 
   async remove(userId: string, id: string) {
     await this.getOwned(userId, id);
     await this.fixedIncomes.softDelete(id);
+    this.evolutionCache.invalidateUser(userId);
     return { id };
   }
 
@@ -118,6 +125,7 @@ export class FixedIncomesService {
 
     if (dto.amount === undefined) {
       const updated = await this.fixedIncomes.redeem(id, redeemedAt, fullCalc.netValue);
+      this.evolutionCache.invalidateUser(userId);
       return this.enrich(updated);
     }
 
@@ -129,6 +137,7 @@ export class FixedIncomesService {
 
     if (requiredPrincipal >= principal) {
       const updated = await this.fixedIncomes.redeem(id, redeemedAt, fullCalc.netValue);
+      this.evolutionCache.invalidateUser(userId);
       return this.enrich(updated);
     }
 
@@ -140,6 +149,10 @@ export class FixedIncomesService {
     const { calc: redeemedCalc } = await this.calculate(fixedIncome, redeemedAt, requiredPrincipal);
     const redeemedCopy = await this.fixedIncomes.create({
       userId,
+      // A parte resgatada nasce na MESMA carteira da original. Sem isso, resgatar metade de uma
+      // aplicação da carteira do filho jogaria a metade resgatada na carteira principal — o
+      // dinheiro trocaria de dono sozinho, que é justamente o que a separação existe pra impedir.
+      portfolioId: fixedIncome.portfolioId,
       institution: fixedIncome.institution,
       type: fixedIncome.type,
       principalAmount: requiredPrincipal,
@@ -158,6 +171,7 @@ export class FixedIncomesService {
       principalAmount: principal - requiredPrincipal,
       contributedAmount: aporte.remaining,
     });
+    this.evolutionCache.invalidateUser(userId);
     return this.enrich(updatedOriginal);
   }
 
@@ -168,6 +182,7 @@ export class FixedIncomesService {
     const fixedIncome = await this.getOwned(userId, id);
     if (!fixedIncome.redeemedAt) throw new BadRequestException("Essa aplicação não está resgatada.");
     const updated = await this.fixedIncomes.unredeem(id);
+    this.evolutionCache.invalidateUser(userId);
     return this.enrich(updated);
   }
 

@@ -21,6 +21,7 @@ import {
 import { AssetHistoryService } from "../infrastructure/asset-history.service";
 import { BenchmarkHistoryService, BenchmarkKey } from "../infrastructure/benchmark-history.service";
 import { EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
+import { EvolutionCacheService } from "../infrastructure/evolution-cache.service";
 import { FixedIncomesService } from "./fixed-incomes.service";
 
 export type EvolutionSeriesKey = "STOCK" | "FII" | "CRYPTO" | "RENDA_FIXA" | "TOTAL";
@@ -100,9 +101,9 @@ const RESULT_TTL_MS = 10 * 60 * 1000;
 @Injectable()
 export class PortfolioEvolutionService {
   private readonly logger = new Logger(PortfolioEvolutionService.name);
-  private readonly cache = new Map<string, { result: EvolutionResult; at: number }>();
 
   constructor(
+    private readonly cache: EvolutionCacheService,
     private readonly prisma: PrismaService,
     private readonly assetHistory: AssetHistoryService,
     private readonly benchmarks: BenchmarkHistoryService,
@@ -110,23 +111,34 @@ export class PortfolioEvolutionService {
     private readonly fixedIncomes: FixedIncomesService,
   ) {}
 
+  /**
+   * A curva da carteira. `portfolioId` recorta pra uma carteira separada (a de um filho, por
+   * exemplo); omitido, é a carteira principal, que é o comportamento de sempre.
+   *
+   * Na carteira separada só existe renda fixa — ação e cripto não pertencem a carteira nenhuma —,
+   * então as séries de classe e o total não são montados: um "Carteira" idêntico ao "Renda Fixa" ao
+   * lado seria só ruído. O motor é o mesmo, incluindo os índices de referência: comparar a carteira
+   * do filho com o CDI é justamente a pergunta que se faz sobre ela.
+   */
   async evolution(
     userId: string,
     range: EvolutionRange,
     from?: string,
     to?: string,
+    portfolioId: string | null = null,
   ): Promise<EvolutionResult> {
     const hoje = todayInBrazil(new Date());
     const window = resolveEvolutionWindow(range, from, to, hoje);
     const grid = buildDateGrid(window);
 
-    const chave = `${userId}:${window.from}:${window.to}`;
-    const guardado = this.cache.get(chave);
-    if (guardado && Date.now() - guardado.at < RESULT_TTL_MS) return { ...guardado.result, range };
+    // A carteira entra na chave do cache: sem isso, abrir a do filho depois da sua devolveria a sua.
+    const chave = `${userId}:${portfolioId ?? "principal"}:${window.from}:${window.to}`;
+    const guardado = this.cache.get<EvolutionResult>(chave, RESULT_TTL_MS);
+    if (guardado) return { ...guardado, range };
 
     const [porClasse, rendaFixa, benchmarks] = await Promise.all([
-      this.assetSeries(userId, grid, window.to),
-      this.fixedIncomeSeries(userId, grid, window, isoOf(hoje)),
+      portfolioId ? Promise.resolve([] as SeriesWithFlows[]) : this.assetSeries(userId, grid, window.to),
+      this.fixedIncomeSeries(userId, grid, window, isoOf(hoje), portfolioId),
       this.benchmarkSeries(grid, window),
     ]);
 
@@ -135,11 +147,13 @@ export class PortfolioEvolutionService {
       range,
       from: window.from,
       to: window.to,
-      series: [...partes.map((p) => p.series), this.totalSeries(partes, grid).series],
+      series: portfolioId
+        ? [rendaFixa.series]
+        : [...partes.map((p) => p.series), this.totalSeries(partes, grid).series],
       benchmarks,
     };
 
-    this.cache.set(chave, { result, at: Date.now() });
+    this.cache.set(chave, result);
     return result;
   }
 
@@ -222,8 +236,9 @@ export class PortfolioEvolutionService {
     grid: string[],
     window: { from: string; to: string },
     hojeIso: string,
+    portfolioId: string | null = null,
   ): Promise<SeriesWithFlows> {
-    const aplicacoes = await this.fixedIncomes.findAll(userId);
+    const aplicacoes = await this.fixedIncomes.findAll(userId, portfolioId);
     const ativas = aplicacoes.filter((f) => !f.deletedAt);
 
     if (ativas.length === 0) return this.toSeries("RENDA_FIXA", grid.map((date) => ({ date, value: 0, invested: 0, flow: 0 })), []);

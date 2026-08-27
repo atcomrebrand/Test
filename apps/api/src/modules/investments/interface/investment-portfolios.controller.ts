@@ -3,6 +3,8 @@ import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { CurrentUser, AuthUser } from "../../../common/decorators/current-user.decorator";
 import { InvestmentPortfoliosService } from "../application/investment-portfolios.service";
 import { FixedIncomesService } from "../application/fixed-incomes.service";
+import { PortfolioEvolutionService } from "../application/portfolio-evolution.service";
+import { EVOLUTION_RANGES, EvolutionRange } from "../domain/portfolio-evolution";
 import { CreateInvestmentPortfolioDto, UpdateInvestmentPortfolioDto } from "../application/dto/investment-portfolio.dto";
 
 @UseGuards(JwtAuthGuard)
@@ -11,6 +13,7 @@ export class InvestmentPortfoliosController {
   constructor(
     private readonly service: InvestmentPortfoliosService,
     private readonly fixedIncomes: FixedIncomesService,
+    private readonly evolution: PortfolioEvolutionService,
   ) {}
 
   @Get()
@@ -31,6 +34,26 @@ export class InvestmentPortfoliosController {
     return this.fixedIncomes.findAll(user.userId, id);
   }
 
+  /** A curva desta carteira. Mesmo motor e mesmos índices da sua — só o recorte muda. */
+  @Get(":id/evolution")
+  async evolutionOf(
+    @CurrentUser() user: AuthUser,
+    @Param("id") id: string,
+    @Query("range") range?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    await this.service.getOwned(user.userId, id);
+    const escolhido = (range ?? "").toUpperCase() as EvolutionRange;
+    return this.evolution.evolution(
+      user.userId,
+      EVOLUTION_RANGES.includes(escolhido) ? escolhido : "12M",
+      from,
+      to,
+      id,
+    );
+  }
+
   @Post()
   create(@CurrentUser() user: AuthUser, @Body() dto: CreateInvestmentPortfolioDto) {
     return this.service.create(user.userId, dto);
@@ -42,7 +65,7 @@ export class InvestmentPortfoliosController {
   }
 
   @Delete(":id")
-  remove(@CurrentUser() user: AuthUser, @Param("id") id: string, @Query() _q: unknown) {
+  remove(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.service.remove(user.userId, id);
   }
 }

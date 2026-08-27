@@ -39,10 +39,15 @@ function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
  * está em buscar as séries de preço, não em somar), e assim trocar de aba não dispara requisição
  * nenhuma. Só o período muda a chave.
  */
-export function usePortfolioEvolution(params: EvolutionParams) {
+export function usePortfolioEvolution(params: EvolutionParams, portfolioId?: string) {
+  // Carteira separada tem rota própria pelo mesmo motivo das aplicações: `/investments/evolution`
+  // continua significando "a minha carteira", sem parâmetro novo que mudaria o sentido do endpoint
+  // que já está em produção. O id entra na chave do cache — senão a curva da outra carteira
+  // apareceria a dela.
+  const url = portfolioId ? `/investments/portfolios/${portfolioId}/evolution` : "/investments/evolution";
   return useQuery({
-    queryKey: ["investments", "evolution", params],
-    queryFn: () => api.get<EvolutionResponse>("/investments/evolution", { params }),
+    queryKey: ["investments", "evolution", portfolioId ?? null, params],
+    queryFn: () => api.get<EvolutionResponse>(url, { params }),
     enabled: params.range !== "CUSTOM" || (!!params.from && !!params.to),
     staleTime: 5 * 60 * 1000,
   });

@@ -6,6 +6,7 @@ import { ChartRangeOptions } from "../domain/market-data.provider";
 import { calculatePosition } from "../domain/position-calculator";
 import { calculateStakingYield } from "../domain/staking-calculator";
 import { MarketPriceService } from "../infrastructure/market-price.service";
+import { EvolutionCacheService } from "../infrastructure/evolution-cache.service";
 import { AssetAnalysisService } from "./asset-analysis.service";
 import { DividendAutoSyncService } from "./dividend-auto-sync.service";
 import { AddAssetIncomeDto, CreateAssetDto, CreateTransactionDto, UpdateAssetDto, UpdateIncomeDto, UpdateTransactionDto } from "./dto/asset.dto";
@@ -27,6 +28,7 @@ export class AssetsService {
     private readonly marketPrice: MarketPriceService,
     private readonly dividendSync: DividendAutoSyncService,
     private readonly analysis: AssetAnalysisService,
+    private readonly evolutionCache: EvolutionCacheService,
   ) {}
 
   async findAll(userId: string, assetClass?: string, forceRefresh = false) {
@@ -93,6 +95,7 @@ export class AssetsService {
   async remove(userId: string, id: string) {
     await this.getOwned(userId, id);
     await this.assets.softDelete(id);
+    this.evolutionCache.invalidateUser(userId);
     return { id };
   }
 
@@ -120,6 +123,9 @@ export class AssetsService {
     // A new BUY/SELL can change which historical dividend events the position now entitles (or no
     // longer entitles) — recalculated automatically, no separate "check for proventos" step.
     await this.dividendSync.syncAsset(userId, asset.id);
+    // A curva da carteira é remontada da posição em cada dia — lançamento novo muda o passado dela
+    // inteiro, então o que estava guardado não vale mais.
+    this.evolutionCache.invalidateUser(userId);
     return transaction;
   }
 
@@ -155,12 +161,15 @@ export class AssetsService {
     if (dto.fees !== undefined) data.fees = dto.fees;
     if (dto.transactionDate !== undefined) data.transactionDate = new Date(dto.transactionDate);
     if (dto.notes !== undefined) data.notes = dto.notes;
-    return this.assets.updateTransaction(transactionId, data);
+    const updated = await this.assets.updateTransaction(transactionId, data);
+    this.evolutionCache.invalidateUser(userId);
+    return updated;
   }
 
   async removeTransaction(userId: string, transactionId: string) {
     await this.getOwnedTransaction(userId, transactionId);
     await this.assets.deleteTransaction(transactionId);
+    this.evolutionCache.invalidateUser(userId);
     return { id: transactionId };
   }
 

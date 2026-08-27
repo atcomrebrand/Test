@@ -55,6 +55,12 @@ type ChartMode = "PATRIMONIO" | "COMPARAR";
 interface Props {
   /** A aba aberta na Carteira — o gráfico mostra a classe que a pessoa está olhando. */
   tab: EvolutionSeriesKey;
+  /**
+   * Carteira separada. Ausente = a principal, que é o que todo mundo que já usava esse gráfico
+   * continua recebendo. Com id, o mesmo motor devolve só a renda fixa daquela carteira — os índices
+   * (CDI/IBOV/IFIX) vêm igual, porque "rendeu mais ou menos que o CDI?" é a pergunta dos dois lados.
+   */
+  portfolioId?: string;
 }
 
 function axisTick(date: string, spanDays: number): string {
@@ -208,7 +214,7 @@ function SeriesChip({
   );
 }
 
-export function PortfolioEvolutionChart({ tab }: Props) {
+export function PortfolioEvolutionChart({ tab, portfolioId }: Props) {
   const [range, setRange] = usePortfolioPreference<EvolutionRange>("evolution-range", "12M");
   const [mode, setMode] = usePortfolioPreference<ChartMode>("evolution-mode", "PATRIMONIO");
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
@@ -216,6 +222,7 @@ export function PortfolioEvolutionChart({ tab }: Props) {
 
   const { data, isLoading } = usePortfolioEvolution(
     range === "CUSTOM" ? { range, from: custom.from || undefined, to: custom.to || undefined } : { range },
+    portfolioId,
   );
 
   const atual = data?.series.find((s) => s.key === tab);

@@ -6,6 +6,7 @@ import { CoinGeckoProvider } from "./infrastructure/providers/coingecko.provider
 import { BacenProvider } from "./infrastructure/providers/bacen.provider";
 import { MarketPriceService } from "./infrastructure/market-price.service";
 import { EconomicIndicatorCacheService } from "./infrastructure/economic-indicator-cache.service";
+import { EvolutionCacheService } from "./infrastructure/evolution-cache.service";
 import { FixedIncomeRepository } from "./domain/fixed-income.repository";
 import { FixedIncomePrismaRepository } from "./infrastructure/fixed-income.prisma.repository";
 import { FixedIncomesService } from "./application/fixed-incomes.service";
@@ -91,6 +92,7 @@ import { PortfolioEvolutionController } from "./interface/portfolio-evolution.co
     B3ImportService,
     InvestmentsResetService,
     AssetHistoryService,
+    EvolutionCacheService,
     BenchmarkHistoryService,
     PortfolioEvolutionService,
     BenchmarkRecorderService,
