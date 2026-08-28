@@ -1,4 +1,4 @@
-import { IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { ArrayMaxSize, IsArray, IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 
 export class UpdateSettingsDto {
   @IsOptional() @IsIn(["LIGHT", "DARK", "SYSTEM"]) theme?: "LIGHT" | "DARK" | "SYSTEM";
@@ -9,6 +9,8 @@ export class UpdateSettingsDto {
   @IsOptional() @IsBoolean() alertSpendingJump?: boolean;
   @IsOptional() @IsInt() @Min(1) @Max(100) limitWarningPct?: number;
   @IsOptional() @IsArray() @IsString({ each: true }) dashboardWidgets?: string[];
+  /** Ordem dos módulos na Home, por rota. Lista vazia devolve a ordem padrão. */
+  @IsOptional() @IsArray() @IsString({ each: true }) @ArrayMaxSize(40) homeModules?: string[];
   @IsOptional() @IsBoolean() includeFinancingInTotals?: boolean;
   @IsOptional() @IsBoolean() biometricLockEnabled?: boolean;
 }

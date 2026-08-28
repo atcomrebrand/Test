@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -24,6 +24,8 @@ import { useAuthStore } from "@/store/auth";
 import { QuotesTicker } from "@/app/QuotesTicker";
 import { HomeDashboardSection } from "@/app/HomeDashboardSection";
 import { PrivacyToggle } from "@/components/PrivacyToggle";
+import { useSettings } from "@/features/useSettings";
+import { orderModules } from "@/app/homeModules";
 
 interface AppCard {
   to: string;
@@ -33,8 +35,13 @@ interface AppCard {
   color: string;
 }
 
-/** The home hub's app picker — add an entry here for each new tool as it's built. */
-const APPS: AppCard[] = [
+/**
+ * The home hub's app picker — add an entry here for each new tool as it's built.
+ *
+ * Esta é a ordem PADRÃO. A pessoa pode reordenar em Configurações, e a preferência guarda rotas —
+ * então acrescentar um módulo aqui não embaralha a escolha de ninguém: o novo entra no fim.
+ */
+export const APPS: AppCard[] = [
   {
     to: "/parcelas",
     title: "Parcelas",
@@ -94,6 +101,8 @@ const APPS: AppCard[] = [
 ];
 
 function AppCarousel() {
+  const { data: settings } = useSettings();
+  const apps = useMemo(() => orderModules(APPS, settings?.homeModules), [settings?.homeModules]);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [temOverflow, setTemOverflow] = useState(false);
 
@@ -122,7 +131,7 @@ function AppCarousel() {
         ref={scrollerRef}
         className="flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-smooth pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       >
-        {APPS.map((app, i) => (
+        {apps.map((app, i) => (
           <motion.div
             key={app.to}
             initial={{ opacity: 0, y: 10 }}

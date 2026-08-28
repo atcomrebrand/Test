@@ -118,6 +118,8 @@ export interface Settings {
   alertSpendingJump: boolean;
   limitWarningPct: number;
   dashboardWidgets: string[];
+  /** Ordem dos módulos na Home, por rota. Vazio = ordem padrão. */
+  homeModules: string[];
   includeFinancingInTotals: boolean;
   biometricLockEnabled: boolean;
 }

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Tabs } from "@/components/ui/Tabs";
 import { DangerConfirmModal } from "@/components/DangerConfirmModal";
+import { HomeModulesCard } from "@/components/HomeModulesCard";
 import { ProfileSettingsCard } from "@/components/ProfileSettingsCard";
 import { SecuritySettingsCard } from "@/components/SecuritySettingsCard";
 import { SystemHealthCard } from "@/components/SystemHealthCard";
@@ -59,6 +60,8 @@ export default function GeneralSettings() {
             />
           </CardContent>
         </Card>
+
+        <HomeModulesCard />
 
         <ProfileSettingsCard />
 

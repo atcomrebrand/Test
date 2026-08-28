@@ -423,6 +423,12 @@ model Setting {
   alertSpendingJump        Boolean  @default(true)
   limitWarningPct          Int      @default(80)
   dashboardWidgets         String[] @default(["summary", "evolution", "category", "limit", "recent"])
+  /// Ordem dos cards de módulo na Home, por rota ("/parcelas", "/academia"...).
+  ///
+  /// Vazio = ordem padrão do código. É isso que faz quem já usa o app não ver nada mudar sem ter
+  /// escolhido nada — e módulo novo, que ninguém podia ter ordenado ainda, entrar no fim da lista
+  /// em vez de sumir por não estar na preferência salva.
+  homeModules              String[] @default([])
   /// Whether financing (car/moto/house) installments count toward the dashboard's "geral" totals.
   includeFinancingInTotals Boolean  @default(true)
   /// Requires re-verifying Face ID/Touch ID every time the app is opened/returns to the

@@ -89,6 +89,26 @@ O olho nos cabeçalhos esconde todo valor em dinheiro. A regra que sustenta isso
 - **Não é segurança.** Os números continuam na resposta da API e no DevTools. Serve pra plateia, não
   pra invasor; tranca de verdade é o bloqueio por Face ID (`useAppLockStore`).
 
+## Ordem dos módulos na Home
+
+`Setting.homeModules` guarda a ordem escolhida **por rota** (`"/academia"`, `"/parcelas"`...), e não
+por índice: índice quebra em silêncio no dia em que um módulo é criado ou removido, e o card errado
+troca de lugar sem ninguém entender por quê. A regra pura está em `orderModules` (`app/homeModules.ts`,
+com spec no vitest do web):
+
+- **Lista vazia = ordem padrão do código.** É o default da coluna, então quem já usava o app não vê
+  nada mudar sem ter escolhido nada.
+- **Módulo que existe e não está na preferência vai pro FIM**, mantendo entre eles a ordem do código.
+  Esse é o caso do módulo novo: quem salvou a ordem antes dele existir não podia tê-lo incluído, e
+  sumir seria a pior resposta possível. Conferido em produção-simulada: salvando uma preferência sem
+  a Academia, ela reaparece no fim da lista.
+- **Rota salva que não existe mais some**, sem deixar buraco.
+
+É preferência da **conta**, não do aparelho (diferente do tema e do modo privacidade): quais
+ferramentas você usa mais não muda entre o celular e o computador, e arrastar duas vezes seria o
+mesmo trabalho repetido. Salvar é explícito, num botão — gravar a cada pixel de arrasto seria uma
+requisição por quadro, e salvar ao soltar tiraria a chance de desistir no meio.
+
 ## Deploy (VPS de produção)
 
 - Caminho do projeto: `/opt/parcelas`
