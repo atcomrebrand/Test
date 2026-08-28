@@ -29,6 +29,7 @@ export default function Perfil() {
         defaultRestSeconds: perfil.defaultRestSeconds,
         weightUnit: perfil.weightUnit,
         oneRmFormula: perfil.oneRmFormula,
+        autoAdvanceSets: perfil.autoAdvanceSets,
         soundEnabled: perfil.soundEnabled,
         vibrationEnabled: perfil.vibrationEnabled,
       });
@@ -141,11 +142,21 @@ export default function Perfil() {
             ))}
           </Grupo>
           <p className="-mt-2 text-[11px] text-muted">
+            Com a execução automática ligada, concluir uma série já deixa a próxima em execução — sem
+            passar pelo ▶. Vale como padrão; dentro do treino dá pra mudar exercício por exercício.
+          </p>
+
+          <p className="-mt-2 text-[11px] text-muted">
             As três divergem conforme a faixa de repetições. Recordes já conquistados guardam o valor de quando
             aconteceram — trocar aqui não reescreve o passado.
           </p>
 
           <div className="space-y-2">
+            <Switch
+              label="Execução automática das séries"
+              value={!!form.autoAdvanceSets}
+              onChange={(v) => set({ autoAdvanceSets: v })}
+            />
             <Switch label="Som ao terminar o descanso" value={!!form.soundEnabled} onChange={(v) => set({ soundEnabled: v })} />
             <Switch label="Vibração ao terminar o descanso" value={!!form.vibrationEnabled} onChange={(v) => set({ vibrationEnabled: v })} />
           </div>

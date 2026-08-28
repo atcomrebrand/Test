@@ -499,9 +499,27 @@ aconteceu, e sem o treino não há prova.
 de repetições: preencher com o topo faria a série nascer marcada como fracasso quando a pessoa
 fizesse o que era esperado.
 
-**O "treino de hoje" é o que está há mais tempo parado**, com os nunca feitos primeiro na ordem da
-lista. É o que faz um ABCD rodar sozinho sem calendário fixo — que quebraria na primeira semana em
-que ela treinasse num dia diferente.
+**O "treino de hoje" é o SEGUINTE ao último que foi feito**, na ordem da lista (`pickNextWorkout`):
+fez o A, o próximo é o B. É o que a pessoa espera de um ABCD, e é previsível sem consultar data
+nenhuma. A regra anterior era "o que está há mais tempo parado" — ela acerta enquanto o rodízio é
+perfeito e erra justamente quando não é (repetir uma ficha, pular uma, treinar duas vezes no mesmo
+dia embaralham as datas). Ela continua como plano B: quem nunca treinou nada começa pelo primeiro
+da lista, e ficha arquivada depois de treinada não define "a próxima".
+
+**A execução automática das séries vem LIGADA**, como preferência do perfil (`autoAdvanceSets`). É o
+caminho de menos toques no meio do treino; quem prefere o controle manual desliga uma vez no Perfil
+em vez de desligar em cada exercício de cada ficha — e dentro do treino ainda dá pra mudar exercício
+por exercício.
+
+**Terminar todas as séries de um exercício abre o próximo pendente.** Quem acabou o supino não
+deveria precisar fechar o card e procurar o seguinte enquanto o descanso corre — o descanso é
+justamente o momento em que ninguém quer estar navegando. No último exercício a lista fica onde
+está: avançar ali jogaria a tela pro começo bem na hora de finalizar.
+
+**O calendário mostra a sigla do treino dentro da célula** ("Treino A" → "A", dois no mesmo dia →
+"A+B"), e tocar no dia abre o detalhe com nome, volume e duração. Só o `title` do HTML não servia:
+no celular não existe passar o mouse, e sem a sigla o calendário dizia "treinou" mas nunca "treinou
+o quê".
 
 **O modo treino é escuro sempre**, independente do tema do app, e esconde cabeçalho, barra inferior
 e o botão do assistente. Não é estética: é a única tela usada no meio de uma série, e alto contraste

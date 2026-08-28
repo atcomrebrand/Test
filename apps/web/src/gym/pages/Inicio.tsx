@@ -9,7 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuthStore } from "@/store/auth";
 import { formatDate } from "@/lib/format";
-import { useGymHome, useWorkoutPrefill } from "../api";
+import { useGymHome, useGymProfile, useWorkoutPrefill } from "../api";
 import { useGymSessionStore } from "../store/session";
 import { useGymSync } from "../useGymSync";
 import { formatMinutes, formatVolume, GYM, MUSCLE_LABEL, RECORD_LABEL } from "../theme";
@@ -196,6 +196,7 @@ export default function Inicio() {
 /** O card principal da Home: o treino de hoje e um botão grande (§5). */
 function ProximoTreino({ workout, bloqueado, onStart }: { workout: any; bloqueado: boolean; onStart: () => void }) {
   const start = useGymSessionStore((s) => s.start);
+  const { data: perfil } = useGymProfile();
   const { data: prefill, isFetching } = useWorkoutPrefill(workout.id);
 
   return (
@@ -219,7 +220,7 @@ function ProximoTreino({ workout, bloqueado, onStart }: { workout: any; bloquead
         onClick={() => {
           if (bloqueado) return onStart();
           if (!prefill) return;
-          start(prefill);
+          start(prefill, perfil?.autoAdvanceSets ?? true);
           onStart();
         }}
         disabled={isFetching && !prefill && !bloqueado}

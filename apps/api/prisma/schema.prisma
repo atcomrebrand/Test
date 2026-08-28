@@ -2089,6 +2089,11 @@ model GymProfile {
   oneRmFormula     GymOneRmFormula @default(EPLEY)
   soundEnabled     Boolean         @default(true)
   vibrationEnabled Boolean         @default(true)
+  /// Concluir uma série já deixa a próxima em execução, sem passar pelo ▶.
+  ///
+  /// Ligado por padrão: é o caminho de menos toques no meio do treino, e quem prefere o controle
+  /// manual desliga uma vez aqui em vez de desligar em cada exercício de cada ficha.
+  autoAdvanceSets  Boolean         @default(true)
   /// Onboarding concluído. Sem isso a tela inicial do módulo é o onboarding.
   onboardedAt      DateTime?
 

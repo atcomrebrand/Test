@@ -80,7 +80,7 @@ interface SessionStore {
   /** Os recordes que o servidor detectou nessa última sessão. */
   lastRecords: GymRecord[];
 
-  start: (prefill: GymPrefill, now?: number) => void;
+  start: (prefill: GymPrefill, autoAdvance?: boolean, now?: number) => void;
   discard: () => void;
 
   setCurrentIndex: (index: number) => void;
@@ -148,7 +148,7 @@ export const useGymSessionStore = create<SessionStore>()(
         lastFinished: null,
         lastRecords: [],
 
-        start: (prefill, now = Date.now()) => {
+        start: (prefill, autoAdvance = true, now = Date.now()) => {
           set({
             session: {
               clientId: newClientId(),
@@ -164,7 +164,8 @@ export const useGymSessionStore = create<SessionStore>()(
               alerted: false,
               exercises: prefill.exercises.map((e) => ({
                 lastSets: e.lastSets,
-                autoAdvance: false,
+                // Vem da preferência do perfil, ligada por padrão: é o caminho de menos toques.
+                autoAdvance,
                 exerciseId: e.exerciseId,
                 name: e.name,
                 primaryMuscle: e.primaryMuscle,
@@ -276,8 +277,20 @@ export const useGymSessionStore = create<SessionStore>()(
                 }
               : comSerie;
 
+            // Terminou o exercício? Abre o próximo que ainda tem série pendente.
+            //
+            // Sem isso, quem acabou o supino precisa fechar o card e procurar o seguinte na lista
+            // enquanto o descanso corre — e o descanso é justamente o momento em que a pessoa não
+            // quer estar navegando. Só avança quando de fato SOBROU algo: no último exercício a
+            // lista fica onde está, senão o fim do treino jogaria a tela pro começo.
+            const terminouExercicio = comProxima.exercises[exerciseIndex].sets.every((s) => s.completed);
+            const proximoPendente = terminouExercicio
+              ? comProxima.exercises.findIndex((ex, i) => i > exerciseIndex && ex.sets.some((s) => !s.completed))
+              : -1;
+
             return {
               ...comProxima,
+              currentIndex: proximoPendente === -1 ? comProxima.currentIndex : proximoPendente,
               rest: startRest(exercicio.restSeconds, now),
               restTarget: { exerciseIndex, setNumber },
               alerted: exercicio.restSeconds === 0,

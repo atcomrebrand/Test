@@ -27,6 +27,8 @@ export interface GymProfile {
   oneRmFormula: GymOneRmFormula;
   soundEnabled: boolean;
   vibrationEnabled: boolean;
+  /** Concluir uma série já deixa a próxima em execução. Ligado por padrão. */
+  autoAdvanceSets: boolean;
   onboardedAt: string | null;
 }
 

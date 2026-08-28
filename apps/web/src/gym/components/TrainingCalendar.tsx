@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/Skeleton";
-import { MONTH_NAMES } from "@/lib/format";
+import { formatDate, MONTH_NAMES } from "@/lib/format";
 import { useGymCalendar } from "../api";
 import { formatVolume, GYM } from "../theme";
 
@@ -22,6 +22,8 @@ const SIGLAS = ["D", "S", "T", "Q", "Q", "S", "S"];
 export function TrainingCalendar() {
   const hoje = useMemo(() => new Date(), []);
   const [cursor, setCursor] = useState(() => ({ year: hoje.getFullYear(), month: hoje.getMonth() + 1 }));
+  /** Dia tocado, pra mostrar o detalhe embaixo. Tocar de novo fecha. */
+  const [escolhido, setEscolhido] = useState<string | null>(null);
   const { data, isLoading } = useGymCalendar(cursor.year, cursor.month);
 
   const hojeIso = new Date(Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())).toISOString().slice(0, 10);
@@ -92,30 +94,45 @@ export function TrainingCalendar() {
               const futuro = c.iso > hojeIso;
               const ehHoje = c.iso === hojeIso;
               return (
-                <span
+                <button
                   key={c.iso}
-                  title={
-                    treinou
-                      ? `${dados!.names.join(", ")} · ${formatVolume(dados!.volume)}`
-                      : futuro
-                        ? undefined
-                        : "Sem treino"
-                  }
+                  type="button"
+                  disabled={!treinou}
+                  onClick={() => setEscolhido(escolhido === c.iso ? null : c.iso)}
+                  aria-label={treinou ? `${c.dia}: ${dados!.names.join(", ")}` : `${c.dia}: sem treino`}
+                  aria-pressed={escolhido === c.iso}
                   className={cn(
-                    "flex aspect-square items-center justify-center rounded-lg text-xs font-semibold transition-colors",
+                    "flex aspect-square flex-col items-center justify-center rounded-lg leading-none transition-colors",
                     treinou
                       ? cn("text-neutral-900", GYM.solid)
                       : futuro
                         ? "text-muted/40"
                         : "surface-2 text-muted",
                     ehHoje && !treinou && "ring-2 ring-lime-500",
+                    escolhido === c.iso && "ring-2 ring-lime-700",
                   )}
                 >
-                  {c.dia}
-                </span>
+                  <span className="text-xs font-semibold">{c.dia}</span>
+                  {/* A sigla do treino dentro da célula: no celular não existe passar o mouse, e sem
+                      ela o calendário só dizia "treinou", nunca "treinou O QUÊ". */}
+                  {treinou && <span className="mt-0.5 text-[9px] font-bold opacity-80">{siglaDe(dados!.names)}</span>}
+                </button>
               );
             })}
           </div>
+
+          {escolhido && porDia.get(escolhido) && (
+            <div className={cn("mt-3 rounded-xl border p-3", GYM.border, GYM.soft)}>
+              <p className="text-xs font-bold uppercase tracking-wide text-muted">
+                {formatDate(escolhido, { day: "2-digit", month: "long" })}
+              </p>
+              <p className="mt-0.5 font-bold">{porDia.get(escolhido)!.names.join(" + ")}</p>
+              <p className="text-xs text-muted">
+                {formatVolume(porDia.get(escolhido)!.volume)} · {porDia.get(escolhido)!.minutes} min
+                {porDia.get(escolhido)!.sessions > 1 && ` · ${porDia.get(escolhido)!.sessions} treinos`}
+              </p>
+            </div>
+          )}
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
             <span className="flex items-center gap-3">
@@ -136,4 +153,20 @@ export function TrainingCalendar() {
       )}
     </div>
   );
+}
+
+/**
+ * A sigla que cabe numa célula de calendário.
+ *
+ * "Treino A" vira "A"; um nome livre vira as duas primeiras letras. Dois treinos no mesmo dia viram
+ * "A+B" — abreviar pra "2" diria quantos foram, não quais, que é justamente a pergunta.
+ */
+function siglaDe(names: string[]): string {
+  return names
+    .map((n) => {
+      const m = n.match(/treino\s+(\S+)/i);
+      return (m ? m[1] : n).slice(0, 2).toUpperCase();
+    })
+    .slice(0, 2)
+    .join("+");
 }

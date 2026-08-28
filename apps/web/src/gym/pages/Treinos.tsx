@@ -9,7 +9,7 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/format";
-import { useDeleteWorkout, useDuplicateWorkout, useGymWorkouts, useReorderWorkouts, useWorkoutPrefill } from "../api";
+import { useDeleteWorkout, useDuplicateWorkout, useGymProfile, useGymWorkouts, useReorderWorkouts, useWorkoutPrefill } from "../api";
 import { useGymSessionStore } from "../store/session";
 import { formatMinutes, GYM, MUSCLE_LABEL } from "../theme";
 import { GymWorkout } from "../types";
@@ -132,6 +132,7 @@ function IniciarBotao({ workout }: { workout: GymWorkout }) {
   const navigate = useNavigate();
   const start = useGymSessionStore((s) => s.start);
   const ativa = useGymSessionStore((s) => s.session);
+  const { data: perfil } = useGymProfile();
   const { data: prefill } = useWorkoutPrefill(workout.id);
 
   if (workout.exerciseCount === 0) return null;
@@ -141,7 +142,7 @@ function IniciarBotao({ workout }: { workout: GymWorkout }) {
       onClick={() => {
         if (ativa) return navigate("/academia/executar");
         if (!prefill) return;
-        start(prefill);
+        start(prefill, perfil?.autoAdvanceSets ?? true);
         navigate("/academia/executar");
       }}
       className={cn("rounded-lg px-3 py-2 text-xs font-bold uppercase text-neutral-900", GYM.solid)}
