@@ -1,7 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { ArrowLeft, Dumbbell, Home, ListChecks, TrendingUp, User } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { PrivacyToggle } from "@/components/PrivacyToggle";
 import { GymMobileNav } from "./GymMobileNav";
 import { ActiveSessionBar } from "./components/ActiveSessionBar";
 import { useGymSync } from "./useGymSync";
@@ -53,7 +52,6 @@ export function GymLayout() {
               </div>
               <p className="text-sm font-bold leading-tight">Academia</p>
             </div>
-            <PrivacyToggle />
           </div>
 
           <nav className="hidden items-center gap-1 md:flex">

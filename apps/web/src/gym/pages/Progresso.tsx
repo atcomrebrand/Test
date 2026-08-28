@@ -6,7 +6,6 @@ import { cn } from "@/lib/cn";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/format";
-import { usePrivacyStore } from "@/store/privacy";
 import { useGymProgress, useGymRecords } from "../api";
 import { formatMinutes, formatVolume, GYM, RECORD_LABEL } from "../theme";
 import { ProgressRange } from "../types";
@@ -70,7 +69,6 @@ export default function Progresso() {
 function Performance({ range, setRange }: { range: ProgressRange; setRange: (r: ProgressRange) => void }) {
   const { data, isLoading } = useGymProgress(range);
   const { data: recordes } = useGymRecords();
-  const hidden = usePrivacyStore((s) => s.hidden);
 
   if (isLoading || !data) return <Skeleton className="h-96 rounded-3xl" />;
 
@@ -96,7 +94,7 @@ function Performance({ range, setRange }: { range: ProgressRange; setRange: (r: 
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <Stat label="Treinos" value={String(t.sessions)} />
-        <Stat label="Volume total" value={formatVolume(t.volume, hidden)} />
+        <Stat label="Volume total" value={formatVolume(t.volume)} />
         <Stat label="Tempo treinado" value={formatMinutes(t.minutes * 60)} />
         <Stat label="Média por treino" value={t.averageMinutes === null ? "—" : `${t.averageMinutes} min`} />
         <Stat label="Descanso médio" value={t.averageRestSeconds === null ? "—" : `${t.averageRestSeconds}s`} />
@@ -117,7 +115,7 @@ function Performance({ range, setRange }: { range: ProgressRange; setRange: (r: 
               <Tooltip
                 contentStyle={{ borderRadius: 12, border: "1px solid rgb(var(--border))", background: "rgb(var(--surface))", fontSize: 13 }}
                 labelFormatter={(v: string) => formatDate(v, { day: "2-digit", month: "short" })}
-                formatter={(v: number) => [formatVolume(v, hidden), "Volume"]}
+                formatter={(v: number) => [formatVolume(v), "Volume"]}
               />
               <Bar dataKey="value" fill={GYM.hex} radius={[6, 6, 0, 0]} />
             </BarChart>

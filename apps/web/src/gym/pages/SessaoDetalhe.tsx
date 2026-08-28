@@ -4,14 +4,12 @@ import { cn } from "@/lib/cn";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/format";
-import { usePrivacyStore } from "@/store/privacy";
 import { useGymSession } from "../api";
 import { formatDuration, formatMinutes, formatVolume, GYM, MUSCLE_LABEL, RECORD_LABEL } from "../theme";
 
 export default function SessaoDetalhe() {
   const { id } = useParams<{ id: string }>();
   const { data: sessao, isLoading } = useGymSession(id);
-  const hidden = usePrivacyStore((s) => s.hidden);
 
   if (isLoading || !sessao) return <Skeleton className="h-96 rounded-3xl" />;
 
@@ -31,7 +29,7 @@ export default function SessaoDetalhe() {
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Duração" value={formatMinutes(m.durationSeconds)} />
-        <Stat label="Volume" value={formatVolume(m.totalVolume, hidden)} />
+        <Stat label="Volume" value={formatVolume(m.totalVolume)} />
         <Stat label="Séries" value={`${m.completedSets}`} />
         <Stat label="Descanso médio" value={m.averageRestSeconds === null ? "—" : `${m.averageRestSeconds}s`} />
       </div>

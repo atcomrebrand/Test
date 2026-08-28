@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { MONTH_NAMES } from "@/lib/format";
-import { usePrivacyStore } from "@/store/privacy";
 import { useGymCalendar } from "../api";
 import { formatVolume, GYM } from "../theme";
 
@@ -24,7 +23,6 @@ export function TrainingCalendar() {
   const hoje = useMemo(() => new Date(), []);
   const [cursor, setCursor] = useState(() => ({ year: hoje.getFullYear(), month: hoje.getMonth() + 1 }));
   const { data, isLoading } = useGymCalendar(cursor.year, cursor.month);
-  const hidden = usePrivacyStore((s) => s.hidden);
 
   const hojeIso = new Date(Date.UTC(hoje.getFullYear(), hoje.getMonth(), hoje.getDate())).toISOString().slice(0, 10);
   const porDia = useMemo(() => new Map((data?.days ?? []).map((d) => [d.date, d])), [data]);
@@ -98,7 +96,7 @@ export function TrainingCalendar() {
                   key={c.iso}
                   title={
                     treinou
-                      ? `${dados!.names.join(", ")} · ${formatVolume(dados!.volume, hidden)}`
+                      ? `${dados!.names.join(", ")} · ${formatVolume(dados!.volume)}`
                       : futuro
                         ? undefined
                         : "Sem treino"

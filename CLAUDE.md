@@ -455,7 +455,11 @@ com o celular na mão, de pé, sem sinal.
 - **O descanso é um modal, não um painel embutido.** É o único momento do treino em que a pessoa não
   está fazendo mais nada, e ocupar a tela toda com o tempo é o que faz o número ser lido de longe,
   com o celular apoiado no banco.
-- **Volume é SEMPRE em quilos, nunca em toneladas.** Converter passava de "2.080 kg" pra "2,1 t" já
+- **O módulo não tem o olho de privacidade, e o volume não é mascarado.** O que aquele modo esconde é
+dinheiro, e na Academia não há nenhum. Mascarar volume criaria uma armadilha: privacidade ligada em
+outra tela deixaria o treino cheio de `•••••` sem nenhum botão à mão pra desligar.
+
+**Volume é SEMPRE em quilos, nunca em toneladas.** Converter passava de "2.080 kg" pra "2,1 t" já
   na terceira série: o número perde a precisão exatamente na faixa em que ele vive e passa a parecer
   errado estando certo. Exercício de peso corporal tem volume 0 por definição (carga × repetições,
   com carga zero) — é correto, mesmo parecendo quebrado.

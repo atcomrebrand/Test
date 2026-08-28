@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { CalendarDays, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
@@ -7,7 +7,6 @@ import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/format";
-import { usePrivacyStore } from "@/store/privacy";
 import { useDeleteSession, useGymSessions } from "../api";
 import { formatMinutes, formatVolume, GYM } from "../theme";
 import { GymSessionSummary } from "../types";
@@ -25,11 +24,25 @@ const PERIODOS: { value: Periodo; label: string; dias: number | null }[] = [
 export default function Historico() {
   const [periodo, setPeriodo] = useState<Periodo>("MES");
   const [excluindo, setExcluindo] = useState<GymSessionSummary | null>(null);
-  const hidden = usePrivacyStore((s) => s.hidden);
   const excluir = useDeleteSession();
 
   const dias = PERIODOS.find((p) => p.value === periodo)!.dias;
-  const from = dias === null ? undefined : new Date(Date.now() - dias * 86400000).toISOString();
+  /**
+   * A data de corte precisa ser ESTÁVEL entre renders.
+   *
+   * Ela entra na chave do react-query, e calcular `Date.now()` direto no corpo do componente dava
+   * uma string nova a cada render (os milissegundos mudam). Chave nova = busca nova = render novo =
+   * chave nova: a tela ficava presa no "carregando" pra sempre, girando requisição sem parar.
+   *
+   * Cortando na meia-noite, a chave só muda quando o período escolhido muda — ou quando vira o dia.
+   */
+  const from = useMemo(() => {
+    if (dias === null) return undefined;
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - (dias - 1));
+    return d.toISOString();
+  }, [dias]);
   const { data: sessoes, isLoading } = useGymSessions(from ? { from } : undefined);
 
   const totais = (sessoes ?? []).reduce(
@@ -72,7 +85,7 @@ export default function Historico() {
         <>
           <div className="grid grid-cols-3 gap-3">
             <Resumo label="Treinos" value={String(sessoes?.length ?? 0)} />
-            <Resumo label="Volume" value={formatVolume(totais.volume, hidden)} />
+            <Resumo label="Volume" value={formatVolume(totais.volume)} />
             <Resumo label="Tempo" value={formatMinutes(totais.minutos * 60)} />
           </div>
 
@@ -86,7 +99,7 @@ export default function Historico() {
                       {formatDate(s.startedAt)} · {formatMinutes(s.durationSeconds)} · {s.exerciseCount} exercícios · {s.setCount} séries
                     </p>
                   </Link>
-                  <span className="shrink-0 text-sm font-bold tabular-nums">{formatVolume(s.totalVolume, hidden)}</span>
+                  <span className="shrink-0 text-sm font-bold tabular-nums">{formatVolume(s.totalVolume)}</span>
                   <button
                     onClick={() => setExcluindo(s)}
                     className="shrink-0 rounded-lg p-2 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"

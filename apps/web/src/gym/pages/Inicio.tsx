@@ -8,7 +8,6 @@ import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useAuthStore } from "@/store/auth";
-import { usePrivacyStore } from "@/store/privacy";
 import { formatDate } from "@/lib/format";
 import { useGymHome, useWorkoutPrefill } from "../api";
 import { useGymSessionStore } from "../store/session";
@@ -30,7 +29,6 @@ const RANGES: { value: ProgressRange; label: string }[] = [
 export default function Inicio() {
   const navigate = useNavigate();
   const user = useAuthStore((s) => s.user);
-  const hidden = usePrivacyStore((s) => s.hidden);
   const [range, setRange] = useState<ProgressRange>("MONTH");
   const { data, isLoading } = useGymHome(range);
   const sessaoAtiva = useGymSessionStore((s) => s.session);
@@ -88,7 +86,7 @@ export default function Inicio() {
                 />
               </div>
               <p className="mt-2 text-xs text-muted">
-                {formatMinutes(data.week.minutes * 60)} treinados · {formatVolume(data.week.volume, hidden)} de volume
+                {formatMinutes(data.week.minutes * 60)} treinados · {formatVolume(data.week.volume)} de volume
               </p>
             </div>
           </CardContent>
@@ -129,7 +127,7 @@ export default function Inicio() {
                   <Tooltip
                     contentStyle={{ borderRadius: 12, border: "1px solid rgb(var(--border))", background: "rgb(var(--surface))", fontSize: 12 }}
                     labelFormatter={(v: string) => formatDate(v, { day: "2-digit", month: "short" })}
-                    formatter={(v: number) => [formatVolume(v, hidden), "Volume"]}
+                    formatter={(v: number) => [formatVolume(v), "Volume"]}
                   />
                   <Area type="monotone" dataKey="value" stroke={GYM.hex} strokeWidth={2} fill="url(#gymVolume)" />
                 </AreaChart>
@@ -153,7 +151,7 @@ export default function Inicio() {
               <p className="truncate text-lg font-bold">{data.lastSession.name}</p>
               <p className="text-xs text-muted">
                 {formatDate(data.lastSession.startedAt)} · {formatMinutes(data.lastSession.durationSeconds)} ·{" "}
-                {formatVolume(data.lastSession.totalVolume, hidden)} · {data.lastSession.exerciseCount} exercícios
+                {formatVolume(data.lastSession.totalVolume)} · {data.lastSession.exerciseCount} exercícios
               </p>
             </div>
             <Link to={`/academia/historico/${data.lastSession.id}`}>

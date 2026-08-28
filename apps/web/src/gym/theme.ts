@@ -99,12 +99,14 @@ export function formatMinutes(seconds: number | null | undefined): string {
 }
 
 /**
- * Volume em quilos. Não passa pelo `formatCurrency` — não é dinheiro —, mas **respeita o modo
- * privacidade** pelo mesmo motivo dele existir: quanto alguém levanta é informação pessoal, e a
- * tela ficaria estranha com tudo mascarado menos os números grandes de volume.
+ * Volume em quilos.
+ *
+ * **Não passa pelo modo privacidade**, e o olho nem aparece no cabeçalho da Academia: o que aquele
+ * modo esconde é dinheiro, e aqui não há nenhum. Mascarar volume só criaria uma armadilha —
+ * privacidade ligada em outra tela deixaria o treino cheio de `•••••` sem nenhum botão à mão pra
+ * desligar.
  */
-export function formatVolume(kg: number | null | undefined, hidden = false): string {
-  if (hidden) return "•••••";
+export function formatVolume(kg: number | null | undefined): string {
   if (kg === null || kg === undefined) return "—";
   // SEMPRE em quilos, nunca em toneladas. Volume de treino é lido em kg em qualquer academia, e
   // converter passava de "2.080 kg" pra "2,1 t" logo na terceira série — o número perde a precisão
