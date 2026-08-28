@@ -452,7 +452,14 @@ com o celular na mão, de pé, sem sinal.
   Cada série é um cartão com ▶ (inicia) → ⏹ (conclui e dispara o descanso) → ✓ (feita); quem não
   quer os dois toques liga **"execução automática das séries"**, e aí a seguinte já entra em
   execução sozinha ao sair do descanso.
-- **O descanso é um modal, não um painel embutido.** É o único momento do treino em que a pessoa não
+- **O cronômetro diz o que vem depois dele** (`nextUp`): mais uma série do mesmo exercício, ou o
+próximo exercício — e este último ganha destaque próprio, porque repetir série é rotina e trocar de
+aparelho é uma decisão. O descanso é o único momento em que a pessoa está parada esperando, e é aí
+que ela quer saber pra onde vai; sem isso, o aviso toca e ela precisa fechar o painel pra descobrir.
+A busca olha **pra frente primeiro** e só depois volta pro que ficou pra trás: quem pulou um
+exercício no começo não pode receber "acabou" com série pendente na lista.
+
+**O descanso é um modal, não um painel embutido.** É o único momento do treino em que a pessoa não
   está fazendo mais nada, e ocupar a tela toda com o tempo é o que faz o número ser lido de longe,
   com o celular apoiado no banco.
 - **O módulo não tem o olho de privacidade, e o volume não é mascarado.** O que aquele modo esconde é

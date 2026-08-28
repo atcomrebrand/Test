@@ -1,8 +1,9 @@
 import { useEffect } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
-import { AlarmClock, Check, Minus, Pause, Play, Plus, SkipForward, X } from "lucide-react";
+import { AlarmClock, ArrowRight, Check, Dumbbell, Minus, Pause, Play, Plus, SkipForward, X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { nextUp } from "../domain/next-up";
 import { formatClock, progress, remainingMs } from "../domain/rest-timer";
 import { useGymSessionStore } from "../store/session";
 import { useElapsed } from "../useElapsed";
@@ -63,6 +64,8 @@ export function RestTimerModal({ soundEnabled, vibrationEnabled }: { soundEnable
     if (vibrationEnabled && typeof navigator !== "undefined" && "vibrate" in navigator) navigator.vibrate([180, 90, 180]);
   }, [acabou, session, soundEnabled, vibrationEnabled, markAlerted]);
 
+  // Do índice da série que disparou o descanso sai o que vem depois dele.
+  const aSeguir = session ? nextUp(session.exercises, session.restTarget?.exerciseIndex ?? session.currentIndex) : null;
   const restante = rest ? remainingMs(rest, agora) : 0;
   const pct = rest ? progress(rest, agora) : 0;
   const pausado = rest?.phase === "PAUSED";
@@ -115,6 +118,35 @@ export function RestTimerModal({ soundEnabled, vibrationEnabled }: { soundEnable
             <p className={cn("mt-4 font-mono text-7xl font-black leading-none tabular-nums", acabou && "text-emerald-400")} aria-live="polite">
               {formatClock(restante)}
             </p>
+
+            {/* O que vem depois do descanso.
+                É a informação que a pessoa está esperando enquanto olha o cronômetro — e na virada
+                de exercício ela muda de "mais uma igual" pra "levanta e vai pra outra máquina".
+                O exercício NOVO ganha destaque próprio: repetir série é rotina, trocar de aparelho
+                é uma decisão. */}
+            {aSeguir && aSeguir.kind !== "END" && (
+              <div
+                className={cn(
+                  "mt-4 rounded-2xl px-3 py-2.5 text-left",
+                  aSeguir.kind === "EXERCISE" ? "bg-lime-500/15 ring-1 ring-lime-500/40" : "bg-neutral-700/60",
+                )}
+              >
+                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-neutral-400">
+                  {aSeguir.kind === "EXERCISE" ? <Dumbbell className="h-3 w-3" /> : <ArrowRight className="h-3 w-3" />}
+                  {aSeguir.kind === "EXERCISE" ? "Próximo exercício" : "A seguir"}
+                </p>
+                <p className="mt-0.5 truncate text-base font-bold leading-tight">{aSeguir.exerciseName}</p>
+                <p className="text-xs text-neutral-400">
+                  Série {aSeguir.setNumber} de {aSeguir.totalSets}
+                </p>
+              </div>
+            )}
+
+            {aSeguir?.kind === "END" && (
+              <p className="mt-4 rounded-2xl bg-neutral-700/60 px-3 py-2.5 text-sm font-semibold">
+                Última série do treino — é só finalizar.
+              </p>
+            )}
 
             <div className="mx-auto mt-4 h-1.5 w-full overflow-hidden rounded-full bg-neutral-700">
               <motion.div
