@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/Input";
 import { Modal } from "@/components/ui/Modal";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { useCreateWorkout, useGymExercises, useGymProfile, useGymWorkout, useUpdateWorkout } from "../api";
+import { NumberField } from "../components/NumberField";
 import { REST_PRESETS } from "../domain/rest-timer";
 import { EQUIPMENT_LABEL, GYM, MUSCLE_LABEL } from "../theme";
 import { GymExercise, GymMuscle } from "../types";
@@ -185,12 +186,16 @@ function LinhaExercicio({ linha, onChange, onRemove }: { linha: Linha; onChange:
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Campo label="Séries" value={linha.sets} onChange={(v) => onChange({ sets: Math.max(1, v) })} />
-          <Campo label="Reps mín." value={linha.targetRepsMin} onChange={(v) => onChange({ targetRepsMin: Math.max(1, v) })} />
-          <Campo label="Reps máx." value={linha.targetRepsMax} onChange={(v) => onChange({ targetRepsMax: Math.max(1, v) })} />
+          {/* O mínimo é aplicado ao SAIR do campo, não a cada tecla: forçar 1 durante a digitação
+              é o que impedia apagar pra escrever outro número. */}
+          <Campo label="Séries" value={linha.sets} min={1} max={20} onChange={(v) => onChange({ sets: v })} />
+          <Campo label="Reps mín." value={linha.targetRepsMin} min={1} max={200} onChange={(v) => onChange({ targetRepsMin: v })} />
+          <Campo label="Reps máx." value={linha.targetRepsMax} min={1} max={200} onChange={(v) => onChange({ targetRepsMax: v })} />
           <Campo
             label="Carga (kg)"
             value={linha.targetWeight ?? 0}
+            min={0}
+            max={1000}
             decimal
             onChange={(v) => onChange({ targetWeight: v > 0 ? v : null })}
           />
@@ -225,14 +230,13 @@ function LinhaExercicio({ linha, onChange, onRemove }: { linha: Linha; onChange:
               Outro
             </button>
             {custom && (
-              <input
-                type="number"
+              <NumberField
+                value={linha.restSeconds}
+                onChange={(restSeconds) => onChange({ restSeconds })}
                 min={0}
                 max={900}
-                value={linha.restSeconds}
-                onChange={(e) => onChange({ restSeconds: Math.max(0, Math.min(900, Number(e.target.value) || 0)) })}
-                className="w-20 rounded-lg border border-[rgb(var(--border))] surface px-2 py-1.5 text-xs"
                 aria-label="Descanso personalizado em segundos"
+                className="w-20 rounded-lg border border-[rgb(var(--border))] surface px-2 py-1.5 text-xs"
               />
             )}
           </div>
@@ -249,16 +253,32 @@ function LinhaExercicio({ linha, onChange, onRemove }: { linha: Linha; onChange:
   );
 }
 
-function Campo({ label, value, onChange, decimal }: { label: string; value: number; onChange: (v: number) => void; decimal?: boolean }) {
+function Campo({
+  label,
+  value,
+  onChange,
+  decimal,
+  min,
+  max,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  decimal?: boolean;
+  min?: number;
+  max?: number;
+}) {
   return (
     <label className="block">
       <span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-muted">{label}</span>
-      <input
-        type="text"
-        inputMode={decimal ? "decimal" : "numeric"}
-        value={String(value).replace(".", ",")}
-        onChange={(e) => onChange(Number(e.target.value.replace(",", ".")) || 0)}
-        className="w-full rounded-lg border border-[rgb(var(--border))] surface px-3 py-2 text-sm font-semibold tabular-nums"
+      <NumberField
+        value={value}
+        onChange={onChange}
+        min={min}
+        max={max}
+        decimal={decimal}
+        aria-label={label}
+        className="w-full rounded-lg border border-[rgb(var(--border))] surface px-3 py-2 text-sm font-semibold"
       />
     </label>
   );

@@ -6,6 +6,7 @@ import { cn } from "@/lib/cn";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useGymProfile } from "../api";
 import { RestTimerModal } from "../components/RestTimerModal";
+import { NumberField } from "../components/NumberField";
 import { ActiveExercise, exerciseVolume, sessionProgress, useGymSessionStore } from "../store/session";
 import { formatDuration, formatVolume, GYM, MUSCLE_LABEL } from "../theme";
 import { useElapsed } from "../useElapsed";
@@ -365,24 +366,25 @@ function CartaoSerie({ exerciseIndex, serie }: { exerciseIndex: number; serie: {
       <div className="px-2 py-2 text-center">
         <p className="text-sm font-bold">Série {serie.setNumber}</p>
         <label className="mt-1 flex items-baseline justify-center gap-1">
-          <input
-            type="text"
-            inputMode="numeric"
-            value={String(serie.reps)}
-            onChange={(e) => updateSet(exerciseIndex, serie.setNumber, { reps: Number(e.target.value.replace(/\D/g, "")) || 0 })}
+          <NumberField
+            value={serie.reps}
+            onChange={(reps) => updateSet(exerciseIndex, serie.setNumber, { reps })}
+            min={0}
+            max={500}
             aria-label={`Repetições da série ${serie.setNumber}`}
-            className="w-10 bg-transparent text-right text-base font-semibold tabular-nums outline-none"
+            className="w-10 text-right text-base font-semibold"
           />
           <span className="text-xs text-neutral-400">Rep.</span>
         </label>
         <label className="flex items-baseline justify-center gap-1">
-          <input
-            type="text"
-            inputMode="decimal"
-            value={String(serie.weight).replace(".", ",")}
-            onChange={(e) => updateSet(exerciseIndex, serie.setNumber, { weight: Number(e.target.value.replace(",", ".")) || 0 })}
+          <NumberField
+            value={serie.weight}
+            onChange={(weight) => updateSet(exerciseIndex, serie.setNumber, { weight })}
+            min={0}
+            max={2000}
+            decimal
             aria-label={`Carga da série ${serie.setNumber}`}
-            className="w-12 bg-transparent text-right text-base font-semibold tabular-nums outline-none"
+            className="w-12 text-right text-base font-semibold"
           />
           <span className="text-xs text-neutral-400">kg</span>
         </label>
