@@ -42,7 +42,7 @@ export default function Perfil() {
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <div className="flex items-center gap-3">
-        <div className={cn("flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-black text-neutral-900", GYM.solid)}>
+        <div className={cn("flex h-14 w-14 items-center justify-center rounded-2xl text-xl font-black text-white", GYM.solid)}>
           {user?.name?.[0]?.toUpperCase() ?? "?"}
         </div>
         <div className="min-w-0">
@@ -185,7 +185,7 @@ function Opcao({ ativo, onClick, children }: { ativo: boolean; onClick: () => vo
       aria-pressed={ativo}
       className={cn(
         "rounded-xl px-3 py-2 text-sm font-semibold transition-colors",
-        ativo ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+        ativo ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
       )}
     >
       {children}
@@ -202,7 +202,7 @@ function Switch({ label, value, onChange }: { label: string; value: boolean; onC
       className="flex w-full items-center justify-between gap-3 rounded-xl surface-2 px-3 py-2.5 text-left text-sm font-medium"
     >
       {label}
-      <span className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", value ? "bg-lime-500" : "bg-neutral-400/40")}>
+      <span className={cn("relative h-6 w-11 shrink-0 rounded-full transition-colors", value ? "bg-sky-500" : "bg-neutral-400/40")}>
         <span className={cn("absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all", value ? "left-[1.375rem]" : "left-0.5")} />
       </span>
     </button>

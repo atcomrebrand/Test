@@ -82,7 +82,7 @@ const APPS: AppCard[] = [
     title: "Academia",
     description: "Fichas de treino, execução com cronômetro, evolução e recordes.",
     icon: Dumbbell,
-    color: "bg-lime-500",
+    color: "bg-sky-500",
   },
   {
     to: "/crm",

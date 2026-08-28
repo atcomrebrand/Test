@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
-  GymExercise, GymExerciseDetail, GymHome, GymMeasurement, GymPhoto, GymPrefill, GymProfile,
+  GymCalendar, GymExercise, GymExerciseDetail, GymHome, GymMeasurement, GymPhoto, GymPrefill, GymProfile,
   GymProgress, GymRecord, GymSessionDetail, GymSessionSummary, GymTarget, GymWorkout, ProgressRange,
 } from "./types";
 
@@ -11,6 +11,15 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
 
 export function useGymHome(range: ProgressRange = "MONTH") {
   return useQuery({ queryKey: ["gym", "home", range], queryFn: () => api.get<GymHome>("/gym/home", { params: { range } }) });
+}
+
+/** Dias com treino de um mês. Trocar de mês é uma consulta pequena e cacheada. */
+export function useGymCalendar(year: number, month: number) {
+  return useQuery({
+    queryKey: ["gym", "calendar", year, month],
+    queryFn: () => api.get<GymCalendar>("/gym/calendar", { params: { year, month } }),
+    staleTime: 60_000,
+  });
 }
 
 export function useGymProfile() {

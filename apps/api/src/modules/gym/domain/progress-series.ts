@@ -23,12 +23,46 @@ export interface BucketPoint {
   minutes: number;
 }
 
-/** Segunda-feira como início da semana — é a convenção de "semana de treino" no Brasil. */
+/**
+ * DOMINGO como início da semana.
+ *
+ * É como o calendário brasileiro é lido (Dom→Sáb) e como a tirinha de "treinos feitos na semana" é
+ * desenhada. A contagem TEM que usar o mesmo corte do desenho: com a semana começando na segunda e
+ * a tirinha começando no domingo, um treino de domingo apareceria marcado numa semana e somaria na
+ * outra — a tela contradiria a si mesma um dia por semana.
+ */
 export function startOfWeek(date: Date): Date {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
-  const dow = (d.getUTCDay() + 6) % 7;
-  d.setUTCDate(d.getUTCDate() - dow);
+  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
   return d;
+}
+
+/**
+ * Os sete dias da semana da referência, dizendo quais tiveram treino.
+ *
+ * `date` é ISO yyyy-mm-dd em UTC, que é como as sessões são comparadas no resto do módulo.
+ */
+export function weekDays(
+  sessions: SessionPoint[],
+  reference: Date,
+): { date: string; weekday: number; sessions: number; volume: number }[] {
+  const inicio = startOfWeek(reference);
+  const porDia = new Map<string, { sessions: number; volume: number }>();
+  for (const s of sessions) {
+    const key = s.startedAt.toISOString().slice(0, 10);
+    const atual = porDia.get(key) ?? { sessions: 0, volume: 0 };
+    atual.sessions += 1;
+    atual.volume = round2(atual.volume + s.totalVolume);
+    porDia.set(key, atual);
+  }
+
+  return Array.from({ length: 7 }, (_, i) => {
+    const dia = new Date(inicio);
+    dia.setUTCDate(dia.getUTCDate() + i);
+    const key = dia.toISOString().slice(0, 10);
+    const dados = porDia.get(key);
+    return { date: key, weekday: i, sessions: dados?.sessions ?? 0, volume: dados?.volume ?? 0 };
+  });
 }
 
 function bucketKey(date: Date, bucket: Bucket): string {

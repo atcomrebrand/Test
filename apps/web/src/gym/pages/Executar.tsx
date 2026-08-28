@@ -70,7 +70,7 @@ export default function Executar() {
 
           <button
             onClick={() => setConfirmando(true)}
-            className={cn("flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-neutral-900", GYM.solid)}
+            className={cn("flex h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-bold text-white", GYM.solid)}
           >
             <Flag className="h-4 w-4" />
             Fim
@@ -80,7 +80,7 @@ export default function Executar() {
         <div className="mt-3 flex items-center gap-3">
           <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-neutral-800">
             <div
-              className="h-full rounded-full bg-lime-500 transition-all"
+              className="h-full rounded-full bg-sky-500 transition-all"
               style={{ width: `${progresso.totalSets > 0 ? (progresso.completedSets / progresso.totalSets) * 100 : 0}%` }}
             />
           </div>
@@ -168,7 +168,7 @@ function CardExercicio({
   const feitas = exercicio.sets.filter((s) => s.completed).length;
 
   return (
-    <div className={cn("overflow-hidden rounded-2xl border", concluido ? "border-lime-500/40" : "border-neutral-800")}>
+    <div className={cn("overflow-hidden rounded-2xl border", concluido ? "border-emerald-500/40" : "border-neutral-800")}>
       <div className="flex items-start gap-3 bg-neutral-800/60 p-3">
         <Thumb exercicio={exercicio} />
         <div className="min-w-0 flex-1">
@@ -191,7 +191,7 @@ function CardExercicio({
           onClick={onToggle}
           className={cn(
             "flex w-full items-center justify-center gap-2 py-3.5 text-base font-semibold transition-colors",
-            concluido ? "bg-lime-500/15 text-lime-400" : "bg-sky-500 text-white hover:bg-sky-400",
+            concluido ? "bg-emerald-500/15 text-emerald-400" : "bg-sky-500 text-white hover:bg-sky-400",
           )}
         >
           {concluido ? (
@@ -265,7 +265,7 @@ function CardExercicio({
                 <span
                   className={cn(
                     "relative h-8 w-14 shrink-0 rounded-full border-2 border-neutral-500 transition-colors",
-                    exercicio.autoAdvance ? "bg-lime-500" : "bg-neutral-700",
+                    exercicio.autoAdvance ? "bg-sky-500" : "bg-neutral-700",
                   )}
                 >
                   <span
@@ -359,7 +359,7 @@ function CartaoSerie({ exerciseIndex, serie }: { exerciseIndex: number; serie: {
     <div
       className={cn(
         "w-32 shrink-0 overflow-hidden rounded-xl border",
-        serie.completed ? "border-lime-500/50 bg-lime-500/10" : executando ? "border-sky-500/60 bg-neutral-900" : "border-neutral-700 bg-neutral-900",
+        serie.completed ? "border-emerald-500/50 bg-emerald-500/10" : executando ? "border-sky-500/60 bg-neutral-900" : "border-neutral-700 bg-neutral-900",
       )}
     >
       <div className="px-2 py-2 text-center">
@@ -404,7 +404,7 @@ function CartaoSerie({ exerciseIndex, serie }: { exerciseIndex: number; serie: {
         aria-pressed={serie.completed}
         className={cn(
           "flex h-12 w-full items-center justify-center transition-colors",
-          serie.completed ? "bg-lime-500 text-neutral-900" : "bg-sky-500 text-white hover:bg-sky-400",
+          serie.completed ? "bg-emerald-500 text-white" : "bg-sky-500 text-white hover:bg-sky-400",
         )}
       >
         {serie.completed ? (

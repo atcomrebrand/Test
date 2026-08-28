@@ -175,10 +175,17 @@ export interface GymHome {
   onboarded: boolean;
   nextWorkout: GymWorkout | null;
   week: { done: number; target: number; minutes: number; volume: number };
+  weekDays: { date: string; weekday: number; sessions: number; volume: number }[];
   volumeSeries: { date: string; value: number; sessions: number }[];
   lastSession: { id: string; name: string; startedAt: string; durationSeconds: number | null; totalVolume: number; exerciseCount: number } | null;
   recentRecords: GymRecord[];
   workoutCount: number;
+}
+
+export interface GymCalendar {
+  year: number;
+  month: number;
+  days: { date: string; sessions: number; volume: number; minutes: number; names: string[] }[];
 }
 
 export interface GymProgress {

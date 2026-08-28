@@ -11,7 +11,7 @@ App pessoal de finanças (nome do repo/pnpm workspace ainda é `credit-installme
 - **Financiamentos** (`financings`) — módulo próprio (saiu de dentro do Parcelas): financiamento de veículo/imóvel, parcelas, cotação de quitação, valor do bem e patrimônio. Frontend em `apps/web/src/financings/`, rotas em `/financiamentos`; `/financing` ficou como redirect pra não quebrar link salvo. Os hooks continuam em `features/useFinancings.ts` de propósito — a Home e o Dashboard do Parcelas também consomem financiamento, então não é código exclusivo do módulo.
 - **Academia** (`gym`) — diário de treino: catálogo de exercícios, fichas, execução com cronômetro
   de descanso, histórico, progresso, medidas, fotos, recordes e metas. Frontend em
-  `apps/web/src/gym/`, rotas `/academia/*`, cor lima.
+  `apps/web/src/gym/`, rotas `/academia/*`, cor azul.
 - **Cotações** (`quotes`) — ticker rolante da Home: dólar + os ativos em carteira. Não busca preço
   próprio — o dólar sai do cache do Horas (`TrackingFxService`) e os ativos do `MarketPriceService`,
   que serve o guardado na hora e atualiza por fora. Ativo zerado ou sem cotação fica de fora (com a
@@ -482,6 +482,22 @@ que ela treinasse num dia diferente.
 **O modo treino é escuro sempre**, independente do tema do app, e esconde cabeçalho, barra inferior
 e o botão do assistente. Não é estética: é a única tela usada no meio de uma série, e alto contraste
 com alvos de toque grandes ali é funcional.
+
+**A semana começa no DOMINGO** (`startOfWeek`), como o calendário brasileiro e a tirinha Dom→Sáb da
+Home. O corte do desenho e o da contagem têm que ser o mesmo: com a semana começando na segunda e a
+tirinha no domingo, um treino de domingo apareceria marcado numa semana e somado na outra — a tela
+se contradiria um dia por semana.
+
+**O calendário desenha o mês inteiro, não só os treinos.** A pergunta que ele responde é sobre
+frequência, e nela o dia vazio vale tanto quanto o cheio: marcar só os treinos vira uma constelação
+solta e esconde justamente os buracos. Dia futuro fica esmaecido em vez de vazio — ainda não
+aconteceu, então não é falta.
+
+**Azul é ação, verde é feito.** A cor do módulo é o azul (botão, destaque, dia treinado); o verde
+fica reservado pro que está concluído — série marcada, exercício terminado, fim do descanso. Com
+tudo da mesma cor, "vou fazer" e "já fiz" ficam indistinguíveis na única tela em que isso importa.
+Sobre o azul cheio o texto é **branco e só em peça grande**: o par dá ~3:1, que passa pra texto
+grande e reprova pra texto normal — daí o `solidSm`, um tom abaixo, pro que é pequeno.
 
 **A consistência ignora a semana corrente.** Na segunda-feira ela estaria sempre em 0/5 e o
 indicador despencaria toda semana por um motivo que não é o desempenho de ninguém.

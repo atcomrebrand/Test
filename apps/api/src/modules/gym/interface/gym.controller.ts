@@ -175,6 +175,15 @@ export class GymController {
 
   // --- Progresso ---
 
+  /** Dias com treino de um mês. Sem parâmetro, o mês corrente. */
+  @Get("calendar")
+  calendar(@CurrentUser() user: AuthUser, @Query("year") year?: string, @Query("month") month?: string) {
+    const agora = new Date();
+    const ano = Number(year) || agora.getFullYear();
+    const mes = Number(month) || agora.getMonth() + 1;
+    return this.progress.calendar(user.userId, ano, Math.min(12, Math.max(1, mes)));
+  }
+
   @Get("progress")
   getProgress(@CurrentUser() user: AuthUser, @Query("range") range?: string) {
     return this.progress.progress(user.userId, parseRange(range, "M3"));

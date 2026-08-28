@@ -1,7 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { parseAssetPhoto } from "../../financings/domain/asset-photo";
-import { bucketSessions, consistencyPercent, startOfWeek, summarizeWeek, targetProgress } from "../domain/progress-series";
+import { bucketSessions, consistencyPercent, startOfWeek, summarizeWeek, targetProgress, weekDays } from "../domain/progress-series";
 import { CreateGymPhotoDto, CreateGymTargetDto, UpdateGymTargetDto, UpsertGymMeasurementDto } from "./dto/gym.dto";
 import { GymProfileService } from "./gym-profile.service";
 import { GymWorkoutsService } from "./gym-workouts.service";
@@ -60,6 +60,8 @@ export class GymProgressService {
       /** O treino de hoje: o que está há mais tempo sem ser feito, respeitando a ordem da lista. */
       nextWorkout: this.pickNextWorkout(fichas),
       week: summarizeWeek(pontos, agora, perfil.weeklyTarget),
+      /** Os sete dias da semana corrente, pra tirinha Dom→Sáb. Mesmo corte da contagem acima. */
+      weekDays: weekDays(pontos, agora),
       volumeSeries: this.volumeSeries(pontos, range, agora),
       lastSession: ultima
         ? {
@@ -83,6 +85,36 @@ export class GymProgressService {
       })),
       workoutCount: fichas.length,
     };
+  }
+
+  /**
+   * Os dias com treino de um mês, pro calendário.
+   *
+   * Só as datas e o que aconteceu nelas — o calendário não precisa da sessão inteira, e mandar
+   * menos é o que deixa trocar de mês custar quase nada.
+   */
+  async calendar(userId: string, year: number, month: number) {
+    const inicio = new Date(Date.UTC(year, month - 1, 1));
+    const fim = new Date(Date.UTC(year, month, 1));
+
+    const sessoes = await this.prisma.gymSession.findMany({
+      where: { userId, finishedAt: { not: null }, startedAt: { gte: inicio, lt: fim } },
+      orderBy: { startedAt: "asc" },
+      select: { id: true, name: true, startedAt: true, durationSeconds: true, totalVolume: true },
+    });
+
+    const porDia = new Map<string, { date: string; sessions: number; volume: number; minutes: number; names: string[] }>();
+    for (const s of sessoes) {
+      const key = s.startedAt.toISOString().slice(0, 10);
+      const atual = porDia.get(key) ?? { date: key, sessions: 0, volume: 0, minutes: 0, names: [] };
+      atual.sessions += 1;
+      atual.volume = Math.round((atual.volume + (s.totalVolume === null ? 0 : Number(s.totalVolume))) * 100) / 100;
+      atual.minutes += Math.round((s.durationSeconds ?? 0) / 60);
+      if (!atual.names.includes(s.name)) atual.names.push(s.name);
+      porDia.set(key, atual);
+    }
+
+    return { year, month, days: [...porDia.values()] };
   }
 
   /** Dashboard de performance (§46). */

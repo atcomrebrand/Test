@@ -1,29 +1,31 @@
-import { bucketSessions, consistencyPercent, startOfWeek, summarizeWeek, targetProgress } from "./progress-series";
+import { bucketSessions, consistencyPercent, startOfWeek, summarizeWeek, targetProgress, weekDays } from "./progress-series";
 
 const sess = (iso: string, volume = 1000, durationSeconds = 3600) => ({
   startedAt: new Date(iso), totalVolume: volume, durationSeconds,
 });
 
 describe("bucketSessions", () => {
-  it("agrupa por semana começando na segunda", () => {
-    // 27/08/2026 é uma quinta; a semana dela começa em 24/08.
-    expect(startOfWeek(new Date("2026-08-27T00:00:00Z")).toISOString().slice(0, 10)).toBe("2026-08-24");
+  it("agrupa por semana começando no DOMINGO, como o calendário brasileiro", () => {
+    // 27/08/2026 é uma quinta; a semana dela começa no domingo 23/08.
+    expect(startOfWeek(new Date("2026-08-27T00:00:00Z")).toISOString().slice(0, 10)).toBe("2026-08-23");
     const b = bucketSessions([sess("2026-08-24T10:00:00Z"), sess("2026-08-27T10:00:00Z")], "WEEK");
     expect(b).toHaveLength(1);
-    expect(b[0]).toMatchObject({ key: "2026-08-24", sessions: 2, volume: 2000, minutes: 120 });
+    expect(b[0]).toMatchObject({ key: "2026-08-23", sessions: 2, volume: 2000, minutes: 120 });
   });
 
-  it("domingo pertence à semana que começou na segunda anterior", () => {
-    // O erro clássico de usar getDay() cru: domingo é 0 e viraria início de semana.
-    expect(startOfWeek(new Date("2026-08-30T00:00:00Z")).toISOString().slice(0, 10)).toBe("2026-08-24");
+  it("domingo ABRE a semana, e não fecha a anterior", () => {
+    // É o corte que a tirinha Dom→Sáb desenha: se a conta usasse outro, um treino de domingo
+    // apareceria marcado numa semana e somaria na outra.
+    expect(startOfWeek(new Date("2026-08-30T00:00:00Z")).toISOString().slice(0, 10)).toBe("2026-08-30");
+    expect(startOfWeek(new Date("2026-08-29T00:00:00Z")).toISOString().slice(0, 10)).toBe("2026-08-23");
   });
 
   it("semana sem treino aparece zerada quando há intervalo, porque o vazio É a informação", () => {
     const b = bucketSessions(
       [sess("2026-08-03T10:00:00Z")],
       "WEEK",
-      new Date("2026-08-03T00:00:00Z"),
-      new Date("2026-08-24T00:00:00Z"),
+      new Date("2026-08-02T00:00:00Z"),
+      new Date("2026-08-23T00:00:00Z"),
     );
     expect(b.map((p) => p.sessions)).toEqual([1, 0, 0, 0]);
   });
@@ -42,6 +44,32 @@ describe("summarizeWeek", () => {
       5,
     );
     expect(s).toMatchObject({ done: 2, target: 5, minutes: 120 });
+  });
+});
+
+describe("weekDays", () => {
+  it("devolve sempre sete dias, de domingo a sábado", () => {
+    const dias = weekDays([], new Date("2026-08-27T12:00:00Z"));
+    expect(dias).toHaveLength(7);
+    expect(dias[0].date).toBe("2026-08-23");
+    expect(dias[6].date).toBe("2026-08-29");
+    expect(dias.map((d) => d.weekday)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it("marca o dia que teve treino e deixa o resto em zero", () => {
+    const dias = weekDays(
+      [sess("2026-08-24T10:00:00Z", 1500), sess("2026-08-24T19:00:00Z", 500), sess("2026-08-27T10:00:00Z")],
+      new Date("2026-08-27T12:00:00Z"),
+    );
+    // Dois treinos na segunda contam dois, e o volume soma.
+    expect(dias[1]).toMatchObject({ date: "2026-08-24", sessions: 2, volume: 2000 });
+    expect(dias[4]).toMatchObject({ date: "2026-08-27", sessions: 1 });
+    expect(dias.filter((d) => d.sessions === 0)).toHaveLength(5);
+  });
+
+  it("ignora treino de outra semana", () => {
+    const dias = weekDays([sess("2026-08-20T10:00:00Z")], new Date("2026-08-27T12:00:00Z"));
+    expect(dias.every((d) => d.sessions === 0)).toBe(true);
   });
 });
 

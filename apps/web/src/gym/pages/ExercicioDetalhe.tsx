@@ -66,7 +66,7 @@ export default function ExercicioDetalhe() {
             <ol className="mt-3 space-y-2">
               {ex.instructions.map((passo, i) => (
                 <li key={i} className="flex gap-3 text-sm">
-                  <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-neutral-900", GYM.solid)}>
+                  <span className={cn("flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white", GYM.solid)}>
                     {i + 1}
                   </span>
                   <span className="pt-0.5">{passo}</span>

@@ -7,8 +7,8 @@ export function GymMobileNav() {
     <ModuleMobileNav
       items={GYM_NAV}
       primaryPaths={GYM_NAV.map((i) => i.to)}
-      activeClass="text-lime-500"
-      sheetActiveClass="bg-lime-500/10 text-lime-600 dark:text-lime-400"
+      activeClass="text-sky-500"
+      sheetActiveClass="bg-sky-500/10 text-sky-600 dark:text-sky-400"
     />
   );
 }

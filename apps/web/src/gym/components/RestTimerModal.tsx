@@ -101,10 +101,10 @@ export function RestTimerModal({ soundEnabled, vibrationEnabled }: { soundEnable
             <div
               className={cn(
                 "mx-auto flex h-24 w-24 items-center justify-center rounded-full transition-colors",
-                acabou ? "bg-lime-500" : "bg-sky-500",
+                acabou ? "bg-emerald-500" : "bg-sky-500",
               )}
             >
-              {acabou ? <Check className="h-11 w-11 text-neutral-900" strokeWidth={3} /> : <AlarmClock className="h-11 w-11 text-white" />}
+              {acabou ? <Check className="h-11 w-11 text-white" strokeWidth={3} /> : <AlarmClock className="h-11 w-11 text-white" />}
             </div>
 
             <h2 className="mt-5 text-3xl font-black">{acabou ? "Bora!" : pausado ? "Pausado" : "Muito bom!"}</h2>
@@ -112,13 +112,13 @@ export function RestTimerModal({ soundEnabled, vibrationEnabled }: { soundEnable
               {acabou ? "Descanso finalizado. Vamos pra próxima série." : pausado ? "O tempo está parado." : "Você finalizou mais uma série. Descanse por:"}
             </p>
 
-            <p className={cn("mt-4 font-mono text-7xl font-black leading-none tabular-nums", acabou && "text-lime-400")} aria-live="polite">
+            <p className={cn("mt-4 font-mono text-7xl font-black leading-none tabular-nums", acabou && "text-emerald-400")} aria-live="polite">
               {formatClock(restante)}
             </p>
 
             <div className="mx-auto mt-4 h-1.5 w-full overflow-hidden rounded-full bg-neutral-700">
               <motion.div
-                className={cn("h-full rounded-full", acabou ? "bg-lime-400" : "bg-sky-500")}
+                className={cn("h-full rounded-full", acabou ? "bg-emerald-400" : "bg-sky-500")}
                 animate={{ width: `${pct * 100}%` }}
                 transition={{ duration: 0.15, ease: "linear" }}
               />
@@ -141,7 +141,7 @@ export function RestTimerModal({ soundEnabled, vibrationEnabled }: { soundEnable
               onClick={() => (acabou ? stop() : skip())}
               className={cn(
                 "mt-4 flex w-full items-center justify-center gap-2 rounded-full py-4 text-sm font-black uppercase tracking-wide transition-colors",
-                acabou ? "bg-lime-500 text-neutral-900 hover:bg-lime-400" : "bg-sky-500 text-white hover:bg-sky-400",
+                acabou ? "bg-emerald-500 text-white hover:bg-emerald-400" : "bg-sky-500 text-white hover:bg-sky-400",
               )}
             >
               {acabou ? <Check className="h-5 w-5" /> : <SkipForward className="h-5 w-5" />}

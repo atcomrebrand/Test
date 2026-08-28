@@ -16,6 +16,8 @@ import { useGymSync } from "../useGymSync";
 import { formatMinutes, formatVolume, GYM, MUSCLE_LABEL, RECORD_LABEL } from "../theme";
 import { ProgressRange } from "../types";
 import { OnboardingCard } from "../components/OnboardingCard";
+import { TrainingCalendar } from "../components/TrainingCalendar";
+import { WeekStrip } from "../components/WeekStrip";
 
 const RANGES: { value: ProgressRange; label: string }[] = [
   { value: "WEEK", label: "Semana" },
@@ -38,6 +40,9 @@ export default function Inicio() {
   if (!data.onboarded) return <OnboardingCard />;
 
   const nome = user?.name?.split(" ")[0] ?? "atleta";
+  // Comparado em UTC, que é como as datas da semana chegam do servidor.
+  const agora = new Date();
+  const hojeIso = new Date(Date.UTC(agora.getFullYear(), agora.getMonth(), agora.getDate())).toISOString().slice(0, 10);
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
@@ -64,24 +69,28 @@ export default function Inicio() {
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <CardContent className="py-4">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
-              <CalendarCheck className="h-3.5 w-3.5" />
-              Semana
-            </p>
-            <p className="mt-1 text-3xl font-black">
-              {data.week.done}
-              <span className="text-lg text-muted"> / {data.week.target}</span>
-              <span className="ml-2 text-sm font-semibold text-muted">treinos</span>
-            </p>
-            <div className="mt-3 h-2 overflow-hidden rounded-full surface-2">
-              <div
-                className="h-full rounded-full bg-lime-500 transition-all"
-                style={{ width: `${Math.min(100, data.week.target > 0 ? (data.week.done / data.week.target) * 100 : 0)}%` }}
-              />
+            <WeekStrip days={data.weekDays} today={hojeIso} />
+
+            <div className="mt-4 border-t border-[rgb(var(--border))] pt-3">
+              <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted">
+                <CalendarCheck className="h-3.5 w-3.5" />
+                Meta da semana
+              </p>
+              <p className="mt-1 text-3xl font-black">
+                {data.week.done}
+                <span className="text-lg text-muted"> / {data.week.target}</span>
+                <span className="ml-2 text-sm font-semibold text-muted">treinos</span>
+              </p>
+              <div className="mt-2 h-2 overflow-hidden rounded-full surface-2">
+                <div
+                  className="h-full rounded-full bg-sky-500 transition-all"
+                  style={{ width: `${Math.min(100, data.week.target > 0 ? (data.week.done / data.week.target) * 100 : 0)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-muted">
+                {formatMinutes(data.week.minutes * 60)} treinados · {formatVolume(data.week.volume, hidden)} de volume
+              </p>
             </div>
-            <p className="mt-2 text-xs text-muted">
-              {formatMinutes(data.week.minutes * 60)} treinados · {formatVolume(data.week.volume, hidden)} de volume
-            </p>
           </CardContent>
         </Card>
 
@@ -129,6 +138,12 @@ export default function Inicio() {
           </CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardContent className="py-4">
+          <TrainingCalendar />
+        </CardContent>
+      </Card>
 
       {data.lastSession && (
         <Card>
@@ -211,7 +226,7 @@ function ProximoTreino({ workout, bloqueado, onStart }: { workout: any; bloquead
         }}
         disabled={isFetching && !prefill && !bloqueado}
         className={cn(
-          "mt-5 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black uppercase tracking-wide text-neutral-900 transition-colors disabled:opacity-60",
+          "mt-5 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black uppercase tracking-wide text-white transition-colors disabled:opacity-60",
           GYM.solid,
           GYM.solidHover,
         )}
