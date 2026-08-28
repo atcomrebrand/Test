@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Bot, Mic, Phone, Send, Settings2, User, Volume2, VolumeX, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
@@ -28,6 +29,10 @@ const speechOutputSupported = isSpeechSynthesisSupported();
  * so switching between typing and the voice "call" mode continues the same thread.
  */
 export function AssistantWidget() {
+  // Fora do modo treino: aquela tela é usada com o celular na mão no meio de uma série, e o botão
+  // flutuante cai exatamente por cima dos controles do cronômetro. Interface limpa ali é requisito,
+  // não estética.
+  const location = useLocation();
   const [open, setOpen] = useState(false);
   const [callOpen, setCallOpen] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -88,6 +93,8 @@ export function AssistantWidget() {
     recognition.start();
     setListening(true);
   }
+
+  if (location.pathname.startsWith("/academia/executar")) return null;
 
   return (
     <>

@@ -9,6 +9,9 @@ App pessoal de finanças (nome do repo/pnpm workspace ainda é `credit-installme
 - **Investimentos** (`investments`) — renda fixa, ações/FIIs, cripto, proventos, análise fundamentalista (BRAPI + Fundamentus + Yahoo Finance como fontes, com fallback entre elas).
 - **Horas** (`tracking`) — controle de ponto/trabalhos freelance e fixos.
 - **Financiamentos** (`financings`) — módulo próprio (saiu de dentro do Parcelas): financiamento de veículo/imóvel, parcelas, cotação de quitação, valor do bem e patrimônio. Frontend em `apps/web/src/financings/`, rotas em `/financiamentos`; `/financing` ficou como redirect pra não quebrar link salvo. Os hooks continuam em `features/useFinancings.ts` de propósito — a Home e o Dashboard do Parcelas também consomem financiamento, então não é código exclusivo do módulo.
+- **Academia** (`gym`) — diário de treino: catálogo de exercícios, fichas, execução com cronômetro
+  de descanso, histórico, progresso, medidas, fotos, recordes e metas. Frontend em
+  `apps/web/src/gym/`, rotas `/academia/*`, cor lima.
 - **Cotações** (`quotes`) — ticker rolante da Home: dólar + os ativos em carteira. Não busca preço
   próprio — o dólar sai do cache do Horas (`TrackingFxService`) e os ativos do `MarketPriceService`,
   que serve o guardado na hora e atualiza por fora. Ativo zerado ou sem cotação fica de fora (com a
@@ -400,6 +403,80 @@ existe decisão — e a decisão é sempre do usuário.
   tela, não dado que valha tabela e migration.
 - Limite conhecido: a comparação é de palavra inteira, então "RECHEADA" e "RECHEADO" não se
   encontram. Errar pro lado de não sugerir é o certo.
+
+## Academia: o cronômetro é a peça central, e ele nunca conta
+
+Módulo independente (`gym`), sem `imports` de outros. O fluxo que sustenta tudo é
+**executar → registrar → descansar → avisar → próxima série**, e ele foi construído pra funcionar
+com o celular na mão, de pé, sem sinal.
+
+- **O cronômetro guarda um INSTANTE, nunca um contador.** Enquanto roda, o estado tem `endsAt`; o
+  tempo restante é sempre `endsAt − agora`, calculado na hora de mostrar. Um `setInterval` que
+  decrementa é suspenso quando a tela apaga ou o app vai pro segundo plano — quem conta assim volta
+  de 20 segundos de bolso com 20 segundos a menos descontados, atrasando justamente quando a pessoa
+  mais confia nele. O `setInterval` existe só pra **redesenhar**: se ele atrasar ou parar, o número
+  continua certo assim que rodar de novo. Verificado com a aba escondida: 6s fora, volta finalizado.
+- **A máquina de estados é pura e mora no frontend** (`gym/domain/rest-timer.ts`), porque o §39 do
+  pedido é explícito: o descanso não pode depender do servidor. Isso obrigou a dar um runner de
+  testes ao `apps/web` (**vitest**, `pnpm test`) — o resto do domain puro, que precisa do histórico,
+  continua no backend com jest.
+- **Pular e "Pronto" somem com o painel; chegar a zero sozinho NÃO.** O aviso é o que a pessoa está
+  esperando, então ele fica na tela; já quem tocou em pular voltou pra série e um painel no caminho
+  seria estorvo. Nos dois casos o registro é gravado antes de sumir.
+- **O descanso registrado é tempo de RELÓGIO, incluindo a pausa.** Pausou e ficou 3 minutos
+  conversando: descansou 3 minutos. É isso que a estatística precisa saber, não os 90s configurados.
+- **Um toque no ✓ registra a série E começa o descanso.** Separar em dois toques significa que o
+  segundo é esquecido no meio do treino.
+
+**A sessão vive no aparelho** (zustand persistido), e o servidor só a recebe pronta. Recarregar a
+página no meio do treino mantém tudo; o treino inteiro roda offline e sobe sozinho depois. A subida
+é **idempotente pelo `clientId`** gerado no aparelho — tentar de novo (rede que voltou, aba que
+reapareceu, outra tela do módulo) nunca duplica. A fila é tentada no **layout**, não numa tela
+específica: quem terminou offline pode abrir o histórico antes do início.
+
+**Série não concluída não sobe.** Ela é uma intenção da ficha, não um acontecimento — contá-la faria
+o "28 de 28 séries" mentir em todo treino interrompido.
+
+**Primeira vez num exercício não é recorde.** Recorde é superar algo; um treino com oito exercícios
+novos dispararia trinta e dois troféus e a palavra perderia o sentido no primeiro uso. Subir a carga
+costuma bater peso, 1RM e volume de uma vez — todos ficam gravados, mas a tela de conclusão mostra
+**um por exercício** (`headlineRecords`), senão uma conquista vira três linhas.
+
+**O 1RM é congelado no recorde.** A fórmula (Epley/Brzycki/Lombardi) é escolha do usuário e as três
+divergem conforme a faixa de repetições; trocar a preferência depois não pode reescrever um recorde
+já comemorado. Uma repetição devolve a própria carga — extrapolar aí inventaria 3% que ninguém
+levantou.
+
+**O catálogo de exercícios é dado, não migration.** 151 exercícios com `userId = null` (o mesmo
+padrão da carteira principal dos investimentos: global, não duplicado por usuário), semeados por
+`pnpm run seed:gym`, idempotente pelo `slug`. Acrescentar exercício é editar
+`exercise-catalog.ts` e rodar de novo. As instruções vêm de modelos por **padrão de movimento**
+(empurrar horizontal, dobradiça de quadril, puxar vertical...), porque é o padrão que define a
+execução — 151 textos à mão seriam variações irrelevantes da mesma orientação.
+
+**Exercício e ficha são ARQUIVADOS, nunca apagados**: estão no histórico de séries, e apagar levaria
+o passado junto. Já apagar uma **sessão** apaga os recordes dela — o schema diz `SetNull`, o que
+sozinho deixaria um troféu apontando pra um treino inexistente; recorde é a prova de que algo
+aconteceu, e sem o treino não há prova.
+
+**A carga vem preenchida do último treino** (`prefillSets`). Sem histórico, usa o **piso** da faixa
+de repetições: preencher com o topo faria a série nascer marcada como fracasso quando a pessoa
+fizesse o que era esperado.
+
+**O "treino de hoje" é o que está há mais tempo parado**, com os nunca feitos primeiro na ordem da
+lista. É o que faz um ABCD rodar sozinho sem calendário fixo — que quebraria na primeira semana em
+que ela treinasse num dia diferente.
+
+**O modo treino é escuro sempre**, independente do tema do app, e esconde cabeçalho, barra inferior
+e o botão do assistente. Não é estética: é a única tela usada no meio de uma série, e alto contraste
+com alvos de toque grandes ali é funcional.
+
+**A consistência ignora a semana corrente.** Na segunda-feira ela estaria sempre em 0/5 e o
+indicador despencaria toda semana por um motivo que não é o desempenho de ninguém.
+
+**Progresso de meta é medido a partir da PARTIDA, não do zero.** Quem sai de 80 kg mirando 100 e
+está em 82,5 fez 12,5% do caminho, não 82,5% — contar do zero mostraria uma barra quase cheia no
+primeiro dia e quase parada por meses.
 
 ## CRM: as quatro regras que sustentam o módulo
 

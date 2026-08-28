@@ -50,6 +50,7 @@ rawApi.interceptors.response.use(
 export const api = {
   get: <T = unknown>(url: string, config?: AxiosRequestConfig) => rawApi.get<T, T>(url, config),
   post: <T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig) => rawApi.post<T, T>(url, data, config),
+  put: <T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig) => rawApi.put<T, T>(url, data, config),
   patch: <T = unknown>(url: string, data?: unknown, config?: AxiosRequestConfig) => rawApi.patch<T, T>(url, data, config),
   delete: <T = unknown>(url: string, config?: AxiosRequestConfig) => rawApi.delete<T, T>(url, config),
 };

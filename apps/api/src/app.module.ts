@@ -31,6 +31,7 @@ import { HomeModule } from "./modules/home/home.module";
 import { AssistantMemoryModule } from "./modules/assistant-memory/assistant-memory.module";
 import { MarketModule } from "./modules/market/market.module";
 import { CrmModule } from "./modules/crm/crm.module";
+import { GymModule } from "./modules/gym/gym.module";
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { CrmModule } from "./modules/crm/crm.module";
     AssistantMemoryModule,
     MarketModule,
     CrmModule,
+    GymModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: ThrottlerGuard }],
 })

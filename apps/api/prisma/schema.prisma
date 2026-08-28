@@ -185,6 +185,16 @@ model User {
   marketProducts      MarketProduct[]
   marketPurchaseItems MarketPurchaseItem[]
 
+  gymProfile           GymProfile?
+  gymExercises         GymExercise[]
+  gymExerciseFavorites GymExerciseFavorite[]
+  gymWorkouts          GymWorkout[]
+  gymSessions          GymSession[]
+  gymMeasurements      GymMeasurement[]
+  gymPhotos            GymPhoto[]
+  gymPersonalRecords   GymPersonalRecord[]
+  gymTargets           GymTarget[]
+
   crmPortfolios           CrmPortfolio[]
   crmPlans                CrmPlan[]
   crmPaymentMethods       CrmPaymentMethod[]
@@ -1276,9 +1286,9 @@ model MarketPurchase {
 /// normalizedKey (see market-product-key.ts) rather than by the store's own product code, which is
 /// internal to each supermarket and so differs for the identical item between stores.
 model MarketProduct {
-  id            String   @id @default(cuid())
+  id            String          @id @default(cuid())
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Display name — the description from the nota that first introduced this product.
   name          String
   normalizedKey String
@@ -1299,8 +1309,8 @@ model MarketProduct {
   /// Não é unique: dois produtos podem carregar o mesmo GTIN pelo tempo entre um ser descoberto e
   /// a união acontecer, e uma constraint transformaria isso em erro 500 no meio de uma importação.
   gtin          String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   items MarketPurchaseItem[]
 
@@ -1429,16 +1439,16 @@ enum CrmBillingPeriod {
 /// Os dois serviços. É entidade e não enum porque o nome é configurável pelo usuário e porque
 /// revendedor e cliente precisam apontar pra ele por id — trocar o nome não pode reescrever dado.
 model CrmPortfolio {
-  id        String   @id @default(cuid())
+  id        String      @id @default(cuid())
   userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   name      String
-  color     String   @default("#6366f1")
+  color     String      @default("#6366f1")
   currency  CrmCurrency @default(BRL)
-  order     Int      @default(0)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  order     Int         @default(0)
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
 
   panelRecharges     CrmPanelRecharge[]
   panelMovements     CrmPanelCreditMovement[]
@@ -1882,24 +1892,24 @@ model CrmMessageTemplate {
 }
 
 model CrmSettings {
-  id                        String   @id @default(cuid())
-  userId                    String   @unique
-  user                      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id                               String   @id @default(cuid())
+  userId                           String   @unique
+  user                             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// Critérios de VIP. Nulo = critério desligado.
-  vipMinMonths              Int?
-  vipMinRevenue             Decimal? @db.Decimal(12, 2)
-  vipMinRenewals            Int?
+  vipMinMonths                     Int?
+  vipMinRevenue                    Decimal? @db.Decimal(12, 2)
+  vipMinRenewals                   Int?
   /// Janelas do semáforo de atividade do revendedor (§39).
-  resellerAttentionDays     Int      @default(30)
-  resellerInactiveDays      Int      @default(60)
-  defaultLowCreditThreshold Int      @default(10)
+  resellerAttentionDays            Int      @default(30)
+  resellerInactiveDays             Int      @default(60)
+  defaultLowCreditThreshold        Int      @default(10)
   /// Alerta quando o estoque do painel de um serviço cai até aqui.
-  panelLowCreditThreshold   Int      @default(20)
+  panelLowCreditThreshold          Int      @default(20)
   /// Quando ligado, dar créditos a um revendedor sai do seu próprio estoque — que é como funciona
   /// quando o revendedor usa um sub-painel do seu. Desligue se o painel dele for comprado à parte.
-  deductResellerRechargesFromPanel Boolean @default(true)
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
+  deductResellerRechargesFromPanel Boolean  @default(true)
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
 
   @@map("crm_settings")
 }
@@ -1951,24 +1961,411 @@ model CrmPanelRecharge {
 /// Extrato do estoque próprio. Mesma regra do extrato de revendedor: o saldo é a soma daqui, nunca
 /// um número guardado, e linha nenhuma é apagada.
 model CrmPanelCreditMovement {
-  id             String               @id @default(cuid())
-  userId         String
-  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  portfolioId    String
-  portfolio      CrmPortfolio         @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
-  kind           CrmPanelMovementKind
+  id              String               @id @default(cuid())
+  userId          String
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId     String
+  portfolio       CrmPortfolio         @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  kind            CrmPanelMovementKind
   /// Assinado: positivo entra (compra), negativo sai (renovação, repasse a revendedor).
-  quantity       Int
+  quantity        Int
   panelRechargeId String?
-  panelRecharge  CrmPanelRecharge?    @relation(fields: [panelRechargeId], references: [id], onDelete: SetNull)
+  panelRecharge   CrmPanelRecharge?    @relation(fields: [panelRechargeId], references: [id], onDelete: SetNull)
   /// Qual renovação consumiu — é o que liga o extrato ao cliente e permite auditar o consumo.
-  subscriptionId String?
-  customerId     String?
+  subscriptionId  String?
+  customerId      String?
   /// Repasse pra revendedor, quando a configuração debita do estoque.
-  rechargeId     String?
-  note           String?
-  createdAt      DateTime             @default(now())
+  rechargeId      String?
+  note            String?
+  createdAt       DateTime             @default(now())
 
   @@index([userId, portfolioId, createdAt])
   @@map("crm_panel_credit_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Academia
+// ---------------------------------------------------------------------------
+
+enum GymObjective {
+  HIPERTROFIA
+  FORCA
+  EMAGRECIMENTO
+  CONDICIONAMENTO
+  MANUTENCAO
+}
+
+enum GymLevel {
+  INICIANTE
+  INTERMEDIARIO
+  AVANCADO
+}
+
+enum GymMuscle {
+  PEITO
+  COSTAS
+  BICEPS
+  TRICEPS
+  OMBROS
+  QUADRICEPS
+  POSTERIORES
+  GLUTEOS
+  PANTURRILHAS
+  ABDOMEN
+  TRAPEZIO
+  ANTEBRACO
+}
+
+enum GymEquipment {
+  BARRA
+  HALTER
+  MAQUINA
+  CABO
+  PESO_CORPORAL
+  SMITH
+  KETTLEBELL
+  ELASTICO
+  OUTRO
+}
+
+enum GymWeightUnit {
+  KG
+  LB
+}
+
+/// Qual fórmula estima a repetição máxima. Configurável porque cada uma erra pra um lado em faixas
+/// diferentes de repetição, e trocar a fórmula não pode reescrever o histórico.
+enum GymOneRmFormula {
+  EPLEY
+  BRZYCKI
+  LOMBARDI
+}
+
+enum GymPhotoPose {
+  FRENTE
+  COSTAS
+  LATERAL
+}
+
+/// O que exatamente foi superado. Guardado por tipo porque "levantou mais peso" e "fez mais
+/// repetição no mesmo peso" são conquistas diferentes e ambas valem aviso.
+enum GymRecordKind {
+  PESO_MAXIMO
+  REPS_NO_PESO
+  VOLUME_EXERCICIO
+  UM_RM
+}
+
+enum GymTargetKind {
+  CARGA
+  FREQUENCIA_SEMANAL
+  PESO_CORPORAL
+}
+
+/// Preferências e dados do praticante. Separado do `User` de propósito: é dado do módulo, e quem
+/// nunca abriu a Academia não tem linha aqui.
+model GymProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  objective          GymObjective @default(HIPERTROFIA)
+  level              GymLevel     @default(INICIANTE)
+  heightCm           Int?
+  birthDate          DateTime?
+  /// Quantos treinos por semana a pessoa pretende fazer — é o denominador do "4 / 5 treinos".
+  weeklyTarget       Int          @default(4)
+  sessionMinutes     Int          @default(60)
+  /// Herdado por exercício novo num treino. Alterar aqui não mexe no que já foi configurado.
+  defaultRestSeconds Int          @default(90)
+
+  weightUnit       GymWeightUnit   @default(KG)
+  oneRmFormula     GymOneRmFormula @default(EPLEY)
+  soundEnabled     Boolean         @default(true)
+  vibrationEnabled Boolean         @default(true)
+  /// Onboarding concluído. Sem isso a tela inicial do módulo é o onboarding.
+  onboardedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("gym_profiles")
+}
+
+/// Exercício do catálogo ou criado pela pessoa.
+///
+/// `userId = null` é o catálogo global, semeado por script e compartilhado por todo mundo — o mesmo
+/// padrão da carteira principal dos investimentos. É isso que permite crescer o catálogo sem
+/// migration e sem duplicar 135 linhas por usuário.
+model GymExercise {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Identidade estável do exercício do catálogo, pro seed ser idempotente e pra reimportar sem
+  /// duplicar. Nulo nos criados pela pessoa.
+  slug String?
+
+  name             String
+  primaryMuscle    GymMuscle
+  secondaryMuscles GymMuscle[]
+  equipment        GymEquipment
+  description      String?
+  /// Passo a passo da execução, uma etapa por item.
+  instructions     String[]
+  tips             String[]
+  commonMistakes   String[]
+  /// Imagem em data URL, mesmo tratamento da foto do bem financiado: são poucos KB e não valem
+  /// storage, rota estática e backup à parte.
+  image            String?
+  videoUrl         String?
+
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  workoutExercises GymWorkoutExercise[]
+  sets             GymSet[]
+  favorites        GymExerciseFavorite[]
+  records          GymPersonalRecord[]
+  targets          GymTarget[]
+
+  @@unique([slug])
+  @@index([userId, archivedAt])
+  @@index([primaryMuscle])
+  @@map("gym_exercises")
+}
+
+model GymExerciseFavorite {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+
+  @@unique([userId, exerciseId])
+  @@map("gym_exercise_favorites")
+}
+
+/// Uma ficha ("Treino A — Peito + Tríceps").
+model GymWorkout {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name                        String
+  description                 String?
+  /// Ordem na lista, arrastável.
+  order                       Int     @default(0)
+  /// Descanso entre exercícios. Nulo = usa o descanso do próprio exercício; 0 = nenhum.
+  restBetweenExercisesSeconds Int?
+  notes                       String?
+
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  exercises GymWorkoutExercise[]
+  sessions  GymSession[]
+
+  @@index([userId, archivedAt, order])
+  @@map("gym_workouts")
+}
+
+/// O exercício dentro de uma ficha, com o que foi planejado pra ele.
+model GymWorkoutExercise {
+  id        String     @id @default(cuid())
+  workoutId String
+  workout   GymWorkout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  order         Int
+  sets          Int      @default(3)
+  targetRepsMin Int      @default(8)
+  targetRepsMax Int      @default(12)
+  targetWeight  Decimal? @db.Decimal(8, 2)
+  /// Descanso DESTE exercício, em segundos. Nasce do `defaultRestSeconds` do perfil e é editável
+  /// individualmente — é o que o cronômetro dispara ao concluir cada série.
+  restSeconds   Int      @default(90)
+  notes         String?
+
+  @@unique([workoutId, order])
+  @@index([exerciseId])
+  @@map("gym_workout_exercises")
+}
+
+/// Uma sessão de treino executada.
+model GymSession {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A ficha que originou a sessão. `SetNull` porque apagar a ficha não pode apagar o histórico do
+  /// que já foi treinado.
+  workoutId String?
+  workout   GymWorkout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  /// Nome congelado no momento do treino: renomear a ficha depois não reescreve o passado.
+  name      String
+
+  /// Identidade gerada no aparelho. É o que torna a subida da sessão feita offline idempotente —
+  /// reenviar a mesma sessão atualiza, não duplica.
+  clientId String @unique
+
+  startedAt       DateTime
+  finishedAt      DateTime?
+  /// Duração real medida por timestamp, gravada na conclusão.
+  durationSeconds Int?
+  totalVolume     Decimal?  @db.Decimal(12, 2)
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sets    GymSet[]
+  records GymPersonalRecord[]
+
+  @@index([userId, startedAt])
+  @@map("gym_sessions")
+}
+
+/// Uma série executada, com tudo que aconteceu no descanso depois dela.
+model GymSet {
+  id        String     @id @default(cuid())
+  sessionId String
+  session   GymSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  /// Posição do exercício dentro da sessão, congelada — reordenar a ficha depois não embaralha o
+  /// histórico.
+  exerciseOrder Int @default(0)
+  setNumber     Int
+
+  weight    Decimal @db.Decimal(8, 2)
+  reps      Int
+  completed Boolean @default(true)
+  notes     String?
+
+  /// O descanso desta série. Guardado com o que foi CONFIGURADO e o que foi REALMENTE descansado:
+  /// são números diferentes sempre que a pessoa pula, pausa ou estende, e é dessa diferença que sai
+  /// a estatística de descanso.
+  restSeconds           Int?
+  restStartedAt         DateTime?
+  restEndedAt           DateTime?
+  restActualSeconds     Int?
+  restWasPaused         Boolean   @default(false)
+  restWasSkipped        Boolean   @default(false)
+  restAdjustmentSeconds Int       @default(0)
+
+  completedAt DateTime @default(now())
+
+  @@unique([sessionId, exerciseId, setNumber])
+  @@index([exerciseId, completedAt])
+  @@map("gym_sets")
+}
+
+model GymMeasurement {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date DateTime
+
+  weightKg   Decimal? @db.Decimal(6, 2)
+  chest      Decimal? @db.Decimal(6, 2)
+  waist      Decimal? @db.Decimal(6, 2)
+  abdomen    Decimal? @db.Decimal(6, 2)
+  hip        Decimal? @db.Decimal(6, 2)
+  armRight   Decimal? @db.Decimal(6, 2)
+  armLeft    Decimal? @db.Decimal(6, 2)
+  thighRight Decimal? @db.Decimal(6, 2)
+  thighLeft  Decimal? @db.Decimal(6, 2)
+  calfRight  Decimal? @db.Decimal(6, 2)
+  calfLeft   Decimal? @db.Decimal(6, 2)
+  /// Medidas que a pessoa criou, como { "pescoço": 39.5 }. Json porque inventar coluna por medida
+  /// nova exigiria migration a cada ideia.
+  custom     Json?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("gym_measurements")
+}
+
+model GymPhoto {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date  DateTime
+  pose  GymPhotoPose
+  /// Data URL, já redimensionada no cliente. Nunca sai do banco pra lugar nenhum.
+  image String
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, pose, date])
+  @@map("gym_photos")
+}
+
+/// Recorde pessoal, detectado automaticamente ao concluir a sessão.
+model GymPersonalRecord {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  sessionId String?
+  session   GymSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  kind           GymRecordKind
+  weight         Decimal       @db.Decimal(8, 2)
+  reps           Int
+  /// 1RM estimado no momento — congelado, porque a fórmula é configurável e trocá-la depois não
+  /// pode reescrever recorde que já foi comemorado.
+  estimatedOneRm Decimal?      @db.Decimal(8, 2)
+  /// De quanto foi a superação em relação ao recorde anterior ("+5 kg").
+  improvement    Decimal?      @db.Decimal(8, 2)
+
+  achievedAt DateTime
+
+  @@index([userId, achievedAt])
+  @@index([userId, exerciseId, kind, achievedAt])
+  @@map("gym_personal_records")
+}
+
+/// Meta. `GymTarget` e não `GymGoal` porque `objective` do perfil já é "objetivo" — dois nomes
+/// parecidos pra coisas diferentes é confusão garantida seis meses depois.
+model GymTarget {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind       GymTargetKind
+  /// Só nas metas de carga.
+  exerciseId String?
+  exercise   GymExercise?  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  label       String
+  targetValue Decimal   @db.Decimal(10, 2)
+  /// De onde a meta partiu, pra barra de progresso não começar do zero absoluto.
+  startValue  Decimal?  @db.Decimal(10, 2)
+  deadline    DateTime?
+  achievedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, achievedAt])
+  @@map("gym_targets")
 }

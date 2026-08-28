@@ -3,6 +3,18 @@ import { usePrivacyStore } from "@/store/privacy";
 import { Layout } from "./app/Layout";
 import { ProtectedRoute } from "./app/ProtectedRoute";
 import { CrmLayout } from "./crm/CrmLayout";
+import { GymLayout } from "./gym/GymLayout";
+import GymInicio from "./gym/pages/Inicio";
+import GymTreinos from "./gym/pages/Treinos";
+import GymTreinoForm from "./gym/pages/TreinoForm";
+import GymExercicios from "./gym/pages/Exercicios";
+import GymExercicioDetalhe from "./gym/pages/ExercicioDetalhe";
+import GymExecutar from "./gym/pages/Executar";
+import GymResumo from "./gym/pages/Resumo";
+import GymProgresso from "./gym/pages/Progresso";
+import GymHistorico from "./gym/pages/Historico";
+import GymSessaoDetalhe from "./gym/pages/SessaoDetalhe";
+import GymPerfil from "./gym/pages/Perfil";
 import CrmDashboard from "./crm/pages/Dashboard";
 import CrmVencimentos from "./crm/pages/Vencimentos";
 import CrmPainel from "./crm/pages/Painel";
@@ -145,6 +157,21 @@ export default function App() {
           <Route path="/financiamentos/parcelas" element={<FinanciamentosParcelas />} />
         </Route>
 
+
+        <Route element={<GymLayout />}>
+          <Route path="/academia" element={<GymInicio />} />
+          <Route path="/academia/treinos" element={<GymTreinos />} />
+          <Route path="/academia/treinos/novo" element={<GymTreinoForm />} />
+          <Route path="/academia/treinos/:id" element={<GymTreinoForm />} />
+          <Route path="/academia/exercicios" element={<GymExercicios />} />
+          <Route path="/academia/exercicios/:id" element={<GymExercicioDetalhe />} />
+          <Route path="/academia/executar" element={<GymExecutar />} />
+          <Route path="/academia/resumo/:clientId" element={<GymResumo />} />
+          <Route path="/academia/progresso" element={<GymProgresso />} />
+          <Route path="/academia/historico" element={<GymHistorico />} />
+          <Route path="/academia/historico/:id" element={<GymSessaoDetalhe />} />
+          <Route path="/academia/perfil" element={<GymPerfil />} />
+        </Route>
 
         <Route element={<CrmLayout />}>
           <Route path="/crm" element={<CrmDashboard />} />

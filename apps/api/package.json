@@ -13,7 +13,9 @@
     "prisma:seed": "ts-node prisma/seed.ts",
     "import:cotahist": "ts-node scripts/import-cotahist.ts",
     "test": "jest",
-    "backfill:market-gtin": "ts-node scripts/backfill-market-gtin.ts"
+    "backfill:market-gtin": "ts-node scripts/backfill-market-gtin.ts",
+    "seed:gym": "ts-node scripts/seed-gym-catalog.ts",
+    "seed:gym-demo": "ts-node scripts/seed-gym-demo.ts"
   },
   "jest": {
     "rootDir": "src",

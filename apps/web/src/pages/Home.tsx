@@ -16,6 +16,7 @@ import {
   Landmark,
   ChevronLeft,
   ChevronRight,
+  Dumbbell,
   type LucideIcon,
 } from "lucide-react";
 import { useThemeStore } from "@/store/theme";
@@ -75,6 +76,13 @@ const APPS: AppCard[] = [
     description: "Escaneie a nota do supermercado e acompanhe preço e imposto.",
     icon: ShoppingCart,
     color: "bg-sky-500",
+  },
+  {
+    to: "/academia",
+    title: "Academia",
+    description: "Fichas de treino, execução com cronômetro, evolução e recordes.",
+    icon: Dumbbell,
+    color: "bg-lime-500",
   },
   {
     to: "/crm",

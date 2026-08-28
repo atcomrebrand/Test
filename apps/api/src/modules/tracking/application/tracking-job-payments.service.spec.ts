@@ -29,7 +29,23 @@ function makeAudit(): TrackingAuditService {
   return { log: jest.fn().mockResolvedValue(undefined) } as unknown as TrackingAuditService;
 }
 
-const NOW = new Date();
+/**
+ * O relógio fica PARADO no dia 15.
+ *
+ * O serviço lê `new Date()` por dentro, então estes testes dependiam do dia real em que rodassem —
+ * e quebravam no dia 28 de cada mês, quando o "dia futuro" calculado como `TODAY === 28 ? 27 : ...`
+ * caía no passado. Um teste que só falha um dia por mês é pior que um que sempre falha: ninguém
+ * associa a quebra ao motivo. Fixando a data, "ontem" e "amanhã" passam a existir sempre.
+ */
+const NOW = new Date("2026-08-15T12:00:00");
+
+beforeAll(() => {
+  jest.useFakeTimers({ doNotFake: ["nextTick", "setImmediate"] }).setSystemTime(NOW);
+});
+afterAll(() => {
+  jest.useRealTimers();
+});
+
 const YEAR = NOW.getFullYear();
 const MONTH = NOW.getMonth() + 1;
 const TODAY = NOW.getDate();
@@ -51,7 +67,7 @@ describe("TrackingJobPaymentsService.pending", () => {
   });
 
   it("excludes jobs whose paymentDay hasn't arrived yet this month", async () => {
-    const futureDay = TODAY === 28 ? 27 : TODAY + 1;
+    const futureDay = TODAY + 1;
     const jobs = [{ id: "j1", name: "Dev Backend", company: "Acme", currency: "BRL", monthlyValue: 6000, active: true, paymentDay: futureDay }];
     const service = new TrackingJobPaymentsService(makeJobs(jobs), makePayments(), makeFx(null), makeAudit());
 
