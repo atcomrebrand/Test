@@ -188,6 +188,7 @@ model User {
   gymProfile           GymProfile?
   gymExercises         GymExercise[]
   gymExerciseFavorites GymExerciseFavorite[]
+  gymExercisePhotos    GymExercisePhoto[]
   gymWorkouts          GymWorkout[]
   gymSessions          GymSession[]
   gymMeasurements      GymMeasurement[]
@@ -2138,6 +2139,7 @@ model GymExercise {
   workoutExercises GymWorkoutExercise[]
   sets             GymSet[]
   favorites        GymExerciseFavorite[]
+  userPhotos       GymExercisePhoto[]
   records          GymPersonalRecord[]
   targets          GymTarget[]
 
@@ -2145,6 +2147,28 @@ model GymExercise {
   @@index([userId, archivedAt])
   @@index([primaryMuscle])
   @@map("gym_exercises")
+}
+
+/// A foto que VOCÊ pôs num exercício.
+///
+/// Mora numa tabela sua, e não na coluna `image` do exercício, pelo mesmo motivo do favorito: o
+/// catálogo é global (`userId = null`) e compartilhado — gravar a foto nele seria escrever no
+/// exercício de todo mundo. Assim a foto vale tanto pro exercício do catálogo quanto pro que você
+/// criou, sem o catálogo deixar de ser imutável.
+model GymExercisePhoto {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  /// Data URL, já redimensionada no cliente e revalidada no servidor.
+  image     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, exerciseId])
+  @@map("gym_exercise_photos")
 }
 
 model GymExerciseFavorite {

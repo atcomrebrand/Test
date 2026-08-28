@@ -27,7 +27,7 @@ export class GymExercisesService {
    * exercício criado por outra conta — o filtro é explícito e não depende de nenhuma camada acima.
    */
   async list(userId: string, filters: ExerciseFilters = {}) {
-    const [exercicios, favoritos, uso] = await Promise.all([
+    const [exercicios, favoritos, uso, fotos] = await Promise.all([
       this.prisma.gymExercise.findMany({
         where: { archivedAt: null, OR: [{ userId: null }, { userId }] },
       }),
@@ -39,9 +39,11 @@ export class GymExercisesService {
         where: { session: { userId } },
         _count: { _all: true },
       }),
+      this.prisma.gymExercisePhoto.findMany({ where: { userId }, select: { exerciseId: true, image: true } }),
     ]);
 
     const favoritoIds = new Set(favoritos.map((f) => f.exerciseId));
+    const fotoPorId = new Map(fotos.map((f) => [f.exerciseId, f.image]));
     const usoPorId = new Map(uso.map((u) => [u.exerciseId, u._count._all]));
 
     const filtrados = exercicios.filter((e) =>
@@ -54,6 +56,9 @@ export class GymExercisesService {
     return rankExercises(
       filtrados.map((e) => ({
         ...e,
+        // A foto do usuário ganha da do catálogo: ela é a que ele reconhece na academia dele.
+        image: fotoPorId.get(e.id) ?? e.image,
+        hasUserPhoto: fotoPorId.has(e.id),
         favorite: favoritoIds.has(e.id),
         timesPerformed: usoPorId.get(e.id) ?? 0,
         custom: e.userId !== null,
@@ -67,7 +72,7 @@ export class GymExercisesService {
   async findOne(userId: string, id: string, formula: OneRmFormula = "EPLEY") {
     const exercicio = await this.getVisible(userId, id);
 
-    const [series, favorito] = await Promise.all([
+    const [series, favorito, foto] = await Promise.all([
       this.prisma.gymSet.findMany({
         where: { exerciseId: id, completed: true, session: { userId } },
         orderBy: { completedAt: "desc" },
@@ -75,6 +80,7 @@ export class GymExercisesService {
         include: { session: { select: { id: true, name: true, startedAt: true } } },
       }),
       this.prisma.gymExerciseFavorite.findFirst({ where: { userId, exerciseId: id } }),
+      this.prisma.gymExercisePhoto.findUnique({ where: { userId_exerciseId: { userId, exerciseId: id } } }),
     ]);
 
     // Uma linha por sessão: o histórico da tela é "no dia 27/08 fiz 4 séries de 80 kg × 8", não uma
@@ -103,6 +109,8 @@ export class GymExercisesService {
 
     return {
       ...exercicio,
+      image: foto?.image ?? exercicio.image,
+      hasUserPhoto: !!foto,
       custom: exercicio.userId !== null,
       favorite: !!favorito,
       timesPerformed: series.length,
@@ -155,6 +163,31 @@ export class GymExercisesService {
     await this.getOwned(userId, id);
     await this.prisma.gymExercise.update({ where: { id }, data: { archivedAt: new Date() } });
     return { id };
+  }
+
+  /**
+   * Grava a foto que a pessoa tirou de um exercício.
+   *
+   * Vale pro exercício do CATÁLOGO também, e é justamente o ponto: o catálogo é global, então a
+   * foto não pode morar nele — mora numa linha do usuário. `getVisible` (e não `getOwned`) porque
+   * pôr foto num exercício do catálogo é legítimo; o que não é legítimo é alterar o catálogo.
+   */
+  async setPhoto(userId: string, id: string, image: string) {
+    await this.getVisible(userId, id);
+    const result = parseAssetPhoto(image);
+    if (!result.ok) throw new BadRequestException(result.reason);
+
+    return this.prisma.gymExercisePhoto.upsert({
+      where: { userId_exerciseId: { userId, exerciseId: id } },
+      create: { userId, exerciseId: id, image },
+      update: { image },
+    });
+  }
+
+  /** Tira a foto do usuário. O exercício volta a mostrar a do catálogo, se houver. */
+  async removePhoto(userId: string, id: string) {
+    await this.prisma.gymExercisePhoto.deleteMany({ where: { userId, exerciseId: id } });
+    return { exerciseId: id };
   }
 
   async toggleFavorite(userId: string, id: string) {

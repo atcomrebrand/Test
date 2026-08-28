@@ -187,6 +187,12 @@ export class GymWorkoutsService {
       select: { exerciseId: true, setNumber: true, weight: true, reps: true, sessionId: true, completedAt: true },
     });
 
+    const fotos = await this.prisma.gymExercisePhoto.findMany({
+      where: { userId, exerciseId: { in: exerciseIds } },
+      select: { exerciseId: true, image: true },
+    });
+    const fotoPorId = new Map(fotos.map((f) => [f.exerciseId, f.image]));
+
     const ultimaSessaoPorExercicio = new Map<string, string>();
     for (const s of ultimasSeries) {
       if (!ultimaSessaoPorExercicio.has(s.exerciseId)) ultimaSessaoPorExercicio.set(s.exerciseId, s.sessionId);
@@ -207,7 +213,7 @@ export class GymWorkoutsService {
           name: e.exercise.name,
           primaryMuscle: e.exercise.primaryMuscle,
           equipment: e.exercise.equipment,
-          image: e.exercise.image ?? null,
+          image: fotoPorId.get(e.exerciseId) ?? e.exercise.image ?? null,
           order: e.order,
           targetSets: e.sets,
           targetRepsMin: e.targetRepsMin,

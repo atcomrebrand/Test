@@ -13,6 +13,7 @@ import {
   CreateGymTargetDto,
   CreateGymWorkoutDto,
   ReorderDto,
+  SetExercisePhotoDto,
   SyncGymSessionDto,
   UpdateGymExerciseDto,
   UpdateGymProfileDto,
@@ -100,6 +101,17 @@ export class GymController {
   @Delete("exercises/:id")
   removeExercise(@CurrentUser() user: AuthUser, @Param("id") id: string) {
     return this.exercises.remove(user.userId, id);
+  }
+
+  /** Foto do exercício. Vale pro catálogo também — ela é sua, não dele. */
+  @Put("exercises/:id/photo")
+  setExercisePhoto(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: SetExercisePhotoDto) {
+    return this.exercises.setPhoto(user.userId, id, dto.image);
+  }
+
+  @Delete("exercises/:id/photo")
+  removeExercisePhoto(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.exercises.removePhoto(user.userId, id);
   }
 
   @Post("exercises/:id/favorite")

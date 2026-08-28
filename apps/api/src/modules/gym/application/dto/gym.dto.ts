@@ -59,6 +59,10 @@ export class UpdateGymExerciseDto extends CreateGymExerciseDto {
   @IsOptional() @IsEnum(GymEquipment) declare equipment: GymEquipment;
 }
 
+export class SetExercisePhotoDto {
+  @IsString() image!: string;
+}
+
 export class WorkoutExerciseDto {
   @IsString() exerciseId!: string;
   @IsOptional() @IsInt() @Min(1) @Max(20) sets?: number;

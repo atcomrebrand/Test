@@ -555,6 +555,21 @@ indicador despencaria toda semana por um motivo que não é o desempenho de ning
 está em 82,5 fez 12,5% do caminho, não 82,5% — contar do zero mostraria uma barra quase cheia no
 primeiro dia e quase parada por meses.
 
+**A foto do exercício mora numa tabela SUA, não na coluna do exercício.** O catálogo é global
+(`userId = null`, o mesmo padrão da carteira principal dos investimentos), então gravar a foto na
+linha dele seria escrever no exercício de todo mundo — e `getOwned`, com razão, proíbe editar o
+catálogo. `GymExercisePhoto` (única por usuário×exercício, mesmo padrão do favorito) resolve os
+dois: a leitura funde a sua foto por cima da do catálogo em `list`, `findOne` e no prefill do
+treino, e `hasUserPhoto` diz se dá pra remover — sem ele a tela ofereceria "remover a foto" pra uma
+imagem que não é sua. Pôr foto usa `getVisible`, não `getOwned`: ilustrar um exercício do catálogo é
+legítimo, *editá-lo* não. Guardada como data URL no registro, pelo mesmo motivo da foto do bem
+financiado — ~25 KB depois do corte no cliente não valem storage e rota estática — e revalidada no
+servidor por `parseAssetPhoto`, porque chamada direta na API não passa pelo canvas.
+
+**Exercício próprio é editável e excluível; o do catálogo, nunca.** A tela de detalhe só mostra
+Editar/Excluir quando `custom` — e o botão de foto aparece nos dois casos, que é justamente a
+diferença entre "seu exercício" e "seu jeito de ver o exercício".
+
 ## CRM: as quatro regras que sustentam o módulo
 
 Módulo independente (`crm`), sem `imports` de outros módulos — em particular não toca no Contas da

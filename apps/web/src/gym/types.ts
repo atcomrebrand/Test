@@ -43,6 +43,8 @@ export interface GymExercise {
   tips: string[];
   commonMistakes: string[];
   image: string | null;
+  /** A foto é sua (e não a do catálogo) — só ela pode ser removida. */
+  hasUserPhoto: boolean;
   favorite: boolean;
   timesPerformed: number;
   custom: boolean;

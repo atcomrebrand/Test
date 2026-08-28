@@ -65,6 +65,38 @@ export function useGymExercise(id: string | undefined) {
   });
 }
 
+export function useCreateExercise() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (body: unknown) => api.post<GymExercise>("/gym/exercises", body), onSuccess: () => invalidate(qc) });
+}
+
+export function useUpdateExercise() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string } & Record<string, unknown>) => api.patch(`/gym/exercises/${id}`, body),
+    onSuccess: () => invalidate(qc),
+  });
+}
+
+export function useDeleteExercise() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (id: string) => api.delete(`/gym/exercises/${id}`), onSuccess: () => invalidate(qc) });
+}
+
+/** A foto vale pro exercício do catálogo também: ela é sua, não dele. */
+export function useSetExercisePhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, image }: { id: string; image: string }) => api.put(`/gym/exercises/${id}/photo`, { image }),
+    onSuccess: () => invalidate(qc),
+  });
+}
+
+export function useRemoveExercisePhoto() {
+  const qc = useQueryClient();
+  return useMutation({ mutationFn: (id: string) => api.delete(`/gym/exercises/${id}/photo`), onSuccess: () => invalidate(qc) });
+}
+
 export function useToggleFavorite() {
   const qc = useQueryClient();
   return useMutation({

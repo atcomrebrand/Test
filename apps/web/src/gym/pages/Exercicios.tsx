@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { Search, Star, X } from "lucide-react";
+import { Dumbbell, Plus, Search, Star, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Skeleton } from "@/components/ui/Skeleton";
+import { Button } from "@/components/ui/Button";
 import { useGymExercises, useToggleFavorite } from "../api";
+import { ExerciseFormModal } from "../components/ExerciseFormModal";
 import { EQUIPMENT_LABEL, GYM, MUSCLE_LABEL } from "../theme";
 import { GymEquipment, GymMuscle } from "../types";
 
@@ -16,13 +18,20 @@ export default function Exercicios() {
   const [favorites, setFavorites] = useState(false);
   const { data: exercicios, isLoading } = useGymExercises({ query, muscle, equipment, favorites });
   const favoritar = useToggleFavorite();
+  const [criando, setCriando] = useState(false);
 
   const musculos = useMemo(() => Object.keys(MUSCLE_LABEL) as GymMuscle[], []);
   const equipamentos = useMemo(() => Object.keys(EQUIPMENT_LABEL) as GymEquipment[], []);
 
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <h1 className="text-2xl font-black tracking-tight">Exercícios</h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-2xl font-black tracking-tight">Exercícios</h1>
+        <Button onClick={() => setCriando(true)}>
+          <Plus className="h-4 w-4" />
+          Novo
+        </Button>
+      </div>
 
       <label className="flex items-center gap-2 rounded-xl border border-[rgb(var(--border))] surface px-3 py-2.5">
         <Search className="h-4 w-4 shrink-0 text-muted" />
@@ -78,12 +87,21 @@ export default function Exercicios() {
             {exercicios?.map((ex) => (
               <Card key={ex.id}>
                 <CardContent className="flex items-center gap-3 py-3">
-                  <Link to={`/academia/exercicios/${ex.id}`} className="min-w-0 flex-1">
+                  <Link to={`/academia/exercicios/${ex.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                    {ex.image ? (
+                      <img src={ex.image} alt="" className="h-12 w-12 shrink-0 rounded-lg object-cover" />
+                    ) : (
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg surface-2 text-muted">
+                        <Dumbbell className="h-5 w-5" />
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{ex.name}</p>
                     <p className="text-xs text-muted">
                       {MUSCLE_LABEL[ex.primaryMuscle]} · {EQUIPMENT_LABEL[ex.equipment]}
                       {ex.timesPerformed > 0 && ` · ${ex.timesPerformed} séries feitas`}
                     </p>
+                    </span>
                   </Link>
                   <button
                     onClick={() => favoritar.mutate(ex.id)}
@@ -99,6 +117,8 @@ export default function Exercicios() {
           </div>
         </>
       )}
+
+      <ExerciseFormModal open={criando} onClose={() => setCriando(false)} />
     </div>
   );
 }

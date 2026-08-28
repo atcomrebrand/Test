@@ -1,17 +1,40 @@
-import { Link, useParams } from "react-router-dom";
+import { useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { AlertTriangle, ArrowLeft, Lightbulb, ListOrdered, Star } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Camera, Dumbbell, Lightbulb, ListOrdered, Pencil, Star, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatDate } from "@/lib/format";
-import { useGymExercise, useToggleFavorite } from "../api";
+import { Button } from "@/components/ui/Button";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { resizeImageToSquareDataUrl } from "@/lib/imageResize";
+import { useDeleteExercise, useGymExercise, useRemoveExercisePhoto, useSetExercisePhoto, useToggleFavorite } from "../api";
+import { ExerciseFormModal } from "../components/ExerciseFormModal";
 import { EQUIPMENT_LABEL, GYM, MUSCLE_LABEL } from "../theme";
 
 export default function ExercicioDetalhe() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { data: ex, isLoading } = useGymExercise(id);
   const favoritar = useToggleFavorite();
+  const salvarFoto = useSetExercisePhoto();
+  const tirarFoto = useRemoveExercisePhoto();
+  const excluir = useDeleteExercise();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [editando, setEditando] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
+  const [erroFoto, setErroFoto] = useState<string | null>(null);
+
+  async function escolherFoto(file: File) {
+    if (!id) return;
+    try {
+      setErroFoto(null);
+      salvarFoto.mutate({ id, image: await resizeImageToSquareDataUrl(file) });
+    } catch (e) {
+      setErroFoto(e instanceof Error ? e.message : "Não consegui ler essa imagem.");
+    }
+  }
 
   if (isLoading || !ex) return <Skeleton className="h-96 rounded-3xl" />;
 
@@ -21,6 +44,51 @@ export default function ExercicioDetalhe() {
         <ArrowLeft className="h-4 w-4" />
         Exercícios
       </Link>
+
+      {/* A foto no topo, grande. É o que faz reconhecer o exercício de relance — e por isso ela
+          vale mais aqui do que qualquer texto. Sem foto, o espaço vira um convite a pôr uma. */}
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="relative flex h-56 w-full items-center justify-center overflow-hidden rounded-3xl border border-[rgb(var(--border))] surface-2"
+        aria-label={ex.image ? "Trocar a foto do exercício" : "Adicionar foto do exercício"}
+      >
+        {ex.image ? (
+          <img src={ex.image} alt={ex.name} className="h-full w-full object-cover" />
+        ) : (
+          <span className="flex flex-col items-center gap-2 text-muted">
+            <Dumbbell className="h-10 w-10" />
+            <span className="text-sm font-medium">Toque para adicionar uma foto</span>
+          </span>
+        )}
+        {ex.image && (
+          <span className="absolute bottom-3 right-3 flex items-center gap-1.5 rounded-full bg-black/60 px-3 py-1.5 text-xs font-semibold text-white">
+            <Camera className="h-3.5 w-3.5" />
+            Trocar
+          </span>
+        )}
+      </button>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) void escolherFoto(f);
+          e.target.value = "";
+        }}
+      />
+      {erroFoto && <p className="text-sm text-red-500">{erroFoto}</p>}
+      {ex.hasUserPhoto && (
+        <button
+          onClick={() => id && tirarFoto.mutate(id)}
+          className="flex w-fit items-center gap-1.5 text-xs text-muted hover:text-red-500 hover:underline"
+        >
+          <Trash2 className="h-3 w-3" />
+          Remover a foto
+        </button>
+      )}
 
       <div className={cn("rounded-3xl border p-5", GYM.border, GYM.soft)}>
         <div className="flex items-start justify-between gap-3">
@@ -55,6 +123,21 @@ export default function ExercicioDetalhe() {
           )}
         </dl>
       </div>
+
+      {/* Só o exercício que a pessoa criou é editável: o catálogo é global, e alterá-lo mexeria no
+          exercício de todo mundo. A foto, essa sim, vale pros dois — ela é dela, não do catálogo. */}
+      {ex.custom && (
+        <div className="flex gap-2">
+          <Button variant="ghost" onClick={() => setEditando(true)}>
+            <Pencil className="h-4 w-4" />
+            Editar
+          </Button>
+          <Button variant="ghost" onClick={() => setExcluindo(true)}>
+            <Trash2 className="h-4 w-4" />
+            Excluir
+          </Button>
+        </div>
+      )}
 
       {ex.instructions.length > 0 && (
         <Card>
@@ -162,6 +245,18 @@ export default function ExercicioDetalhe() {
           </CardContent>
         </Card>
       )}
+
+      <ExerciseFormModal open={editando} onClose={() => setEditando(false)} exercise={ex} />
+
+      <ConfirmModal
+        open={excluindo}
+        onClose={() => setExcluindo(false)}
+        title="Excluir exercício"
+        confirmLabel="Excluir"
+        loading={excluir.isPending}
+        onConfirm={() => id && excluir.mutate(id, { onSuccess: () => navigate("/academia/exercicios") })}
+        description="Ele sai da biblioteca, mas continua no histórico dos treinos em que você já o fez — apagar de vez levaria o passado junto."
+      />
     </div>
   );
 }
