@@ -425,8 +425,20 @@ com o celular na mão, de pé, sem sinal.
   seria estorvo. Nos dois casos o registro é gravado antes de sumir.
 - **O descanso registrado é tempo de RELÓGIO, incluindo a pausa.** Pausou e ficou 3 minutos
   conversando: descansou 3 minutos. É isso que a estatística precisa saber, não os 90s configurados.
-- **Um toque no ✓ registra a série E começa o descanso.** Separar em dois toques significa que o
-  segundo é esquecido no meio do treino.
+- **Concluir a série JÁ começa o descanso.** Separar em dois toques significa que o segundo é
+  esquecido no meio do treino.
+- **A tela de execução é a LISTA de exercícios, com um aberto por vez** — não um exercício isolado
+  com setas. Ver a lista inteira responde "quanto falta" sem navegar, e abrir o próximo é um toque.
+  Cada série é um cartão com ▶ (inicia) → ⏹ (conclui e dispara o descanso) → ✓ (feita); quem não
+  quer os dois toques liga **"execução automática das séries"**, e aí a seguinte já entra em
+  execução sozinha ao sair do descanso.
+- **O descanso é um modal, não um painel embutido.** É o único momento do treino em que a pessoa não
+  está fazendo mais nada, e ocupar a tela toda com o tempo é o que faz o número ser lido de longe,
+  com o celular apoiado no banco.
+- **Volume é SEMPRE em quilos, nunca em toneladas.** Converter passava de "2.080 kg" pra "2,1 t" já
+  na terceira série: o número perde a precisão exatamente na faixa em que ele vive e passa a parecer
+  errado estando certo. Exercício de peso corporal tem volume 0 por definição (carga × repetições,
+  com carga zero) — é correto, mesmo parecendo quebrado.
 
 **A sessão vive no aparelho** (zustand persistido), e o servidor só a recebe pronta. Recarregar a
 página no meio do treino mantém tudo; o treino inteiro roda offline e sobe sozinho depois. A subida
