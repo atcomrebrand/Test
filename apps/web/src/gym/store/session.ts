@@ -20,6 +20,8 @@ export interface ActiveSet {
   weight: number;
   reps: number;
   completed: boolean;
+  /** Quando o ▶ foi tocado. Enquanto existe e não está concluída, a série está EM EXECUÇÃO. */
+  startedAt?: number;
   notes?: string;
   /** Preenchido quando o descanso daquela série termina (§37). */
   rest: RestRecord | null;
@@ -38,6 +40,10 @@ export interface ActiveExercise {
   restSeconds: number;
   notes: string | null;
   lastLabel: string | null;
+  /** O que foi feito da última vez, exercício a exercício — a tabela "Histórico de séries". */
+  lastSets: { setNumber: number; weight: number; reps: number }[];
+  /** Concluir uma série já deixa a próxima em execução, sem passar pelo ▶. */
+  autoAdvance: boolean;
   sets: ActiveSet[];
 }
 
@@ -48,6 +54,7 @@ export interface ActiveSession {
   startedAt: number;
   finishedAt: number | null;
   exercises: ActiveExercise[];
+  /** Qual exercício está aberto. `-1` = nenhum, que é a lista fechada do começo do treino. */
   currentIndex: number;
   notes: string;
   rest: RestTimerState;
@@ -77,6 +84,11 @@ interface SessionStore {
   discard: () => void;
 
   setCurrentIndex: (index: number) => void;
+  /** Abre/fecha um exercício da lista. Abrir um fecha o outro: dois abertos viram rolagem infinita. */
+  toggleExercise: (index: number) => void;
+  setAutoAdvance: (exerciseIndex: number, value: boolean) => void;
+  /** Marca a série como em execução (o ▶ do cartão). */
+  startSet: (exerciseIndex: number, setNumber: number, now?: number) => void;
   updateSet: (exerciseIndex: number, setNumber: number, patch: Partial<ActiveSet>) => void;
   addSet: (exerciseIndex: number) => void;
   removeSet: (exerciseIndex: number) => void;
@@ -144,13 +156,15 @@ export const useGymSessionStore = create<SessionStore>()(
               name: prefill.workout.name,
               startedAt: now,
               finishedAt: null,
-              currentIndex: 0,
+              currentIndex: -1,
               notes: "",
               rest: IDLE_REST,
               restTarget: null,
               synced: false,
               alerted: false,
               exercises: prefill.exercises.map((e) => ({
+                lastSets: e.lastSets,
+                autoAdvance: false,
                 exerciseId: e.exerciseId,
                 name: e.name,
                 primaryMuscle: e.primaryMuscle,
@@ -181,7 +195,25 @@ export const useGymSessionStore = create<SessionStore>()(
 
         discard: () => set({ session: null }),
 
-        setCurrentIndex: (index) => patch((s) => ({ ...s, currentIndex: Math.max(0, Math.min(index, s.exercises.length - 1)) })),
+        setCurrentIndex: (index) => patch((s) => ({ ...s, currentIndex: Math.max(-1, Math.min(index, s.exercises.length - 1)) })),
+
+        toggleExercise: (index) => patch((s) => ({ ...s, currentIndex: s.currentIndex === index ? -1 : index })),
+
+        setAutoAdvance: (exerciseIndex, value) =>
+          patch((s) => ({
+            ...s,
+            exercises: s.exercises.map((ex, i) => (i === exerciseIndex ? { ...ex, autoAdvance: value } : ex)),
+          })),
+
+        startSet: (exerciseIndex, setNumber, now = Date.now()) =>
+          patch((s) => ({
+            ...s,
+            exercises: s.exercises.map((ex, i) =>
+              i !== exerciseIndex
+                ? ex
+                : { ...ex, sets: ex.sets.map((st) => (st.setNumber === setNumber ? { ...st, startedAt: now } : st)) },
+            ),
+          })),
 
         updateSet: (exerciseIndex, setNumber, p) =>
           patch((s) => ({
@@ -223,10 +255,29 @@ export const useGymSessionStore = create<SessionStore>()(
                   : { ...ex, sets: ex.sets.map((st) => (st.setNumber === setNumber ? { ...st, completed: true, completedAt: new Date(now).toISOString() } : st)) },
               ),
             };
-            // Um toque no ✓ registra a série E começa o descanso: sem isso o §55 vira dois toques,
-            // e o segundo é o que as pessoas esquecem no meio do treino.
+            // Concluir a série JÁ começa o descanso: sem isso o §55 vira dois toques, e o segundo é
+            // o que as pessoas esquecem no meio do treino.
+            //
+            // Com "execução automática" ligada, a série seguinte também já entra em execução — quem
+            // ligou isso não quer tocar em ▶ de novo ao sair do descanso.
+            const comProxima = exercicio.autoAdvance
+              ? {
+                  ...comSerie,
+                  exercises: comSerie.exercises.map((ex, i) =>
+                    i !== exerciseIndex
+                      ? ex
+                      : {
+                          ...ex,
+                          sets: ex.sets.map((st) =>
+                            st.setNumber === setNumber + 1 && !st.completed ? { ...st, startedAt: now } : st,
+                          ),
+                        },
+                  ),
+                }
+              : comSerie;
+
             return {
-              ...comSerie,
+              ...comProxima,
               rest: startRest(exercicio.restSeconds, now),
               restTarget: { exerciseIndex, setNumber },
               alerted: exercicio.restSeconds === 0,
@@ -344,6 +395,11 @@ export function sessionPayload(session: ActiveSession) {
         })),
     ),
   };
+}
+
+/** Volume de UM exercício: Σ carga × repetições das séries concluídas. */
+export function exerciseVolume(exercise: ActiveExercise): number {
+  return exercise.sets.filter((s) => s.completed).reduce((acc, s) => acc + s.weight * s.reps, 0);
 }
 
 /** Progresso do treino, pra barra do topo. */

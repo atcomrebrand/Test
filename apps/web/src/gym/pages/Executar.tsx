@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
-import { Check, ChevronLeft, ChevronRight, Flag, Minus, Plus, Timer, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Dumbbell, Flag, Minus, Pencil, Play, Plus, Square, Timer, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { useGymProfile } from "../api";
-import { RestTimer } from "../components/RestTimer";
-import { sessionProgress, useGymSessionStore } from "../store/session";
+import { RestTimerModal } from "../components/RestTimerModal";
+import { ActiveExercise, exerciseVolume, sessionProgress, useGymSessionStore } from "../store/session";
 import { formatDuration, formatVolume, GYM, MUSCLE_LABEL } from "../theme";
 import { useElapsed } from "../useElapsed";
 import { useOnline } from "../useGymSync";
@@ -14,39 +14,27 @@ import { useOnline } from "../useGymSync";
 /**
  * O modo treino (§9, §19, §55).
  *
- * Tela cheia, escura, com o que importa sempre visível: cronômetro da sessão, progresso e a série
- * atual. Tudo daqui roda **no aparelho** — nenhuma ação nesta tela espera o servidor, porque na
- * academia a conexão simplesmente não é confiável e um treino não pode depender dela.
+ * A tela é a LISTA de exercícios, com um aberto por vez — e não um exercício isolado com setas.
+ * Ver a lista inteira responde "quanto falta" sem navegar, e abrir o próximo é um toque no card
+ * dele. Tudo daqui roda no aparelho: nenhuma ação nesta tela espera o servidor, porque na academia
+ * a conexão não é confiável e um treino não pode depender dela.
  */
 export default function Executar() {
   const navigate = useNavigate();
   const session = useGymSessionStore((s) => s.session);
   const { data: perfil } = useGymProfile();
 
-  const setCurrentIndex = useGymSessionStore((s) => s.setCurrentIndex);
-  const updateSet = useGymSessionStore((s) => s.updateSet);
-  const completeSet = useGymSessionStore((s) => s.completeSet);
-  const uncompleteSet = useGymSessionStore((s) => s.uncompleteSet);
-  const addSet = useGymSessionStore((s) => s.addSet);
-  const removeSet = useGymSessionStore((s) => s.removeSet);
-  const beginRest = useGymSessionStore((s) => s.beginRest);
+  const toggleExercise = useGymSessionStore((s) => s.toggleExercise);
   const finish = useGymSessionStore((s) => s.finish);
   const discard = useGymSessionStore((s) => s.discard);
 
   const [confirmando, setConfirmando] = useState(false);
   const [abandonando, setAbandonando] = useState(false);
-  /**
-   * Encerrando por vontade da pessoa, e não por falta de sessão.
-   *
-   * Sem isso a guarda logo abaixo dispara no instante em que `finish()` zera a sessão e joga a
-   * pessoa na lista de treinos — atropelando a navegação pro resumo, que acontece na mesma ação.
-   * Era o final feliz do fluxo caindo na saída de emergência.
-   */
+  /** Encerrando por vontade da pessoa, e não por falta de sessão — ver a guarda logo abaixo. */
   const [encerrando, setEncerrando] = useState(false);
   const online = useOnline();
   const agora = useElapsed(!!session, 500);
 
-  // Sem sessão ativa não há o que executar — volta pra lista em vez de mostrar tela vazia.
   useEffect(() => {
     if (!session && !encerrando) navigate("/academia/treinos", { replace: true });
   }, [session, encerrando, navigate]);
@@ -54,21 +42,17 @@ export default function Executar() {
   const progresso = useMemo(() => (session ? sessionProgress(session) : null), [session]);
   if (!session || !progresso) return null;
 
-  const exercicio = session.exercises[session.currentIndex];
   const decorrido = Math.floor((agora - session.startedAt) / 1000);
-  const descansando = session.rest.phase !== "IDLE";
 
   function concluirTreino() {
     setEncerrando(true);
     const finalizada = finish();
     setConfirmando(false);
-    if (finalizada) navigate(`/academia/resumo/${finalizada.clientId}`, { replace: true });
-    else navigate("/academia/treinos", { replace: true });
+    navigate(finalizada ? `/academia/resumo/${finalizada.clientId}` : "/academia/treinos", { replace: true });
   }
 
   return (
     <div className="flex min-h-screen flex-col bg-neutral-950 pb-[env(safe-area-inset-bottom)] text-neutral-50">
-      {/* Cabeçalho fixo: cronômetro e progresso nunca sobem com a rolagem (§19). */}
       <header className="sticky top-0 z-20 border-b border-neutral-800 bg-neutral-950/95 px-4 pt-[calc(0.75rem_+_env(safe-area-inset-top))] pb-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <button
@@ -112,136 +96,24 @@ export default function Executar() {
         )}
       </header>
 
-      <main className="flex-1 space-y-4 px-4 py-4">
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={exercicio.exerciseId}
-            initial={{ opacity: 0, x: 24 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -24 }}
-            transition={{ duration: 0.18 }}
-          >
-            <div className="rounded-3xl border border-neutral-800 bg-neutral-900 p-5">
-              <p className={cn("text-xs font-bold uppercase tracking-[0.2em]", GYM.text)}>
-                {MUSCLE_LABEL[exercicio.primaryMuscle]}
-              </p>
-              <h1 className="mt-1 text-2xl font-black leading-tight">{exercicio.name}</h1>
-
-              <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-                <span className="text-neutral-400">
-                  Meta{" "}
-                  <strong className="text-neutral-100">
-                    {exercicio.sets.length} × {exercicio.targetRepsMin}
-                    {exercicio.targetRepsMax !== exercicio.targetRepsMin && `–${exercicio.targetRepsMax}`}
-                  </strong>
-                </span>
-                {exercicio.lastLabel && (
-                  <span className="text-neutral-400">
-                    Última vez <strong className="text-neutral-100">{exercicio.lastLabel}</strong>
-                  </span>
-                )}
-                <span className="text-neutral-400">
-                  Descanso <strong className="text-neutral-100">{exercicio.restSeconds}s</strong>
-                </span>
-              </div>
-
-              {exercicio.notes && <p className="mt-3 rounded-xl bg-neutral-800 p-3 text-sm text-neutral-300">{exercicio.notes}</p>}
-
-              <div className="mt-5 space-y-2">
-                {exercicio.sets.map((serie) => (
-                  <SetRow
-                    key={serie.setNumber}
-                    number={serie.setNumber}
-                    weight={serie.weight}
-                    reps={serie.reps}
-                    completed={serie.completed}
-                    onChange={(patch) => updateSet(session.currentIndex, serie.setNumber, patch)}
-                    onToggle={() =>
-                      serie.completed
-                        ? uncompleteSet(session.currentIndex, serie.setNumber)
-                        : completeSet(session.currentIndex, serie.setNumber)
-                    }
-                  />
-                ))}
-              </div>
-
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => addSet(session.currentIndex)}
-                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-neutral-800 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-neutral-700"
-                >
-                  <Plus className="h-4 w-4" />
-                  Série
-                </button>
-                {exercicio.sets.length > 1 && (
-                  <button
-                    onClick={() => removeSet(session.currentIndex)}
-                    className="flex items-center justify-center gap-1.5 rounded-xl bg-neutral-800 px-4 py-2.5 text-sm font-semibold text-neutral-400 hover:bg-neutral-700"
-                    aria-label="Remover última série"
-                  >
-                    <Minus className="h-4 w-4" />
-                  </button>
-                )}
-                {/* Descanso manual (§13): nem todo descanso vem de concluir uma série. */}
-                {!descansando && (
-                  <button
-                    onClick={() => beginRest(exercicio.restSeconds, null)}
-                    className="flex items-center justify-center gap-1.5 rounded-xl bg-neutral-800 px-4 py-2.5 text-sm font-semibold text-neutral-200 hover:bg-neutral-700"
-                  >
-                    <Timer className="h-4 w-4" />
-                    Descansar
-                  </button>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        </AnimatePresence>
-
-        <RestTimer soundEnabled={perfil?.soundEnabled ?? true} vibrationEnabled={perfil?.vibrationEnabled ?? true} />
-
-        {/* Navegação entre exercícios: sempre ao alcance do polegar, nunca obrigatória. */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setCurrentIndex(session.currentIndex - 1)}
-            disabled={session.currentIndex === 0}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-900 text-neutral-300 disabled:opacity-30"
-            aria-label="Exercício anterior"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-
-          <div className="flex flex-1 items-center justify-center gap-1.5">
-            {session.exercises.map((ex, i) => {
-              const feito = ex.sets.every((s) => s.completed);
-              return (
-                <button
-                  key={ex.exerciseId}
-                  onClick={() => setCurrentIndex(i)}
-                  aria-label={`Ir para ${ex.name}`}
-                  className={cn(
-                    "h-2.5 rounded-full transition-all",
-                    i === session.currentIndex ? "w-6 bg-lime-500" : feito ? "w-2.5 bg-lime-500/40" : "w-2.5 bg-neutral-700",
-                  )}
-                />
-              );
-            })}
-          </div>
-
-          <button
-            onClick={() => setCurrentIndex(session.currentIndex + 1)}
-            disabled={session.currentIndex >= session.exercises.length - 1}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-900 text-neutral-300 disabled:opacity-30"
-            aria-label="Próximo exercício"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        </div>
+      <main className="flex-1 space-y-3 px-4 py-4">
+        {session.exercises.map((ex, i) => (
+          <CardExercicio
+            key={ex.exerciseId}
+            exercicio={ex}
+            index={i}
+            aberto={session.currentIndex === i}
+            onToggle={() => toggleExercise(i)}
+          />
+        ))}
 
         <div className="rounded-2xl border border-neutral-800 bg-neutral-900 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Volume até agora</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500">Volume total do treino</p>
           <p className="mt-1 text-2xl font-black">{formatVolume(progresso.volume)}</p>
         </div>
       </main>
+
+      <RestTimerModal soundEnabled={perfil?.soundEnabled ?? true} vibrationEnabled={perfil?.vibrationEnabled ?? true} />
 
       <ConfirmModal
         open={confirmando}
@@ -273,71 +145,291 @@ export default function Executar() {
   );
 }
 
-/**
- * Uma linha de série.
- *
- * Campos grandes e `inputMode="decimal"` porque é digitado de pé, com o polegar, e o teclado tem
- * que abrir já no numérico. O ✓ é o botão maior da linha: é o único que se aperta em toda série.
- */
-function SetRow({
-  number,
-  weight,
-  reps,
-  completed,
-  onChange,
+/** O cartão de um exercício: fechado mostra o essencial, aberto vira a área de execução. */
+function CardExercicio({
+  exercicio,
+  index,
+  aberto,
   onToggle,
 }: {
-  number: number;
-  weight: number;
-  reps: number;
-  completed: boolean;
-  onChange: (patch: { weight?: number; reps?: number }) => void;
+  exercicio: ActiveExercise;
+  index: number;
+  aberto: boolean;
   onToggle: () => void;
 }) {
+  const setAutoAdvance = useGymSessionStore((s) => s.setAutoAdvance);
+  const addSet = useGymSessionStore((s) => s.addSet);
+  const removeSet = useGymSessionStore((s) => s.removeSet);
+  const beginRest = useGymSessionStore((s) => s.beginRest);
+  const [obsAberta, setObsAberta] = useState(false);
+
+  const volume = exerciseVolume(exercicio);
+  const concluido = exercicio.sets.every((s) => s.completed);
+  const feitas = exercicio.sets.filter((s) => s.completed).length;
+
+  return (
+    <div className={cn("overflow-hidden rounded-2xl border", concluido ? "border-lime-500/40" : "border-neutral-800")}>
+      <div className="flex items-start gap-3 bg-neutral-800/60 p-3">
+        <Thumb exercicio={exercicio} />
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-neutral-400">Exercício:</p>
+          <p className="text-lg font-bold leading-tight">{exercicio.name}</p>
+          <p className="mt-0.5 text-xs text-neutral-400">Volume total do exercício: {formatVolume(volume)}</p>
+        </div>
+        <button
+          onClick={onToggle}
+          aria-expanded={aberto}
+          aria-label={aberto ? `Recolher ${exercicio.name}` : `Abrir ${exercicio.name}`}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-700/70 text-neutral-200"
+        >
+          {aberto ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {!aberto && (
+        <button
+          onClick={onToggle}
+          className={cn(
+            "flex w-full items-center justify-center gap-2 py-3.5 text-base font-semibold transition-colors",
+            concluido ? "bg-lime-500/15 text-lime-400" : "bg-sky-500 text-white hover:bg-sky-400",
+          )}
+        >
+          {concluido ? (
+            <>
+              <Check className="h-5 w-5" />
+              Exercício concluído
+            </>
+          ) : (
+            <>
+              <Play className="h-5 w-5 fill-current" />
+              {feitas > 0 ? "Continuar exercício" : "Iniciar exercício"}
+            </>
+          )}
+        </button>
+      )}
+
+      <AnimatePresence initial={false}>
+        {aberto && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="bg-neutral-800/40"
+          >
+            <div className="space-y-4 p-3">
+              {/* Faixa de mídia. O catálogo ainda não tem foto nem vídeo — quando tiver, entra aqui
+                  sem mexer no resto: o espaço já está reservado e legendado. */}
+              <div className="relative flex h-40 items-center justify-center overflow-hidden rounded-xl bg-neutral-900">
+                {exercicio.image ? (
+                  <img src={exercicio.image} alt={exercicio.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex flex-col items-center gap-1 text-neutral-600">
+                    <Dumbbell className="h-9 w-9" />
+                    <span className="text-xs font-medium">{MUSCLE_LABEL[exercicio.primaryMuscle]}</span>
+                  </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 flex items-end justify-between bg-gradient-to-t from-black/80 to-transparent px-3 py-2">
+                  <p className="text-2xl font-black leading-none">
+                    {exercicio.sets.length} <span className="text-sm font-semibold">Série(s)</span>
+                  </p>
+                  <p className="text-2xl font-black leading-none">
+                    {exercicio.restSeconds} <span className="text-sm font-semibold">descanso</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="overflow-hidden rounded-xl bg-neutral-100 text-neutral-900">
+                <button
+                  onClick={() => setObsAberta((v) => !v)}
+                  aria-expanded={obsAberta}
+                  className="flex w-full items-center gap-2 px-3 py-3 text-left text-sm font-medium"
+                >
+                  <Pencil className="h-4 w-4 shrink-0 text-neutral-500" />
+                  <span className="flex-1">Observações do Exercício</span>
+                  <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", obsAberta && "rotate-180")} />
+                </button>
+                {obsAberta && (
+                  <p className="border-t border-neutral-300 px-3 py-3 text-sm">
+                    {exercicio.notes || <span className="text-neutral-500">Nenhuma observação para este exercício.</span>}
+                  </p>
+                )}
+              </div>
+
+              <button
+                onClick={() => setAutoAdvance(index, !exercicio.autoAdvance)}
+                role="switch"
+                aria-checked={exercicio.autoAdvance}
+                className="flex w-full items-center gap-3 text-left text-sm font-medium"
+              >
+                <span
+                  className={cn(
+                    "relative h-8 w-14 shrink-0 rounded-full border-2 border-neutral-500 transition-colors",
+                    exercicio.autoAdvance ? "bg-lime-500" : "bg-neutral-700",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "absolute top-0.5 h-6 w-6 rounded-full bg-white transition-all",
+                      exercicio.autoAdvance ? "left-[1.625rem]" : "left-0.5",
+                    )}
+                  />
+                </span>
+                Execução automática das séries
+              </button>
+
+              <p className="text-center text-sm text-neutral-300">Execute as séries abaixo até concluir o exercício</p>
+
+              <div className="-mx-3 flex gap-2 overflow-x-auto px-3 pb-1">
+                {exercicio.sets.map((serie) => (
+                  <CartaoSerie key={serie.setNumber} exerciseIndex={index} serie={serie} />
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => addSet(index)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-neutral-700 py-2.5 text-sm font-semibold text-neutral-100 hover:bg-neutral-600"
+                >
+                  <Plus className="h-4 w-4" />
+                  Série
+                </button>
+                {exercicio.sets.length > 1 && (
+                  <button
+                    onClick={() => removeSet(index)}
+                    className="flex items-center justify-center rounded-xl bg-neutral-700 px-4 py-2.5 text-neutral-300 hover:bg-neutral-600"
+                    aria-label="Remover última série"
+                  >
+                    <Minus className="h-4 w-4" />
+                  </button>
+                )}
+                {/* Descanso manual (§13): nem todo descanso vem de concluir uma série. */}
+                <button
+                  onClick={() => beginRest(exercicio.restSeconds, null)}
+                  className="flex items-center justify-center gap-1.5 rounded-xl bg-neutral-700 px-4 py-2.5 text-sm font-semibold text-neutral-100 hover:bg-neutral-600"
+                >
+                  <Timer className="h-4 w-4" />
+                  Descansar
+                </button>
+              </div>
+
+              <div>
+                <p className="mb-1.5 text-sm font-semibold text-neutral-300">Histórico de séries / Cargas</p>
+                {exercicio.lastSets.length === 0 ? (
+                  <p className="rounded-xl bg-neutral-900 px-3 py-3 text-xs text-neutral-500">
+                    Primeira vez neste exercício — o histórico começa a partir de hoje.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-neutral-800 rounded-xl bg-neutral-900 px-3">
+                    {exercicio.lastSets.map((s) => (
+                      <li key={s.setNumber} className="flex items-center justify-between py-2 text-sm">
+                        <span className="text-neutral-400">Série {s.setNumber}</span>
+                        <span className="font-semibold tabular-nums">
+                          {s.reps} Rep. · {formatKg(s.weight)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * O cartão de uma série: repetições, carga e um botão que percorre ▶ → ⏹ → ✓.
+ *
+ * Começar e parar em vez de um único ✓ é o que dá ao app o tempo real de execução da série — e é
+ * o gesto do app que serviu de referência. Quem não quiser dois toques liga a execução automática:
+ * aí só o ⏹ é necessário, e a série seguinte já entra em execução sozinha.
+ */
+function CartaoSerie({ exerciseIndex, serie }: { exerciseIndex: number; serie: { setNumber: number; weight: number; reps: number; completed: boolean; startedAt?: number } }) {
+  const startSet = useGymSessionStore((s) => s.startSet);
+  const completeSet = useGymSessionStore((s) => s.completeSet);
+  const uncompleteSet = useGymSessionStore((s) => s.uncompleteSet);
+  const updateSet = useGymSessionStore((s) => s.updateSet);
+
+  const executando = !!serie.startedAt && !serie.completed;
+
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-2xl border p-2 transition-colors",
-        completed ? "border-lime-500/40 bg-lime-500/10" : "border-neutral-800 bg-neutral-950",
+        "w-32 shrink-0 overflow-hidden rounded-xl border",
+        serie.completed ? "border-lime-500/50 bg-lime-500/10" : executando ? "border-sky-500/60 bg-neutral-900" : "border-neutral-700 bg-neutral-900",
       )}
     >
-      <span className="w-7 shrink-0 text-center text-sm font-bold text-neutral-500">{number}</span>
-
-      <label className="flex min-w-0 flex-1 items-center gap-1 rounded-xl bg-neutral-900 px-3 py-2">
-        <input
-          type="text"
-          inputMode="decimal"
-          value={String(weight).replace(".", ",")}
-          onChange={(e) => onChange({ weight: Number(e.target.value.replace(",", ".")) || 0 })}
-          className="w-full min-w-0 bg-transparent text-lg font-bold tabular-nums outline-none"
-          aria-label={`Carga da série ${number}`}
-        />
-        <span className="shrink-0 text-xs font-semibold text-neutral-500">kg</span>
-      </label>
-
-      <label className="flex min-w-0 flex-1 items-center gap-1 rounded-xl bg-neutral-900 px-3 py-2">
-        <input
-          type="text"
-          inputMode="numeric"
-          value={String(reps)}
-          onChange={(e) => onChange({ reps: Number(e.target.value.replace(/\D/g, "")) || 0 })}
-          className="w-full min-w-0 bg-transparent text-lg font-bold tabular-nums outline-none"
-          aria-label={`Repetições da série ${number}`}
-        />
-        <span className="shrink-0 text-xs font-semibold text-neutral-500">reps</span>
-      </label>
+      <div className="px-2 py-2 text-center">
+        <p className="text-sm font-bold">Série {serie.setNumber}</p>
+        <label className="mt-1 flex items-baseline justify-center gap-1">
+          <input
+            type="text"
+            inputMode="numeric"
+            value={String(serie.reps)}
+            onChange={(e) => updateSet(exerciseIndex, serie.setNumber, { reps: Number(e.target.value.replace(/\D/g, "")) || 0 })}
+            aria-label={`Repetições da série ${serie.setNumber}`}
+            className="w-10 bg-transparent text-right text-base font-semibold tabular-nums outline-none"
+          />
+          <span className="text-xs text-neutral-400">Rep.</span>
+        </label>
+        <label className="flex items-baseline justify-center gap-1">
+          <input
+            type="text"
+            inputMode="decimal"
+            value={String(serie.weight).replace(".", ",")}
+            onChange={(e) => updateSet(exerciseIndex, serie.setNumber, { weight: Number(e.target.value.replace(",", ".")) || 0 })}
+            aria-label={`Carga da série ${serie.setNumber}`}
+            className="w-12 bg-transparent text-right text-base font-semibold tabular-nums outline-none"
+          />
+          <span className="text-xs text-neutral-400">kg</span>
+        </label>
+      </div>
 
       <button
-        onClick={onToggle}
-        aria-label={completed ? `Desmarcar série ${number}` : `Concluir série ${number}`}
-        aria-pressed={completed}
+        onClick={() => {
+          if (serie.completed) return uncompleteSet(exerciseIndex, serie.setNumber);
+          if (executando) return completeSet(exerciseIndex, serie.setNumber);
+          startSet(exerciseIndex, serie.setNumber);
+        }}
+        aria-label={
+          serie.completed
+            ? `Desmarcar série ${serie.setNumber}`
+            : executando
+              ? `Concluir série ${serie.setNumber}`
+              : `Iniciar série ${serie.setNumber}`
+        }
+        aria-pressed={serie.completed}
         className={cn(
-          "flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-colors",
-          completed ? "bg-lime-500 text-neutral-900" : "bg-neutral-800 text-neutral-500 hover:bg-neutral-700",
+          "flex h-12 w-full items-center justify-center transition-colors",
+          serie.completed ? "bg-lime-500 text-neutral-900" : "bg-sky-500 text-white hover:bg-sky-400",
         )}
       >
-        <Check className="h-6 w-6" strokeWidth={3} />
+        {serie.completed ? (
+          <Check className="h-6 w-6" strokeWidth={3} />
+        ) : executando ? (
+          <Square className="h-5 w-5 fill-current" />
+        ) : (
+          <Play className="h-6 w-6 fill-current" />
+        )}
       </button>
     </div>
   );
+}
+
+function Thumb({ exercicio }: { exercicio: ActiveExercise }) {
+  if (exercicio.image) {
+    return <img src={exercicio.image} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />;
+  }
+  return (
+    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-neutral-600">
+      <Dumbbell className="h-7 w-7" />
+    </div>
+  );
+}
+
+function formatKg(v: number): string {
+  return `${Number.isInteger(v) ? v : v.toFixed(1).replace(".", ",")} kg`;
 }

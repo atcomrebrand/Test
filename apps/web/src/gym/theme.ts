@@ -95,7 +95,9 @@ export function formatMinutes(seconds: number | null | undefined): string {
 export function formatVolume(kg: number | null | undefined, hidden = false): string {
   if (hidden) return "•••••";
   if (kg === null || kg === undefined) return "—";
-  if (kg >= 1000) return `${(kg / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} t`;
+  // SEMPRE em quilos, nunca em toneladas. Volume de treino é lido em kg em qualquer academia, e
+  // converter passava de "2.080 kg" pra "2,1 t" logo na terceira série — o número perde a precisão
+  // justamente na faixa em que ele vive, e passa a parecer errado mesmo estando certo.
   return `${Math.round(kg).toLocaleString("pt-BR")} kg`;
 }
 
