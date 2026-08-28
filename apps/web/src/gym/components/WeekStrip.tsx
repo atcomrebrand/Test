@@ -29,9 +29,9 @@ export function WeekStrip({ days, today }: { days: { date: string; sessions: num
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-full border-2 text-xs font-bold transition-colors",
                   treinou
-                    ? cn("border-transparent text-white", GYM.solid)
+                    ? cn("border-transparent text-neutral-900", GYM.solid)
                     : ehHoje
-                      ? cn("border-sky-500", GYM.text)
+                      ? cn("border-lime-500", GYM.text)
                       : "border-[rgb(var(--border))] text-transparent",
                 )}
               >

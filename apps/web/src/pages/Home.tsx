@@ -75,7 +75,7 @@ const APPS: AppCard[] = [
     title: "Mercado",
     description: "Escaneie a nota do supermercado e acompanhe preço e imposto.",
     icon: ShoppingCart,
-    color: "bg-sky-500",
+    color: "bg-lime-500",
   },
   {
     to: "/academia",

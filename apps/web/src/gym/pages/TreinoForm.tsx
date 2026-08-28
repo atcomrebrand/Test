@@ -209,7 +209,7 @@ function LinhaExercicio({ linha, onChange, onRemove }: { linha: Linha; onChange:
                 }}
                 className={cn(
                   "rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
-                  !custom && linha.restSeconds === s ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+                  !custom && linha.restSeconds === s ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
                 )}
               >
                 {s >= 60 ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}` : `${s}s`}
@@ -219,7 +219,7 @@ function LinhaExercicio({ linha, onChange, onRemove }: { linha: Linha; onChange:
               onClick={() => setCustom(true)}
               className={cn(
                 "rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
-                custom ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+                custom ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
               )}
             >
               Outro
@@ -333,7 +333,7 @@ function Chip({ active, onClick, children }: { active: boolean; onClick: () => v
       onClick={onClick}
       className={cn(
         "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
-        active ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+        active ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
       )}
     >
       {children}

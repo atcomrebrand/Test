@@ -48,7 +48,7 @@ export function GymLayout() {
             </NavLink>
             <div className="h-5 w-px bg-[rgb(var(--border))]" />
             <div className="flex items-center gap-2">
-              <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg text-white", GYM.solid)}>
+              <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg text-neutral-900", GYM.solid)}>
                 <Dumbbell className="h-4 w-4" />
               </div>
               <p className="text-sm font-bold leading-tight">Academia</p>
@@ -65,7 +65,7 @@ export function GymLayout() {
                 className={({ isActive }) =>
                   cn(
                     "flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors",
-                    isActive ? cn("bg-sky-500/10", GYM.text) : "text-muted hover:surface-2 hover:text-[rgb(var(--text))]",
+                    isActive ? cn("bg-lime-500/10", GYM.text) : "text-muted hover:surface-2 hover:text-[rgb(var(--text))]",
                   )
                 }
               >

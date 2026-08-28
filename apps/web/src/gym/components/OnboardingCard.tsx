@@ -69,7 +69,7 @@ export function OnboardingCard() {
   return (
     <div className="mx-auto max-w-lg">
       <div className={cn("rounded-3xl border p-6", GYM.border, GYM.soft)}>
-        <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl text-white", GYM.solid)}>
+        <div className={cn("flex h-12 w-12 items-center justify-center rounded-2xl text-neutral-900", GYM.solid)}>
           <Dumbbell className="h-6 w-6" />
         </div>
         <h1 className="mt-4 text-2xl font-black tracking-tight">Bora começar</h1>
@@ -77,7 +77,7 @@ export function OnboardingCard() {
 
         <div className="mt-5 flex gap-1.5">
           {etapas.map((_, i) => (
-            <div key={i} className={cn("h-1 flex-1 rounded-full", i <= etapa ? "bg-sky-500" : "surface-2")} />
+            <div key={i} className={cn("h-1 flex-1 rounded-full", i <= etapa ? "bg-lime-500" : "surface-2")} />
           ))}
         </div>
 
@@ -91,7 +91,7 @@ export function OnboardingCard() {
                 className={cn(
                   "rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors",
                   atual.valor === o.value
-                    ? cn("border-transparent text-white", GYM.solid)
+                    ? cn("border-transparent text-neutral-900", GYM.solid)
                     : "border-[rgb(var(--border))] surface hover:surface-2",
                 )}
               >

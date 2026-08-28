@@ -89,7 +89,7 @@ export function Metas() {
               <span className={cn("font-bold", GYM.text)}>{m.progressPercent}%</span>
             </div>
             <div className="mt-1.5 h-2 overflow-hidden rounded-full surface-2">
-              <div className="h-full rounded-full bg-sky-500 transition-all" style={{ width: `${m.progressPercent}%` }} />
+              <div className="h-full rounded-full bg-lime-500 transition-all" style={{ width: `${m.progressPercent}%` }} />
             </div>
             {m.startValue !== null && (
               <p className="mt-1.5 text-[11px] text-muted">
@@ -109,7 +109,7 @@ export function Metas() {
                 onClick={() => setKind(t.value)}
                 className={cn(
                   "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
-                  kind === t.value ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+                  kind === t.value ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
                 )}
               >
                 {t.label}

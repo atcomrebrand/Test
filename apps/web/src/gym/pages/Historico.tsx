@@ -52,7 +52,7 @@ export default function Historico() {
             onClick={() => setPeriodo(p.value)}
             className={cn(
               "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors",
-              periodo === p.value ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+              periodo === p.value ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
             )}
           >
             {p.label}

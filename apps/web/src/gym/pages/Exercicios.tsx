@@ -110,7 +110,7 @@ function Chip({ active, onClick, children, small }: { active: boolean; onClick: 
       className={cn(
         "flex shrink-0 items-center gap-1 rounded-full font-semibold transition-colors",
         small ? "px-2.5 py-1 text-[11px]" : "px-3 py-1.5 text-xs",
-        active ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+        active ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
       )}
     >
       {children}

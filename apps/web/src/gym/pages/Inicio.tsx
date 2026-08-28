@@ -83,7 +83,7 @@ export default function Inicio() {
               </p>
               <div className="mt-2 h-2 overflow-hidden rounded-full surface-2">
                 <div
-                  className="h-full rounded-full bg-sky-500 transition-all"
+                  className="h-full rounded-full bg-lime-500 transition-all"
                   style={{ width: `${Math.min(100, data.week.target > 0 ? (data.week.done / data.week.target) * 100 : 0)}%` }}
                 />
               </div>
@@ -226,7 +226,7 @@ function ProximoTreino({ workout, bloqueado, onStart }: { workout: any; bloquead
         }}
         disabled={isFetching && !prefill && !bloqueado}
         className={cn(
-          "mt-5 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black uppercase tracking-wide text-white transition-colors disabled:opacity-60",
+          "mt-5 flex w-full items-center justify-center gap-2 rounded-2xl py-4 text-base font-black uppercase tracking-wide text-neutral-900 transition-colors disabled:opacity-60",
           GYM.solid,
           GYM.solidHover,
         )}

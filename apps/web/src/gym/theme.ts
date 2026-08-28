@@ -3,31 +3,34 @@ import { GymEquipment, GymMuscle, GymObjective, GymLevel, GymRecordKind } from "
 /**
  * Design system do módulo, num lugar só (§58).
  *
- * A cor de destaque é o **azul** — a mesma família que os botões de ação já usavam na execução, o
- * que deixa o módulo inteiro falando uma língua só.
+ * A cor de destaque é o **verde lima** do módulo — nenhum outro do app usa, então a Academia se
+ * distingue de relance na Home e nos ícones.
  *
- * Duas notas de contraste, que é o que decide os tons aqui:
+ * Duas notas que decidem os tons aqui:
  *
- * - **Texto branco sobre `sky-500` só em peça grande e em negrito** (botão, chip em caixa alta).
- *   O par dá ~3:1, que passa pra "texto grande" e reprova pra texto normal — por isso o rótulo
- *   pequeno usa `solidSm`, um tom mais escuro, em vez de encolher o mesmo azul.
- * - **Texto em azul sobre superfície usa o par claro/escuro** (`sky-600` no claro, `sky-400` no
- *   escuro): o azul vibrante do §3 vale pro fundo do botão, não pra tipografia sobre fundo branco.
+ * - **Sobre o lima cheio o texto é ESCURO**, não branco: lima é uma cor clara, e branco sobre ela dá
+ *   menos de 2:1. O par com `neutral-900` passa folgado.
+ * - **Texto em verde sobre superfície usa o par claro/escuro** (`lime-600` no claro, `lime-400` no
+ *   escuro): a cor vibrante vale pro fundo do botão, não pra tipografia sobre fundo branco.
+ *
+ * O **esmeralda é reservado pro que está CONCLUÍDO** (série marcada, exercício terminado, fim do
+ * descanso) — ver a nota no CLAUDE.md. Sem essa separação, "vou fazer" e "já fiz" ficam da mesma cor
+ * justamente na tela em que a diferença importa.
  */
 export const GYM = {
-  /** Fundo de botão e de ícone: a cor cheia. Sempre com texto branco e em peça grande. */
-  solid: "bg-sky-500",
-  solidHover: "hover:bg-sky-400",
-  /** A mesma cor um tom abaixo, pro que é pequeno e precisa de 4,5:1 com branco. */
-  solidSm: "bg-sky-600",
+  /** Fundo de botão e de ícone: a cor cheia. Sempre com texto escuro. */
+  solid: "bg-lime-500",
+  solidHover: "hover:bg-lime-400",
+  /** Um tom abaixo, pro que é pequeno e precisa de mais contraste. */
+  solidSm: "bg-lime-600",
   /** Texto e ícone sobre superfície: o par que passa em contraste nos dois temas. */
-  text: "text-sky-600 dark:text-sky-400",
-  ring: "ring-sky-500",
-  soft: "bg-sky-500/10",
-  border: "border-sky-500/30",
+  text: "text-lime-600 dark:text-lime-400",
+  ring: "ring-lime-500",
+  soft: "bg-lime-500/10",
+  border: "border-lime-500/30",
   /** Cor crua, pros gráficos e pro que não é classe do Tailwind. */
-  hex: "#0EA5E9",
-  hexDim: "#0369A1",
+  hex: "#84CC16",
+  hexDim: "#4D7C0F",
 } as const;
 
 export const MUSCLE_LABEL: Record<GymMuscle, string> = {

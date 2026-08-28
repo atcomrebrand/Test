@@ -106,11 +106,11 @@ export function TrainingCalendar() {
                   className={cn(
                     "flex aspect-square items-center justify-center rounded-lg text-xs font-semibold transition-colors",
                     treinou
-                      ? cn("text-white", GYM.solid)
+                      ? cn("text-neutral-900", GYM.solid)
                       : futuro
                         ? "text-muted/40"
                         : "surface-2 text-muted",
-                    ehHoje && !treinou && "ring-2 ring-sky-500",
+                    ehHoje && !treinou && "ring-2 ring-lime-500",
                   )}
                 >
                   {c.dia}

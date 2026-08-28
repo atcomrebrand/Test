@@ -11,7 +11,7 @@ App pessoal de finanças (nome do repo/pnpm workspace ainda é `credit-installme
 - **Financiamentos** (`financings`) — módulo próprio (saiu de dentro do Parcelas): financiamento de veículo/imóvel, parcelas, cotação de quitação, valor do bem e patrimônio. Frontend em `apps/web/src/financings/`, rotas em `/financiamentos`; `/financing` ficou como redirect pra não quebrar link salvo. Os hooks continuam em `features/useFinancings.ts` de propósito — a Home e o Dashboard do Parcelas também consomem financiamento, então não é código exclusivo do módulo.
 - **Academia** (`gym`) — diário de treino: catálogo de exercícios, fichas, execução com cronômetro
   de descanso, histórico, progresso, medidas, fotos, recordes e metas. Frontend em
-  `apps/web/src/gym/`, rotas `/academia/*`, cor azul.
+  `apps/web/src/gym/`, rotas `/academia/*`, cor lima.
 - **Cotações** (`quotes`) — ticker rolante da Home: dólar + os ativos em carteira. Não busca preço
   próprio — o dólar sai do cache do Horas (`TrackingFxService`) e os ativos do `MarketPriceService`,
   que serve o guardado na hora e atualiza por fora. Ativo zerado ou sem cotação fica de fora (com a
@@ -493,11 +493,11 @@ frequência, e nela o dia vazio vale tanto quanto o cheio: marcar só os treinos
 solta e esconde justamente os buracos. Dia futuro fica esmaecido em vez de vazio — ainda não
 aconteceu, então não é falta.
 
-**Azul é ação, verde é feito.** A cor do módulo é o azul (botão, destaque, dia treinado); o verde
-fica reservado pro que está concluído — série marcada, exercício terminado, fim do descanso. Com
-tudo da mesma cor, "vou fazer" e "já fiz" ficam indistinguíveis na única tela em que isso importa.
-Sobre o azul cheio o texto é **branco e só em peça grande**: o par dá ~3:1, que passa pra texto
-grande e reprova pra texto normal — daí o `solidSm`, um tom abaixo, pro que é pequeno.
+**Lima é ação, esmeralda é feito.** A cor do módulo é o **verde lima** (botão, destaque, dia
+treinado); o **esmeralda** fica reservado pro que está concluído — série marcada, exercício
+terminado, fim do descanso. Com tudo da mesma cor, "vou fazer" e "já fiz" ficam indistinguíveis
+justamente na tela em que a diferença importa. Sobre o lima cheio o texto é **escuro**
+(`neutral-900`), nunca branco: lima é uma cor clara e branco sobre ela dá menos de 2:1.
 
 **A consistência ignora a semana corrente.** Na segunda-feira ela estaria sempre em 0/5 e o
 indicador despencaria toda semana por um motivo que não é o desempenho de ninguém.

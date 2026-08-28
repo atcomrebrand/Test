@@ -144,7 +144,7 @@ function IniciarBotao({ workout }: { workout: GymWorkout }) {
         start(prefill);
         navigate("/academia/executar");
       }}
-      className={cn("rounded-lg px-3 py-2 text-xs font-bold uppercase text-white", GYM.solid)}
+      className={cn("rounded-lg px-3 py-2 text-xs font-bold uppercase text-neutral-900", GYM.solid)}
     >
       Iniciar
     </button>

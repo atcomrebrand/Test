@@ -51,7 +51,7 @@ export default function Progresso() {
             onClick={() => setAba(value)}
             className={cn(
               "shrink-0 rounded-full px-3.5 py-1.5 text-xs font-bold transition-colors",
-              aba === value ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+              aba === value ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
             )}
           >
             {label}

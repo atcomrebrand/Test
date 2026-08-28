@@ -53,7 +53,7 @@ export function Fotos() {
               onClick={() => setPose(p.value)}
               className={cn(
                 "rounded-full px-3 py-1.5 text-xs font-semibold transition-colors",
-                pose === p.value ? cn("text-white", GYM.solid) : "surface-2 text-muted hover:brightness-95",
+                pose === p.value ? cn("text-neutral-900", GYM.solid) : "surface-2 text-muted hover:brightness-95",
               )}
             >
               {p.label}

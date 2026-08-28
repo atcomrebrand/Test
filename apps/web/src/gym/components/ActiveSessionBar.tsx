@@ -25,7 +25,7 @@ export function ActiveSessionBar() {
     <Link
       to="/academia/executar"
       className={cn(
-        "fixed inset-x-3 bottom-[calc(4.5rem_+_env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl px-4 py-3 text-white shadow-lg md:inset-x-auto md:right-6 md:w-80",
+        "fixed inset-x-3 bottom-[calc(4.5rem_+_env(safe-area-inset-bottom))] z-30 flex items-center gap-3 rounded-2xl px-4 py-3 text-neutral-900 shadow-lg md:inset-x-auto md:right-6 md:w-80",
         GYM.solid,
       )}
     >
