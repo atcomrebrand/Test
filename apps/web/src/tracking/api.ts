@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import toast from "react-hot-toast";
 import { api } from "@/lib/api";
 import {
+  PlacementJob,
+  PlacementPoint,
   ReportPeriod,
   TrackingCalendarDay,
   TrackingDashboardSummary,
@@ -162,12 +164,22 @@ export function useResumeSession() {
 export function useFinishSession() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, notes }: { id: string; notes?: string }) => api.post<TrackingSession>(`/tracking/sessions/${id}/finish`, { notes }),
+    mutationFn: ({ id, notes, ...placement }: { id: string; notes?: string } & Partial<PlacementPoint>) =>
+      api.post<TrackingSession>(`/tracking/sessions/${id}/finish`, { notes, ...placement }),
     onSuccess: () => {
       invalidateAll(qc);
       toast.success("Sessão salva!");
     },
     onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** A evolução da colocação, por trabalho. A chave começa com "tracking", então o `invalidateAll`
+ *  já a alcança — encerrar uma sessão atualiza o gráfico sem nada a mais. */
+export function usePlacementEvolution() {
+  return useQuery({
+    queryKey: ["tracking", "placement", "evolution"],
+    queryFn: () => api.get<PlacementJob[]>("/tracking/placement/evolution"),
   });
 }
 

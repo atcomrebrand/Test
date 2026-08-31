@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { TrackingSessionStatus } from "@prisma/client";
 import { PrismaService } from "../../../prisma/prisma.service";
-import { CreateCompletedSessionData, CreateTrackingSessionData, TrackingSessionRepository } from "../domain/tracking-session.repository";
+import { CreateCompletedSessionData, CreateTrackingSessionData, SessionMutableFields, TrackingSessionRepository } from "../domain/tracking-session.repository";
 
 const INCLUDE = { pauses: { orderBy: { pausedAt: "asc" as const } }, job: true };
 
@@ -53,15 +53,15 @@ export class TrackingSessionPrismaRepository extends TrackingSessionRepository {
     await this.prisma.trackingSession.update({ where: { id: sessionId }, data: { status } });
   }
 
-  finish(sessionId: string, checkOut: Date, notes?: string) {
+  finish(sessionId: string, checkOut: Date, data: SessionMutableFields = {}) {
     return this.prisma.trackingSession.update({
       where: { id: sessionId },
-      data: { checkOut, status: "COMPLETED", ...(notes !== undefined ? { notes } : {}) },
+      data: { checkOut, status: "COMPLETED", ...data },
       include: INCLUDE,
     });
   }
 
-  updateManual(sessionId: string, data: { checkIn?: Date; checkOut?: Date; notes?: string }) {
+  updateManual(sessionId: string, data: { checkIn?: Date; checkOut?: Date } & SessionMutableFields) {
     return this.prisma.trackingSession.update({ where: { id: sessionId }, data, include: INCLUDE });
   }
 

@@ -55,6 +55,7 @@ export class TrackingJobsService {
       color: dto.color,
       weekdays: dto.weekdays,
       daysOff: dto.daysOff,
+      tracksPlacement: dto.tracksPlacement,
       expectedStartTime: dto.expectedStartTime,
       expectedEndTime: dto.expectedEndTime,
       notes: dto.notes,

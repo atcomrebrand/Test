@@ -17,6 +17,7 @@ export interface CreateTrackingJobData {
   color?: string;
   weekdays?: number[];
   daysOff?: string[];
+  tracksPlacement?: boolean;
   expectedStartTime?: string;
   expectedEndTime?: string;
   notes?: string;

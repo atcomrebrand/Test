@@ -6,6 +6,7 @@ import { TrackingIncomesController } from "./interface/tracking-incomes.controll
 import { TrackingDashboardController } from "./interface/tracking-dashboard.controller";
 import { TrackingCalendarController } from "./interface/tracking-calendar.controller";
 import { TrackingReportsController } from "./interface/tracking-reports.controller";
+import { TrackingPlacementController } from "./interface/tracking-placement.controller";
 import { TrackingStatsController } from "./interface/tracking-stats.controller";
 import { TrackingHistoryController } from "./interface/tracking-history.controller";
 import { TrackingSearchController } from "./interface/tracking-search.controller";
@@ -17,6 +18,7 @@ import { TrackingIncomesService } from "./application/tracking-incomes.service";
 import { TrackingDashboardService } from "./application/tracking-dashboard.service";
 import { TrackingCalendarService } from "./application/tracking-calendar.service";
 import { TrackingReportsService } from "./application/tracking-reports.service";
+import { TrackingPlacementService } from "./application/tracking-placement.service";
 import { TrackingStatsService } from "./application/tracking-stats.service";
 import { TrackingHistoryService } from "./application/tracking-history.service";
 import { TrackingSearchService } from "./application/tracking-search.service";
@@ -50,6 +52,7 @@ import { CurrencyApiFxProvider } from "./infrastructure/providers/currency-api-f
     TrackingCalendarController,
     TrackingReportsController,
     TrackingStatsController,
+    TrackingPlacementController,
     TrackingHistoryController,
     TrackingSearchController,
     TrackingExportController,
@@ -63,6 +66,7 @@ import { CurrencyApiFxProvider } from "./infrastructure/providers/currency-api-f
     TrackingCalendarService,
     TrackingReportsService,
     TrackingStatsService,
+    TrackingPlacementService,
     TrackingHistoryService,
     TrackingSearchService,
     TrackingExportService,

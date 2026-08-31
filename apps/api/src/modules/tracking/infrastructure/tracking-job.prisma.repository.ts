@@ -38,6 +38,7 @@ export class TrackingJobPrismaRepository extends TrackingJobRepository {
         color: data.color ?? "#7C3AED",
         weekdays: data.weekdays ?? [1, 2, 3, 4, 5],
         daysOff: data.daysOff ?? [],
+        tracksPlacement: data.tracksPlacement ?? false,
         expectedStartTime: data.expectedStartTime,
         expectedEndTime: data.expectedEndTime,
         notes: data.notes,

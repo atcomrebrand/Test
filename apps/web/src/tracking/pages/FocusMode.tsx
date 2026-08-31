@@ -18,6 +18,7 @@ import {
   useFinishSession,
   useUpdateSessionManual,
 } from "../api";
+import { usePlacementPrompt } from "../hooks/usePlacementPrompt";
 import { useLiveElapsed } from "../hooks/useLiveElapsed";
 import { formatHMS, isSameLocalDay, isSameLocalMonth } from "../lib/sessionTime";
 import { TrackingSession } from "../types";
@@ -38,6 +39,7 @@ export default function FocusMode() {
   const [notes, setNotes] = useState("");
   const [summarySession, setSummarySession] = useState<TrackingSession | null>(null);
   const [showCompletion, setShowCompletion] = useState(false);
+  const { askIfNeeded, placementModal } = usePlacementPrompt();
   const [editingCheckIn, setEditingCheckIn] = useState(false);
   const [manualCheckIn, setManualCheckIn] = useState("");
   const [reconcileOpen, setReconcileOpen] = useState(false);
@@ -87,7 +89,7 @@ export default function FocusMode() {
     handleFinish();
   }
 
-  const anyModalOpen = editingCheckIn || reconcileOpen || !!summarySession || showCompletion;
+  const anyModalOpen = editingCheckIn || reconcileOpen || !!summarySession || showCompletion || !!placementModal;
 
   // Espaço inicia/pausa/retoma, Esc finaliza — só quando nenhum modal está aberto e o foco não
   // está num campo de texto (senão espaço/esc atrapalhariam digitação nas observações).
@@ -163,7 +165,10 @@ export default function FocusMode() {
           setShowCompletion(true);
           setTimeout(() => {
             setShowCompletion(false);
-            setSummarySession(finished);
+            // A colocação vem ANTES do resumo, e o resumo espera a resposta: os dois são modais, e
+            // abrir os dois de uma vez empilharia um em cima do outro. Sem sistema de colocação o
+            // `askIfNeeded` chama o callback na hora e nada muda pra quem já usava a tela.
+            askIfNeeded(finished, () => setSummarySession(finished));
           }, 900);
         },
       },
@@ -492,6 +497,8 @@ export default function FocusMode() {
           </div>
         )}
       </Modal>
+
+      {placementModal}
 
       <AddPastSessionModal open={addPastOpen} onClose={() => setAddPastOpen(false)} />
     </div>

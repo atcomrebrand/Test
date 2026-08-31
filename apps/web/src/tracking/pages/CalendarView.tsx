@@ -132,6 +132,14 @@ export default function CalendarView() {
                   >
                     <span className="font-medium">{day}</span>
                     {hasData && <span className="text-[10px] font-semibold text-violet-600 dark:text-violet-400">{formatHours(entry!.hours)}</span>}
+                    {/* A colocação na própria célula, e não só no detalhe: o calendário existe pra
+                        responder "como foi o mês" de relance, e um número que só aparece depois de
+                        abrir o dia obriga a abrir os trinta. */}
+                    {entry?.bestPlacement != null && (
+                      <span className="rounded-full bg-violet-600 px-1.5 text-[10px] font-bold leading-4 text-white dark:bg-violet-500">
+                        {entry.bestPlacement}º
+                      </span>
+                    )}
                     {!hasData && isDayOff && <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400">folga</span>}
                   </button>
                 );
@@ -182,6 +190,13 @@ export default function CalendarView() {
                       {s.checkOut ? new Date(s.checkOut).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) : "—"} ·{" "}
                       {formatHMS(s.netSeconds)}
                     </p>
+                    {(s.placement !== null || s.satisfactionPercent !== null || s.responseMinutes !== null) && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {s.placement !== null && <Chip>{s.placement}º lugar</Chip>}
+                        {s.satisfactionPercent !== null && <Chip>{formatPercentValue(s.satisfactionPercent)} de satisfação</Chip>}
+                        {s.responseMinutes !== null && <Chip>{s.responseMinutes} min de resposta</Chip>}
+                      </div>
+                    )}
                     {s.notes && <p className="mt-1 text-xs text-muted">{s.notes}</p>}
                   </div>
                 ))}
@@ -206,4 +221,18 @@ export default function CalendarView() {
       <AddPastSessionModal open={!!addPastDate} onClose={() => setAddPastDate(null)} initialDate={addPastDate ?? undefined} />
     </div>
   );
+}
+
+/** O número da colocação nunca passa pelo `formatCurrency`, então o modo privacidade não o alcança
+ *  — e está certo assim: o que aquele modo esconde é dinheiro, e "3º lugar" não diz quanto se ganha. */
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[11px] font-semibold text-violet-700 dark:text-violet-300">{children}</span>
+  );
+}
+
+/** Satisfação vem com duas casas do banco; "96,5%" lê melhor que "96,50%" e "97%" melhor que
+ *  "97,00%". Corta o zero à direita sem mentir sobre o valor. */
+function formatPercentValue(v: number): string {
+  return `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
 }

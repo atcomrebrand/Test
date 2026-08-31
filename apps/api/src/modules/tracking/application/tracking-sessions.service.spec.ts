@@ -207,7 +207,7 @@ describe("TrackingSessionsService.finish", () => {
     await service.finish("user-1", "session-1");
 
     expect(sessions.resumeLatestPause).toHaveBeenCalled();
-    expect(sessions.finish).toHaveBeenCalledWith("session-1", expect.any(Date), undefined);
+    expect(sessions.finish).toHaveBeenCalledWith("session-1", expect.any(Date), {});
   });
 
   it("computes equivalentValue from netSeconds and the job's estimated hourly rate", async () => {

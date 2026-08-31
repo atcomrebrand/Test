@@ -28,8 +28,20 @@ function toLocalTime(iso: string) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+/** Um número em branco vira `null` (apaga) e não `undefined` (não mexe): é o que permite tirar uma
+ *  colocação lançada por engano sem mexer nas outras duas. */
+function toNumberOrNull(raw: string): number | null | undefined {
+  const limpo = raw.trim().replace(",", ".");
+  if (!limpo) return null;
+  const n = Number(limpo);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 /** Corrige as horas de uma sessão já registrada (check-in/check-out/observações) — o trabalho em
- *  si não é editável aqui, só o horário, já que o objetivo é consertar um lançamento errado. */
+ *  si não é editável aqui, só o horário, já que o objetivo é consertar um lançamento errado.
+ *
+ *  Em trabalho com sistema de colocação os três números do dia também entram: quem pulou a pergunta
+ *  ao encerrar preenche aqui, e quem digitou errado corrige sem ter que refazer a sessão. */
 export function EditSessionModal({ open, onClose, session }: Props) {
   const update = useUpdateSessionManual();
 
@@ -37,6 +49,9 @@ export function EditSessionModal({ open, onClose, session }: Props) {
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
   const [notes, setNotes] = useState("");
+  const [placement, setPlacement] = useState("");
+  const [satisfaction, setSatisfaction] = useState("");
+  const [response, setResponse] = useState("");
 
   useEffect(() => {
     if (!open || !session) return;
@@ -44,6 +59,9 @@ export function EditSessionModal({ open, onClose, session }: Props) {
     setStartTime(toLocalTime(session.checkIn));
     setEndTime(session.checkOut ? toLocalTime(session.checkOut) : "17:00");
     setNotes(session.notes ?? "");
+    setPlacement(session.placement === null ? "" : String(session.placement));
+    setSatisfaction(session.satisfactionPercent === null ? "" : String(session.satisfactionPercent));
+    setResponse(session.responseMinutes === null ? "" : String(session.responseMinutes));
   }, [open, session]);
 
   const { overnight } = buildSessionTimestamps(date, startTime, endTime);
@@ -52,7 +70,17 @@ export function EditSessionModal({ open, onClose, session }: Props) {
     e.preventDefault();
     if (!session) return;
     const { checkIn, checkOut } = buildSessionTimestamps(date, startTime, endTime);
-    update.mutate({ id: session.id, data: { checkIn, checkOut, notes: notes || undefined } }, { onSuccess: onClose });
+    const data: Record<string, unknown> = { checkIn, checkOut, notes: notes || undefined };
+    // Os campos só vão no payload quando o trabalho tem o sistema: mandá-los num trabalho comum é
+    // recusado pela API de propósito, e a edição de horário não pode quebrar por causa disso.
+    if (session.job.tracksPlacement) {
+      Object.assign(data, {
+        placement: toNumberOrNull(placement),
+        satisfactionPercent: toNumberOrNull(satisfaction),
+        responseMinutes: toNumberOrNull(response),
+      });
+    }
+    update.mutate({ id: session.id, data }, { onSuccess: onClose });
   }
 
   if (!session) return null;
@@ -72,6 +100,14 @@ export function EditSessionModal({ open, onClose, session }: Props) {
         </div>
         {overnight && (
           <p className="-mt-2 text-xs text-muted">Saída antes da entrada — registrada automaticamente no dia seguinte (turno que passa da meia-noite).</p>
+        )}
+
+        {session.job.tracksPlacement && (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Input label="Colocação" inputMode="numeric" value={placement} onChange={(e) => setPlacement(e.target.value)} placeholder="3" />
+            <Input label="Satisfação (%)" inputMode="decimal" value={satisfaction} onChange={(e) => setSatisfaction(e.target.value)} placeholder="96,5" />
+            <Input label="Resposta (min)" inputMode="numeric" value={response} onChange={(e) => setResponse(e.target.value)} placeholder="4" />
+          </div>
         )}
 
         <Textarea label="Observações (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />

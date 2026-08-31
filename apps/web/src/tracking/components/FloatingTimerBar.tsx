@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router-dom";
 import { Pause, Play, Square } from "lucide-react";
 import { useActiveSession, usePauseSession, useResumeSession, useFinishSession } from "../api";
 import { useLiveElapsed } from "../hooks/useLiveElapsed";
+import { usePlacementPrompt } from "../hooks/usePlacementPrompt";
 import { formatHMS } from "../lib/sessionTime";
 
 /**
@@ -16,10 +17,15 @@ export function FloatingTimerBar() {
   const resume = useResumeSession();
   const finish = useFinishSession();
   const live = useLiveElapsed(session);
+  const { askIfNeeded, placementModal } = usePlacementPrompt();
 
-  if (!session || !live || location.pathname === "/horas") return null;
+  // O modal fica FORA da barra: assim que a sessão é encerrada ela deixa de ser a ativa e a barra
+  // some — se a pergunta morasse dentro dela, sumiria junto no mesmo instante em que deveria
+  // aparecer.
+  if (!session || !live || location.pathname === "/horas") return placementModal;
 
   return (
+    <>
     <div className="fixed inset-x-3 bottom-[calc(4.75rem_+_env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-[rgb(var(--border))] surface px-4 py-3 shadow-elevated md:inset-x-auto md:bottom-4 md:right-4 md:w-80">
       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${session.status === "RUNNING" ? "animate-pulse bg-emerald-500" : "bg-amber-500"}`} />
       <Link to="/horas" className="min-w-0 flex-1">
@@ -39,7 +45,7 @@ export function FloatingTimerBar() {
           </button>
         )}
         <button
-          onClick={() => finish.mutate({ id: session.id })}
+          onClick={() => finish.mutate({ id: session.id }, { onSuccess: (finished) => askIfNeeded(finished) })}
           className="rounded-lg p-2 text-red-500 hover:bg-red-500/10"
           aria-label="Finalizar"
         >
@@ -47,5 +53,7 @@ export function FloatingTimerBar() {
         </button>
       </div>
     </div>
+    {placementModal}
+    </>
   );
 }

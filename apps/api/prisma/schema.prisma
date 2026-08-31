@@ -904,6 +904,10 @@ model TrackingJob {
   /// de um horário fixo (dispara quando a sessão atinge essa carga horária).
   expectedEndTime     String?
   notes               String?
+  /// Serviço com sistema de colocação (um ranking diário: posição, satisfação e tempo de resposta).
+  /// Desligado por padrão porque é a exceção — só um dos trabalhos funciona assim, e o resto não
+  /// pode ganhar uma pergunta a mais ao encerrar por causa dele.
+  tracksPlacement     Boolean          @default(false)
   active              Boolean          @default(true)
   deletedAt           DateTime?
   createdAt           DateTime         @default(now())
@@ -963,20 +967,30 @@ model TrackingFxRateCache {
 /// may exist per user at a time — enforced in TrackingSessionsService, not a DB constraint (same
 /// convention as ownership checks elsewhere in this codebase).
 model TrackingSession {
-  id                String                @id @default(cuid())
-  userId            String
-  user              User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  jobId             String
-  job               TrackingJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  checkIn           DateTime
-  checkOut          DateTime?
-  status            TrackingSessionStatus @default(RUNNING)
-  notes             String?
+  id                  String                @id @default(cuid())
+  userId              String
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId               String
+  job                 TrackingJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  checkIn             DateTime
+  checkOut            DateTime?
+  status              TrackingSessionStatus @default(RUNNING)
+  notes               String?
+  /// Colocação do dia, só em trabalho com `tracksPlacement`. Os três são independentes e todos
+  /// opcionais: a pergunta pode ser pulada inteira, ou respondida pela metade quando um dos números
+  /// ainda não saiu. Nulo é "não informado", nunca zero — zero é um valor legítimo em minutos.
+  ///
+  /// `placement` é a posição (1 = primeiro; menor é melhor). `satisfactionPercent` é a nota dos
+  /// clientes (voto de 1 a 5 estrelas) já consolidada em porcentagem pelo próprio serviço; maior é
+  /// melhor. `responseMinutes` é o tempo de resposta em minutos inteiros; menor é melhor.
+  placement           Int?
+  satisfactionPercent Decimal?              @db.Decimal(5, 2)
+  responseMinutes     Int?
   /// Marca que o lembrete "hora de encerrar" já foi enviado pra essa sessão específica, pra não
   /// repetir a cada tick do cron depois que o limite (horário fixo ou expectedHoursPerDay) é cruzado.
-  endReminderSentAt DateTime?
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
+  endReminderSentAt   DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
 
   pauses TrackingSessionPause[]
 

@@ -3,6 +3,7 @@ import { StatTile } from "@/components/ui/StatTile";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatHours } from "@/lib/format";
 import { useTrackingStats } from "../api";
+import { PlacementChart } from "../components/PlacementChart";
 
 
 function formatHourOfDay(hour: number): string {
@@ -83,6 +84,10 @@ export default function Stats() {
         <StatTile label="Horário médio de início" value={data.averageStartHour !== null ? formatHourOfDay(data.averageStartHour) : "—"} />
         <StatTile label="Horário médio de término" value={data.averageEndHour !== null ? formatHourOfDay(data.averageEndHour) : "—"} />
       </div>
+
+      {/* Só aparece pra quem tem serviço com colocação — o próprio componente se esconde quando não
+          há nenhum dia registrado, em vez de deixar uma seção vazia numa tela já longa. */}
+      <PlacementChart />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <Card>

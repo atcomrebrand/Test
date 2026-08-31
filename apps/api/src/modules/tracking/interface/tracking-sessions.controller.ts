@@ -41,7 +41,7 @@ export class TrackingSessionsController {
 
   @Post(":id/finish")
   finish(@CurrentUser() user: AuthUser, @Param("id") id: string, @Body() dto: FinishSessionDto) {
-    return this.service.finish(user.userId, id, dto.notes);
+    return this.service.finish(user.userId, id, dto);
   }
 
   @Patch(":id")

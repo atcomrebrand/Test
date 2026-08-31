@@ -53,6 +53,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
   const [daysOff, setDaysOff] = useState<string[]>([]);
   const [dayOffFrom, setDayOffFrom] = useState("");
   const [dayOffTo, setDayOffTo] = useState("");
+  const [tracksPlacement, setTracksPlacement] = useState(false);
   const [expectedStartTime, setExpectedStartTime] = useState("");
   const [expectedEndTime, setExpectedEndTime] = useState("");
   const [notes, setNotes] = useState("");
@@ -77,6 +78,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setDaysOff(job.daysOff);
       setDayOffFrom("");
       setDayOffTo("");
+      setTracksPlacement(job.tracksPlacement);
       setExpectedStartTime(job.expectedStartTime ?? "");
       setExpectedEndTime(job.expectedEndTime ?? "");
       setNotes(job.notes ?? "");
@@ -98,6 +100,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       setDaysOff([]);
       setDayOffFrom("");
       setDayOffTo("");
+      setTracksPlacement(false);
       setExpectedStartTime("");
       setExpectedEndTime("");
       setNotes("");
@@ -168,6 +171,7 @@ export function JobFormModal({ open, onClose, job }: Props) {
       color,
       weekdays,
       daysOff: type === "FIXO" ? daysOff : [],
+      tracksPlacement,
       expectedStartTime: type === "FIXO" ? expectedStartTime || null : null,
       expectedEndTime: type === "FIXO" ? expectedEndTime || null : null,
       notes: notes || undefined,
@@ -377,6 +381,24 @@ export function JobFormModal({ open, onClose, job }: Props) {
             className="h-9 w-16 cursor-pointer rounded-lg border border-[rgb(var(--border))]"
           />
         </div>
+
+        {/* Fica no formulário do trabalho, e não numa configuração global, porque é exceção de UM
+            serviço: os outros não podem ganhar uma pergunta a mais ao encerrar por causa dele. */}
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-[rgb(var(--border))] surface-2 p-3">
+          <input
+            type="checkbox"
+            checked={tracksPlacement}
+            onChange={(e) => setTracksPlacement(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-violet-600"
+          />
+          <span className="min-w-0">
+            <span className="block text-sm font-medium">Serviço com colocação</span>
+            <span className="block text-xs text-muted">
+              Ao encerrar a sessão, o app pergunta a colocação do dia, a satisfação dos clientes e o tempo de resposta.
+              Sempre dá pra pular.
+            </span>
+          </span>
+        </label>
 
         <Textarea label="Observações (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
 

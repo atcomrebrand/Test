@@ -43,7 +43,7 @@ describe("TrackingCalendarService.month — daysOff", () => {
 
     const result = await service.month("user-1", 2026, 7);
 
-    expect(result).toEqual([{ date: "2026-07-15", hours: 0, revenue: 0, sessions: [], daysOff: ["Contrato Principal"] }]);
+    expect(result).toEqual([{ date: "2026-07-15", hours: 0, revenue: 0, sessions: [], daysOff: ["Contrato Principal"], bestPlacement: null }]);
   });
 
   it("combines multiple jobs' days off onto the same date", async () => {
@@ -54,7 +54,7 @@ describe("TrackingCalendarService.month — daysOff", () => {
 
     const result = await service.month("user-1", 2026, 7);
 
-    expect(result).toEqual([{ date: "2026-07-15", hours: 0, revenue: 0, sessions: [], daysOff: ["Contrato A", "Contrato B"] }]);
+    expect(result).toEqual([{ date: "2026-07-15", hours: 0, revenue: 0, sessions: [], daysOff: ["Contrato A", "Contrato B"], bestPlacement: null }]);
   });
 
   it("marks weekends as folga automatically for a Mon-Fri job, with no explicit daysOff", async () => {

@@ -14,6 +14,10 @@ export interface CalendarDaySession {
   netSeconds: number;
   value: number;
   notes: string | null;
+  /** Só em trabalho com sistema de colocação, e só quando a pergunta foi respondida. */
+  placement: number | null;
+  satisfactionPercent: number | null;
+  responseMinutes: number | null;
 }
 
 export interface CalendarDay {
@@ -23,6 +27,14 @@ export interface CalendarDay {
   sessions: CalendarDaySession[];
   /** Nomes dos trabalhos com folga marcada nesse dia (TrackingJob.daysOff) — vazio na maioria dos dias. */
   daysOff: string[];
+  /**
+   * A melhor (menor) colocação do dia, pra caber na célula do mês sem depender de abrir o detalhe.
+   *
+   * Duas sessões do mesmo serviço no mesmo dia são raras, mas quando acontecem a célula tem espaço
+   * pra um número só — e mostrar a pior seria a leitura errada de um dia que teve um bom resultado.
+   * O detalhe do dia continua listando cada sessão com o seu.
+   */
+  bestPlacement: number | null;
 }
 
 function dayKey(date: Date): string {
@@ -86,7 +98,7 @@ export class TrackingCalendarService {
       const value = round2((time.netSeconds / 3600) * hourlyRate);
       const key = dayKey(s.checkIn);
 
-      const entry = byDay.get(key) ?? { date: key, hours: 0, revenue: 0, sessions: [], daysOff: [] };
+      const entry = byDay.get(key) ?? { date: key, hours: 0, revenue: 0, sessions: [], daysOff: [], bestPlacement: null };
       entry.hours = round2(entry.hours + time.netSeconds / 3600);
       entry.revenue = round2(entry.revenue + value);
       entry.sessions.push({
@@ -97,7 +109,13 @@ export class TrackingCalendarService {
         netSeconds: time.netSeconds,
         value,
         notes: s.notes,
+        placement: s.placement,
+        satisfactionPercent: s.satisfactionPercent === null ? null : Number(s.satisfactionPercent),
+        responseMinutes: s.responseMinutes,
       });
+      if (s.placement !== null) {
+        entry.bestPlacement = entry.bestPlacement === null ? s.placement : Math.min(entry.bestPlacement, s.placement);
+      }
       byDay.set(key, entry);
     }
 
@@ -133,7 +151,7 @@ export class TrackingCalendarService {
         const isOff = explicitDaysOff.has(date) || !job.weekdays.includes(weekday);
         if (!isOff) continue;
 
-        const entry = byDay.get(date) ?? { date, hours: 0, revenue: 0, sessions: [], daysOff: [] };
+        const entry = byDay.get(date) ?? { date, hours: 0, revenue: 0, sessions: [], daysOff: [], bestPlacement: null };
         entry.daysOff.push(job.name);
         byDay.set(date, entry);
       }

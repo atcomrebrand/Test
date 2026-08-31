@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
-import { TrackingSessionRepository, TrackingSessionWithPauses } from "../domain/tracking-session.repository";
+import { SessionMutableFields, TrackingSessionRepository, TrackingSessionWithPauses } from "../domain/tracking-session.repository";
 import { TrackingJobRepository } from "../domain/tracking-job.repository";
 import { computeSessionTime } from "../domain/session-time-calculator";
 import { estimateJobHourlyRate } from "../domain/job-hourly-estimate";
@@ -7,7 +7,8 @@ import { convertToBRL } from "../domain/currency-converter";
 import { TrackingAuditService } from "./tracking-audit.service";
 import { TrackingFxService } from "./tracking-fx.service";
 import { computeFreelanceRates } from "./freelance-rate.helper";
-import { CreateManualSessionDto, ManualEditSessionDto, StartSessionDto } from "./dto/tracking-session.dto";
+import { CreateManualSessionDto, FinishSessionDto, ManualEditSessionDto, StartSessionDto } from "./dto/tracking-session.dto";
+import { parsePlacementInput } from "../domain/placement-summary";
 
 /** Sessions running longer than this are flagged as "esqueceu de finalizar" candidates — both to
  *  the user in real time (frontend confirm dialog) and via the notification cron sweep. */
@@ -74,9 +75,11 @@ export class TrackingSessionsService {
     return this.present(await this.getOwned(userId, sessionId));
   }
 
-  async finish(userId: string, sessionId: string, notes?: string) {
+  async finish(userId: string, sessionId: string, dto: FinishSessionDto = {}) {
     const session = await this.getOwned(userId, sessionId);
     if (session.status === "COMPLETED") throw new ConflictException("Sessão já finalizada.");
+
+    const colocacao = this.parsePlacement(session.job.tracksPlacement, dto);
 
     const checkOut = new Date();
     // An open pause left running (user hit "Finalizar" while paused) is closed at the same instant.
@@ -84,17 +87,21 @@ export class TrackingSessionsService {
       await this.sessions.resumeLatestPause(sessionId, checkOut);
     }
 
-    const finished = await this.sessions.finish(sessionId, checkOut, notes);
+    const finished = await this.sessions.finish(sessionId, checkOut, {
+      ...(dto.notes !== undefined ? { notes: dto.notes } : {}),
+      ...colocacao,
+    });
     await this.audit.log(userId, "TrackingSession", sessionId, "CHECK_OUT", { checkOut: null }, { checkOut });
     return this.present(finished);
   }
 
   async updateManual(userId: string, sessionId: string, dto: ManualEditSessionDto) {
     const before = await this.getOwned(userId, sessionId);
-    const data: { checkIn?: Date; checkOut?: Date; notes?: string } = {};
+    const data: { checkIn?: Date; checkOut?: Date } & SessionMutableFields = {};
     if (dto.checkIn) data.checkIn = new Date(dto.checkIn);
     if (dto.checkOut) data.checkOut = new Date(dto.checkOut);
     if (dto.notes !== undefined) data.notes = dto.notes;
+    Object.assign(data, this.parsePlacement(before.job.tracksPlacement, dto));
 
     // Same invariant createManual already enforces — mesclado com o valor atual pra validar mesmo
     // quando o PATCH só manda um dos dois lados (ex: FocusMode só reedita o checkIn da sessão ativa).
@@ -160,11 +167,43 @@ export class TrackingSessionsService {
       hourlyRate,
       equivalentValue: Math.round((time.netSeconds / 3600) * hourlyRate * 100) / 100,
       isLongRunning,
+      // Decimal do Prisma sai como string no JSON; a tela espera número, como em todo o resto do
+      // módulo. `null` continua null — é "não informado", e virar 0 inventaria uma nota zero.
+      satisfactionPercent: session.satisfactionPercent === null ? null : Number(session.satisfactionPercent),
+      tracksPlacement: session.job.tracksPlacement,
     };
   }
 
+  /**
+   * Valida a colocação e recusa que ela entre em trabalho que não tem esse sistema.
+   *
+   * A guarda não é sobre a tela — ela nunca mostraria os campos aí — e sim sobre a API: sem isso,
+   * um POST direto encheria de ranking a sessão de um trabalho comum, e o gráfico passaria a somar
+   * dias que não pertencem a ele. Campo ausente continua sendo "não mexi", então uma edição de
+   * horário numa sessão qualquer não esbarra nessa regra.
+   */
+  private parsePlacement(tracksPlacement: boolean, dto: { placement?: number | null; satisfactionPercent?: number | null; responseMinutes?: number | null }): SessionMutableFields {
+    const informado = dto.placement !== undefined || dto.satisfactionPercent !== undefined || dto.responseMinutes !== undefined;
+    if (!informado) return {};
+    if (!tracksPlacement) {
+      throw new BadRequestException("Esse trabalho não tem sistema de colocação.");
+    }
+
+    const parsed = parsePlacementInput(dto);
+    if (!parsed.ok) throw new BadRequestException(parsed.reason);
+    return parsed.value;
+  }
+
   private snapshot(session: TrackingSessionWithPauses) {
-    return { checkIn: session.checkIn, checkOut: session.checkOut, notes: session.notes, status: session.status };
+    return {
+      checkIn: session.checkIn,
+      checkOut: session.checkOut,
+      notes: session.notes,
+      status: session.status,
+      placement: session.placement,
+      satisfactionPercent: session.satisfactionPercent === null ? null : Number(session.satisfactionPercent),
+      responseMinutes: session.responseMinutes,
+    };
   }
 
   private async getOwned(userId: string, id: string) {

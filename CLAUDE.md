@@ -367,6 +367,46 @@ Sempre, antes de reportar uma feature/fix como pronta:
 
 Ambiente de dev local costuma cair sozinho (Postgres e/ou os processos `start:dev`/`vite dev`) entre sessões — checar com `pg_isready` e `curl` antes de assumir que subiu.
 
+## Horas: colocação, o ranking diário de um serviço só
+
+Um dos trabalhos tem sistema de colocação — no fim do dia o serviço divulga a posição, a satisfação
+dos clientes (que votam de 1 a 5 estrelas e ele consolida em %) e o tempo médio de resposta.
+
+- **O sistema é do TRABALHO, não do app** (`TrackingJob.tracksPlacement`, default `false`). Fosse
+  uma configuração global, todo trabalho ganharia uma pergunta a mais ao encerrar por causa de um
+  que é exceção. O `POST /finish` **recusa** colocação em trabalho sem o sistema: a tela nunca
+  mostraria os campos, mas um curl direto encheria de ranking a sessão de um trabalho comum e o
+  gráfico passaria a somar dias que não são dele.
+- **As três direções são diferentes, e é a regra que sustenta o resto.** Em posição e tempo de
+  resposta **menor é melhor**; em satisfação, maior. Por isso `summarizePlacements` recebe
+  `lowerIsBetter` por métrica: sem ele, sair de 12º pra 1º — a maior evolução possível — apareceria
+  como tendência de −11, e o gráfico desenharia a subida como uma queda. O eixo Y das duas métricas
+  invertidas é `reversed`, então "pra cima" é sempre "melhorou" nas três.
+- **Pular nunca sai da tela, e a sessão é encerrada ANTES de perguntar.** O check-out tem que marcar
+  a hora do clique em finalizar; perguntar primeiro deixaria o cronômetro correndo enquanto a pessoa
+  digita e o dia terminaria com minutos que não foram trabalhados. A resposta entra depois, por
+  edição — que é o mesmo caminho de quem pulou.
+- **A pergunta vive nos DOIS lugares onde se encerra** (`usePlacementPrompt`): o ✓ da barra
+  flutuante, que aparece em qualquer tela do módulo, e o "Finalizar" do Modo Foco. Só no Modo Foco,
+  o botão rápido pularia a pergunta em silêncio. O modal fica **fora** da barra flutuante no JSX:
+  encerrar faz a sessão deixar de ser a ativa e a barra sumir — dentro dela, a pergunta sumiria no
+  mesmo instante em que deveria aparecer.
+- **`undefined` é "não mexi", `null` é "apague".** Foi bug real, pego no curl: `parsePlacementInput`
+  normalizava os três com `?? null`, então mandar só `{placement: null}` pra tirar uma colocação
+  lançada errada apagava satisfação e tempo de resposta junto. Só entra na gravação o campo que veio
+  na requisição. **Zero é valor legítimo** em minutos (resposta instantânea) — por isso a ausência
+  precisa ser `null` e não 0, e por isso a média ignora o dia sem o número em vez de contá-lo como
+  zero: contar zero criaria uma "colocação 0" melhor que o primeiro lugar.
+- **A célula do calendário mostra a MELHOR colocação do dia** (`bestPlacement`); o detalhe do dia
+  lista cada sessão com os três números. Dois registros no mesmo dia são raros, mas a célula tem
+  espaço pra um número só, e mostrar o pior leria como um dia ruim que não foi.
+- **O gráfico é um cartão por trabalho, nunca uma linha só.** Ser 3º entre dez não é o mesmo que ser
+  3º entre duzentos — juntar serviços diferentes na mesma escala não significaria nada. O recorte é
+  por **trabalho com dado**, e não por `tracksPlacement`: desligar o sistema para de perguntar, mas
+  não pode apagar da tela o histórico já registrado.
+- **A colocação não passa pelo `formatCurrency`**, então o modo privacidade não a alcança — e está
+  certo: o que aquele modo esconde é dinheiro, e "3º lugar" não diz quanto se ganha.
+
 ## Mercado: o mesmo produto com nome diferente em cada mercado
 
 `marketProductKey` normaliza **grafia** (abreviação, acento, "5 KG" vs "5KG"). O que ela não

@@ -23,6 +23,8 @@ export interface TrackingJob {
   weekdays: number[];
   /** Datas específicas de folga ("YYYY-MM-DD"), além do padrão semanal em weekdays. */
   daysOff: string[];
+  /** Serviço com sistema de colocação: ao encerrar a sessão, o app pergunta o resultado do dia. */
+  tracksPlacement: boolean;
   /** "HH:mm", opcional — dispara o lembrete "hora de iniciar" nesse horário, nos weekdays. */
   expectedStartTime: string | null;
   /** "HH:mm", opcional — dispara o lembrete "hora de encerrar" nesse horário exato; quando null,
@@ -88,6 +90,11 @@ export interface TrackingSession {
   hourlyRate: number;
   equivalentValue: number;
   isLongRunning: boolean;
+  /** Colocação do dia. Nulo é "não informado" — nunca zero, que é valor legítimo em minutos. */
+  placement: number | null;
+  satisfactionPercent: number | null;
+  responseMinutes: number | null;
+  tracksPlacement: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -134,6 +141,9 @@ export interface TrackingCalendarDaySession {
   netSeconds: number;
   value: number;
   notes: string | null;
+  placement: number | null;
+  satisfactionPercent: number | null;
+  responseMinutes: number | null;
 }
 
 export interface TrackingCalendarDay {
@@ -143,6 +153,37 @@ export interface TrackingCalendarDay {
   sessions: TrackingCalendarDaySession[];
   /** Nomes dos trabalhos com folga marcada nesse dia. */
   daysOff: string[];
+  /** A melhor (menor) colocação do dia — o que cabe na célula do mês. */
+  bestPlacement: number | null;
+}
+
+/** Os três números do dia, do jeito que o gráfico lê. */
+export interface PlacementPoint {
+  date: string;
+  placement: number | null;
+  satisfactionPercent: number | null;
+  responseMinutes: number | null;
+}
+
+export interface PlacementMetricSummary {
+  best: number;
+  average: number;
+  days: number;
+  /** Positivo = melhorou, já respeitando a direção da métrica. */
+  trend: number | null;
+}
+
+export interface PlacementJob {
+  jobId: string;
+  jobName: string;
+  color: string;
+  points: PlacementPoint[];
+  summary: {
+    placement: PlacementMetricSummary | null;
+    satisfaction: PlacementMetricSummary | null;
+    responseMinutes: PlacementMetricSummary | null;
+    daysWithData: number;
+  };
 }
 
 export type ReportPeriod = "hoje" | "semana" | "mes" | "ano" | "personalizado";

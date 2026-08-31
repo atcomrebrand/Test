@@ -82,6 +82,12 @@ export class CreateTrackingJobDto {
   @Matches(DATE_REGEX, { each: true, message: "daysOff deve conter datas no formato YYYY-MM-DD." })
   daysOff?: string[];
 
+  /** Serviço com sistema de colocação: ao encerrar a sessão, o app pergunta posição, satisfação e
+   *  tempo de resposta do dia. */
+  @IsOptional()
+  @IsBoolean()
+  tracksPlacement?: boolean;
+
   /** "HH:mm" — dispara o lembrete "hora de iniciar" nesse horário, nos weekdays configurados. */
   @IsOptional()
   @Matches(HHMM_REGEX, { message: "expectedStartTime deve estar no formato HH:mm." })
@@ -125,6 +131,8 @@ export class UpdateTrackingJobDto {
   @IsArray()
   @Matches(DATE_REGEX, { each: true, message: "daysOff deve conter datas no formato YYYY-MM-DD." })
   daysOff?: string[];
+
+  @IsOptional() @IsBoolean() tracksPlacement?: boolean;
 
   @IsOptional() @Matches(HHMM_REGEX, { message: "expectedStartTime deve estar no formato HH:mm." }) expectedStartTime?: string;
   @IsOptional() @Matches(HHMM_REGEX, { message: "expectedEndTime deve estar no formato HH:mm." }) expectedEndTime?: string;
