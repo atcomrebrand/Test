@@ -10,7 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { AlertTriangle, TrendingUp } from "lucide-react";
+import { AlertTriangle, ChevronDown, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/cn";
@@ -55,6 +55,18 @@ type ChartMode = "PATRIMONIO" | "COMPARAR";
 interface Props {
   /** A aba aberta na Carteira — o gráfico mostra a classe que a pessoa está olhando. */
   tab: EvolutionSeriesKey;
+  /**
+   * Sufixo das chaves de preferência (período, modo).
+   *
+   * Duas instâncias do gráfico na mesma tela precisam guardar o período em chaves diferentes: o
+   * `usePortfolioPreference` lê o localStorage uma vez, na montagem, então chave compartilhada
+   * deixaria as duas em sincronia no primeiro render e divergindo em silêncio depois do primeiro
+   * clique — com o recarregamento trazendo de volta o que o outro card escolheu por último. Sem
+   * sufixo ficam as chaves de sempre, pra ninguém perder a escolha que já estava salva.
+   */
+  prefKey?: string;
+  /** Vira um acordeão com este título no cabeçalho. Fechado, some tudo menos o resumo. */
+  collapsibleTitle?: string;
   /**
    * Carteira separada. Ausente = a principal, que é o que todo mundo que já usava esse gráfico
    * continua recebendo. Com id, o mesmo motor devolve só a renda fixa daquela carteira — os índices
@@ -214,9 +226,15 @@ function SeriesChip({
   );
 }
 
-export function PortfolioEvolutionChart({ tab, portfolioId }: Props) {
-  const [range, setRange] = usePortfolioPreference<EvolutionRange>("evolution-range", "12M");
-  const [mode, setMode] = usePortfolioPreference<ChartMode>("evolution-mode", "PATRIMONIO");
+export function PortfolioEvolutionChart({ tab, portfolioId, prefKey, collapsibleTitle }: Props) {
+  const sufixo = prefKey ? `-${prefKey}` : "";
+  const [range, setRange] = usePortfolioPreference<EvolutionRange>(`evolution-range${sufixo}`, "12M");
+  const [mode, setMode] = usePortfolioPreference<ChartMode>(`evolution-mode${sufixo}`, "PATRIMONIO");
+  // "1"/"0" e não booleano porque a preferência é guardada como texto no localStorage. Aberto é o
+  // padrão: o gráfico já estava na tela antes do acordeão existir, e nascer fechado faria parecer
+  // que ele sumiu.
+  const [aberto, setAberto] = usePortfolioPreference<"1" | "0">(`evolution-aberto${sufixo}`, "1");
+  const expandido = !collapsibleTitle || aberto === "1";
   const [custom, setCustom] = useState<{ from: string; to: string }>({ from: "", to: "" });
   const [extras, setExtras] = useState<Set<string>>(new Set(["CDI"]));
 
@@ -258,9 +276,36 @@ export function PortfolioEvolutionChart({ tab, portfolioId }: Props) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-3 py-4">
+        {/* O cabeçalho do acordeão traz o valor de hoje mesmo fechado: quem fecha o gráfico quer o
+            espaço de volta, não perder o número — e sem ele o cartão fechado vira uma faixa que só
+            ocupa linha. A consulta continua rodando fechada, de propósito: as duas instâncias da
+            tela compartilham a mesma chave do react-query quando estão no mesmo período, então
+            isso é uma requisição só, e é a mesma que a tela já fazia antes do acordeão existir. */}
+        {collapsibleTitle && (
+          <button
+            type="button"
+            onClick={() => setAberto(expandido ? "0" : "1")}
+            aria-expanded={expandido}
+            className="flex w-full items-center justify-between gap-3 text-left"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              <TrendingUp className="h-4 w-4 shrink-0 text-muted" />
+              {collapsibleTitle}
+            </span>
+            <span className="flex items-center gap-2">
+              {!expandido && !carregando && <span className="text-sm font-bold">{formatCurrency(atual?.value ?? 0)}</span>}
+              <ChevronDown className={cn("h-4 w-4 shrink-0 text-muted transition-transform", expandido && "rotate-180")} />
+            </span>
+          </button>
+        )}
+
+        {expandido && (
+          <>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 shrink-0 text-muted" />
+            {/* Com o acordeão, o ícone já está no cabeçalho — repetir aqui seria a mesma marca
+                duas vezes na mesma coluna. */}
+            {!collapsibleTitle && <TrendingUp className="h-4 w-4 shrink-0 text-muted" />}
             <div className="flex rounded-lg surface-2 p-0.5">
               {(
                 [
@@ -524,6 +569,8 @@ export function PortfolioEvolutionChart({ tab, portfolioId }: Props) {
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             Sem histórico de preço: {semHistorico.join(", ")} — fora do gráfico.
           </p>
+        )}
+          </>
         )}
       </CardContent>
     </Card>

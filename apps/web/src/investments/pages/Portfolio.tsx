@@ -186,11 +186,18 @@ export default function Portfolio() {
         </div>
       </div>
 
-      {/* Antes das abas de propósito: a primeira pergunta é "como está indo", e só depois "o que
-          tem dentro". O gráfico é da aba selecionada — a classe inteira, não ativo por ativo. */}
-      <PortfolioEvolutionChart tab={tab} />
+      {/* Dois gráficos, e a ordem responde às perguntas na ordem em que elas são feitas: primeiro
+          "como está indo no geral", depois "o que tem dentro", e só então "como está indo esta
+          classe". O de cima é sempre a carteira toda, independente da aba — por isso ele fica
+          ACIMA do seletor, onde nada do que se escolhe abaixo o altera. Ele é acordeão porque é o
+          único dos dois que não muda com a navegação: quem já sabe o total quer o espaço de volta,
+          e a escolha fica guardada. */}
+      <PortfolioEvolutionChart tab="TOTAL" prefKey="total" collapsibleTitle="Carteira toda" />
 
       <Tabs value={tab} onChange={(v) => setTab(v as PortfolioTab)} options={TAB_OPTIONS} />
+
+      {/* Depois do seletor porque este é da aba aberta — grudado na escolha que o define. */}
+      <PortfolioEvolutionChart tab={tab} />
 
       {/* Ordenação + total do que está na tela. Ficam juntos porque, depois de ordenar, a pergunta
           seguinte costuma ser "e isso tudo dá quanto". */}

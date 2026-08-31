@@ -292,6 +292,23 @@ por ativo — com valor, custo e rentabilidade, mais CDI, Ibovespa e IFIX na mes
   `getArchivedHistory` do MarketPriceService só devolve datas **anteriores** ao que o provedor ao
   vivo cobre, então as fontes não se sobrepõem — e quando a BRAPI cai, ele passa a ter de onde tirar
   preço.
+- **São dois gráficos, e a posição deles na tela é a regra.** O de cima é sempre a **carteira
+  inteira** (`tab="TOTAL"`, a série que o backend já calculava) e fica **acima** do seletor de
+  abas, porque nada do que se escolhe abaixo o altera — pôr um gráfico que não muda embaixo do
+  controle que deveria mudá-lo é o que fazia parecer que o seletor estava quebrado. O de baixo é o
+  da aba aberta, grudado na escolha que o define. Só o de cima é **acordeão**, pelo mesmo motivo:
+  é o único que não acompanha a navegação, então é o único que alguém quer fechar pra recuperar a
+  tela. Fechado ele ainda mostra o valor de hoje — sem isso o cartão vira uma faixa que só ocupa
+  linha — e a escolha fica no localStorage.
+- **Duas instâncias na tela = duas chaves de preferência.** O `usePortfolioPreference` lê o
+  localStorage uma vez, na montagem: com a mesma chave, os dois cartões nascem sincronizados e
+  divergem em silêncio no primeiro clique, com o recarregamento trazendo de volta o período que o
+  outro escolheu por último. Por isso o gráfico do total usa sufixo próprio (`prefKey`) e o da aba
+  ficou com as chaves de sempre — quem já tinha um período salvo não perde.
+- **Os dois no mesmo período são UMA requisição.** A chave do react-query é a mesma, então o
+  segundo cartão não custa rede nenhuma; a consulta continua rodando com o acordeão fechado
+  justamente porque nesse caso ela é a mesma que a tela já fazia antes dele existir. Períodos
+  diferentes custam duas — e aí é escolha explícita de quem clicou.
 - **Uma requisição serve as quatro abas.** O que pesa é ir à rede buscar histórico, não somar; e
   comparar as abas entre si era metade do pedido. Resposta inteira em cache de 10min por janela, e a
   série de cada ativo com TTL de 1h só na ponta — sem isso, abrir a Carteira eram ~18 requisições
