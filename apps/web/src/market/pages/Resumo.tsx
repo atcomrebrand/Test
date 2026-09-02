@@ -9,6 +9,7 @@ import { StatTile } from "@/components/ui/StatTile";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { formatCurrency, formatDate, formatPercent, monthLabel } from "@/lib/format";
 import { useMarketProducts, useMarketPurchases, useMarketSummary } from "../api";
+import { BestWeekdayCard } from "../components/BestWeekdayCard";
 import { SpendingByMonthChart } from "../components/SpendingByMonthChart";
 import { TaxDisclaimer } from "../components/TaxDisclaimer";
 
@@ -168,6 +169,8 @@ export default function Resumo() {
       </Card>
 
       <div className="grid gap-4 lg:grid-cols-2">
+        <BestWeekdayCard data={summary.bestWeekday} />
+
         <Card>
           <CardHeader>
             <CardTitle>{doMes ? `Compras de ${labelOf(doMes.month)}` : "Últimas compras"}</CardTitle>

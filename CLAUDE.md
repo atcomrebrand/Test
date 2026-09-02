@@ -454,6 +454,24 @@ existe decisão — e a decisão é sempre do usuário.
   sozinha não compara nada. O mês selecionado é destacado e os outros esmaecidos; clicar numa barra
   escolhe o mês. Só os meses que tiveram compra viram opção: mês vazio seria um período que só pode
   mostrar zero.
+- **O melhor dia de compra é índice de PREÇO, nunca gasto por ida.** A conta óbvia — média gasta
+  por compra em cada dia da semana — mede o carrinho, não o mercado: o rancho do mês costuma cair
+  no sábado e faria o sábado parecer o dia mais caro do ano por ter comprado mais coisa.
+  `bestPurchaseWeekday` compara **cada produto consigo mesmo**: o preço de uma ida vira uma razão
+  sobre a média daquele produto, e a razão é adimensional, então arroz e detergente entram na mesma
+  média sem que o mais caro domine. Índice em base 100; 89 é 11% abaixo do preço de sempre.
+- **Só entra produto comprado em mais de um DIA DA SEMANA diferente.** Um produto sempre comprado
+  na segunda tem razão exatamente 1 por construção — não erra o resultado, mas empurra todo dia pra
+  100 e apaga o sinal. Pelo mesmo motivo o dia com uma observação só é descartado: é anedota.
+- **Sem base, o card diz o que falta e não aponta um dia.** Apontar a segunda porque foi a única com
+  dado é pior que dizer "ainda não dá pra saber" — a pessoa mudaria a rotina de compras por causa de
+  um número que não mediu nada. Cada motivo (`SEM_COMPRAS`, `SEM_PRODUTO_REPETIDO`, `POUCA_AMOSTRA`)
+  vira uma frase diferente, porque a ação do outro lado é diferente.
+- **A identidade é o produto CANÔNICO**, não a linha da nota: produto que o usuário já uniu precisa
+  contar como um só, senão ele nunca aparece em dois dias diferentes — e são justamente os casos que
+  a união existe pra resolver. Sai da mesma consulta do `summary`, que já carregava as compras com
+  os itens, então o card não custa uma segunda ida ao banco.
+- **Fica fora do recorte de mês**, pela mesma razão do card de variação logo abaixo.
 - **"O que mais subiu de preço" fica fora do recorte de propósito.** Variação se mede entre compras
   do mesmo item, e dentro de um mês normalmente não há duas — filtrar esvaziaria o card.
 - **O card do canto deixou de ser a contagem de produtos.** Um número de sempre ao lado de três do

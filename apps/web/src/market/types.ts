@@ -139,4 +139,23 @@ export interface SpendingSummary {
   purchaseCount: number;
   purchasesWithTax: number;
   byMonth: MonthlySpending[];
+  bestWeekday: BestPurchaseWeekday;
+}
+
+export interface WeekdayPriceIndex {
+  /** 0 = domingo. */
+  weekday: number;
+  /** 100 = o preço de sempre. 96 = costuma sair 4% mais barato nesse dia. */
+  index: number;
+  observations: number;
+  products: number;
+}
+
+export interface BestPurchaseWeekday {
+  /** `null` quando ainda não dá pra afirmar — `reason` diz por quê. */
+  best: WeekdayPriceIndex | null;
+  weekdays: WeekdayPriceIndex[];
+  comparableProducts: number;
+  observations: number;
+  reason: "SEM_COMPRAS" | "SEM_PRODUTO_REPETIDO" | "POUCA_AMOSTRA" | null;
 }
