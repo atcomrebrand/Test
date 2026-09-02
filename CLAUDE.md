@@ -454,6 +454,14 @@ existe decisão — e a decisão é sempre do usuário.
   sozinha não compara nada. O mês selecionado é destacado e os outros esmaecidos; clicar numa barra
   escolhe o mês. Só os meses que tiveram compra viram opção: mês vazio seria um período que só pode
   mostrar zero.
+- **O melhor dia de compra tem DOIS recortes, e um cálculo só.** `bestPurchaseDay(obs, bucket)`
+  responde tanto "compensa comprar na segunda ou no sábado" quanto "no dia 5 ou no dia 28" — é o
+  mesmo índice com outro agrupamento, e duplicar o cálculo faria os dois divergirem no dia em que um
+  fosse ajustado. Os dois vêm juntos na resposta e o seletor do card **não vai à rede**: são as
+  mesmas observações, montadas uma vez, e varrê-las duas vezes é aritmética em memória.
+- **O dia do mês reparte a mesma amostra em 31 grupos em vez de 7**, então ele demora bem mais a
+  sair do "ainda não dá pra saber" — e por isso tem frase própria no estado vazio: a explicação
+  genérica soaria como se algo estivesse quebrado.
 - **O melhor dia de compra é índice de PREÇO, nunca gasto por ida.** A conta óbvia — média gasta
   por compra em cada dia da semana — mede o carrinho, não o mercado: o rancho do mês costuma cair
   no sábado e faria o sábado parecer o dia mais caro do ano por ter comprado mais coisa.

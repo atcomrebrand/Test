@@ -1,13 +1,25 @@
 import { ProductPricePoint, groupPurchaseOccasions } from "./product-price-history";
 
-export interface WeekdayPriceObservation extends ProductPricePoint {
+export interface DayPriceObservation extends ProductPricePoint {
   /** Qual produto essa linha é. A comparação só existe dentro do mesmo produto. */
   productId: string;
 }
 
-export interface WeekdayPriceIndex {
-  /** 0 = domingo, como o `getDay()` do JS e a tirinha da Home. */
-  weekday: number;
+/**
+ * O recorte de tempo comparado.
+ *
+ * `WEEKDAY` responde "compensa comprar na segunda ou no sábado" e `DAY_OF_MONTH`, "compensa comprar
+ * no dia 5 ou no dia 28". São a mesma conta com um agrupamento diferente, e por isso um código só:
+ * duplicar o cálculo faria os dois divergirem no dia em que um deles fosse ajustado.
+ *
+ * Os dois não têm a mesma facilidade de encher: são 7 grupos contra 31, então o dia do mês precisa
+ * de bem mais histórico pra sair do "ainda não dá pra saber". Isso é do dado, não do cálculo.
+ */
+export type DayBucket = "WEEKDAY" | "DAY_OF_MONTH";
+
+export interface DayPriceIndex {
+  /** 0–6 (domingo=0) em WEEKDAY; 1–31 em DAY_OF_MONTH. */
+  day: number;
   /** 100 = o preço de sempre. 96 = costuma sair 4% mais barato nesse dia. */
   index: number;
   /** Quantas comparações produto×ida entraram nesse dia. */
@@ -16,31 +28,31 @@ export interface WeekdayPriceIndex {
   products: number;
 }
 
-export type BestWeekdayReason = "SEM_COMPRAS" | "SEM_PRODUTO_REPETIDO" | "POUCA_AMOSTRA";
+export type BestDayReason = "SEM_COMPRAS" | "SEM_PRODUTO_REPETIDO" | "POUCA_AMOSTRA";
 
-export interface BestPurchaseWeekday {
+export interface BestPurchaseDay {
   /** O dia mais barato. `null` quando ainda não dá pra afirmar — aí `reason` diz por quê. */
-  best: WeekdayPriceIndex | null;
+  best: DayPriceIndex | null;
   /** Todos os dias que reuniram amostra, do mais barato pro mais caro. */
-  weekdays: WeekdayPriceIndex[];
+  days: DayPriceIndex[];
   /** Produtos que puderam ser comparados entre dias diferentes — a base de tudo. */
   comparableProducts: number;
   observations: number;
-  reason: BestWeekdayReason | null;
+  reason: BestDayReason | null;
 }
 
-/** Um produto precisa aparecer em pelo menos dois dias da semana DIFERENTES pra dizer algo sobre
- *  dia da semana. Comprado sempre na segunda, ele só sabe informar o próprio preço. */
-const MIN_WEEKDAYS_PER_PRODUCT = 2;
+/** Um produto precisa aparecer em pelo menos dois dias DIFERENTES pra dizer algo sobre dia.
+ *  Comprado sempre na segunda, ele só sabe informar o próprio preço. */
+const MIN_DAYS_PER_PRODUCT = 2;
 /** Um dia sustentado por uma observação só é anedota, não padrão. */
-const MIN_OBSERVATIONS_PER_WEEKDAY = 2;
+const MIN_OBSERVATIONS_PER_DAY = 2;
 
 function round2(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
 /**
- * Em que dia da semana a compra sai mais barata.
+ * Em que dia a compra sai mais barata — dia da semana ou dia do mês, conforme o `bucket`.
  *
  * **O que este cálculo NÃO faz: comparar o gasto médio por ida.** Essa é a conta óbvia e é errada.
  * O gasto de uma ida depende do que entrou no carrinho, não do preço do dia: o rancho do mês, que
@@ -52,18 +64,19 @@ function round2(value: number): number {
  * detergente entram na mesma média sem que o mais caro domine. O índice de um dia é a média dessas
  * razões, em base 100.
  *
- * Só entram produtos comprados em **mais de um dia da semana**. Um produto sempre comprado na
- * segunda tem razão exatamente 1 por construção — não erra o resultado, mas empurra todo dia pra
- * 100 e apaga justamente o sinal que a tela quer mostrar.
+ * Só entram produtos comprados em **mais de um dia distinto** dentro do recorte. Um produto sempre
+ * comprado na segunda (ou sempre no dia 5) tem razão exatamente 1 por construção — não erra o
+ * resultado, mas empurra todo dia pra 100 e apaga justamente o sinal que a tela quer mostrar.
  *
  * Quando não há base, devolve `best: null` com o motivo, e nunca um dia qualquer: apontar a
  * segunda-feira porque foi a única com dado é pior do que dizer que ainda não dá pra saber — a
- * pessoa mudaria a rotina de compras por causa de um número que não mediu nada.
+ * pessoa mudaria a rotina de compras por causa de um número que não mediu nada. Isso acontece bem
+ * mais no recorte de dia do mês, que reparte a mesma amostra em 31 grupos em vez de 7.
  */
-export function bestPurchaseWeekday(observations: WeekdayPriceObservation[]): BestPurchaseWeekday {
-  const vazio = (reason: BestWeekdayReason): BestPurchaseWeekday => ({
+export function bestPurchaseDay(observations: DayPriceObservation[], bucket: DayBucket): BestPurchaseDay {
+  const vazio = (reason: BestDayReason): BestPurchaseDay => ({
     best: null,
-    weekdays: [],
+    days: [],
     comparableProducts: 0,
     observations: 0,
     reason,
@@ -71,14 +84,14 @@ export function bestPurchaseWeekday(observations: WeekdayPriceObservation[]): Be
 
   if (observations.length === 0) return vazio("SEM_COMPRAS");
 
-  const porProduto = new Map<string, WeekdayPriceObservation[]>();
+  const porProduto = new Map<string, DayPriceObservation[]>();
   for (const o of observations) {
     const atual = porProduto.get(o.productId);
     if (atual) atual.push(o);
     else porProduto.set(o.productId, [o]);
   }
 
-  // razão de preço → dia da semana, uma entrada por produto×ida ao mercado.
+  // razão de preço → dia, uma entrada por produto×ida ao mercado.
   const razoesPorDia = new Map<number, { soma: number; observations: number; produtos: Set<string> }>();
   let comparableProducts = 0;
   let total = 0;
@@ -86,8 +99,8 @@ export function bestPurchaseWeekday(observations: WeekdayPriceObservation[]): Be
   for (const [productId, pontos] of porProduto) {
     // Uma ida ao mercado, não uma linha de nota: três unidades do mesmo produto são um preço só.
     const ocasioes = groupPurchaseOccasions(pontos);
-    const diasDistintos = new Set(ocasioes.map((o) => weekdayOf(o.purchaseDate)));
-    if (diasDistintos.size < MIN_WEEKDAYS_PER_PRODUCT) continue;
+    const diasDistintos = new Set(ocasioes.map((o) => dayOf(o.purchaseDate, bucket)));
+    if (diasDistintos.size < MIN_DAYS_PER_PRODUCT) continue;
 
     // Média ponderada pela quantidade, a mesma régua do `averagePrice`: um saco de 5kg em promoção
     // pesa mais que uma reposição de 300g a preço cheio.
@@ -99,7 +112,7 @@ export function bestPurchaseWeekday(observations: WeekdayPriceObservation[]): Be
     comparableProducts += 1;
 
     for (const ocasiao of ocasioes) {
-      const dia = weekdayOf(ocasiao.purchaseDate);
+      const dia = dayOf(ocasiao.purchaseDate, bucket);
       const atual = razoesPorDia.get(dia) ?? { soma: 0, observations: 0, produtos: new Set<string>() };
       atual.soma += ocasiao.unitPrice / medio;
       atual.observations += 1;
@@ -111,10 +124,10 @@ export function bestPurchaseWeekday(observations: WeekdayPriceObservation[]): Be
 
   if (comparableProducts === 0) return vazio("SEM_PRODUTO_REPETIDO");
 
-  const weekdays = [...razoesPorDia.entries()]
-    .filter(([, v]) => v.observations >= MIN_OBSERVATIONS_PER_WEEKDAY)
-    .map(([weekday, v]) => ({
-      weekday,
+  const days = [...razoesPorDia.entries()]
+    .filter(([, v]) => v.observations >= MIN_OBSERVATIONS_PER_DAY)
+    .map(([day, v]) => ({
+      day,
       index: round2((v.soma / v.observations) * 100),
       observations: v.observations,
       products: v.produtos.size,
@@ -126,21 +139,21 @@ export function bestPurchaseWeekday(observations: WeekdayPriceObservation[]): Be
   // Menos de dois dias com amostra não é comparação: ou sobrou um dia só, que não se compara com
   // ninguém, ou nenhum passou do mínimo. Os dois querem dizer a mesma coisa pra quem lê a tela —
   // "ainda não dá pra afirmar" — e separá-los em duas frases não mudaria nada do que fazer.
-  if (weekdays.length < 2) {
-    return { best: null, weekdays, comparableProducts, observations: total, reason: "POUCA_AMOSTRA" };
+  if (days.length < 2) {
+    return { best: null, days, comparableProducts, observations: total, reason: "POUCA_AMOSTRA" };
   }
 
-  return { best: weekdays[0], weekdays, comparableProducts, observations: total, reason: null };
+  return { best: days[0], days, comparableProducts, observations: total, reason: null };
 }
 
 /**
- * Dia da semana de uma data "yyyy-mm-dd".
+ * O grupo de uma data "yyyy-mm-dd": dia da semana (0–6) ou dia do mês (1–31).
  *
  * Montada com os componentes, e não com `new Date(iso)`: a string pura é interpretada como UTC, e
- * num fuso negativo como o do Brasil isso joga a compra pro dia anterior — uma nota de segunda
- * vira domingo, que é justamente o eixo que esta conta mede.
+ * num fuso negativo como o do Brasil isso joga a compra pro dia anterior — uma nota de segunda dia
+ * 17 vira domingo dia 16, errando os dois recortes de uma vez.
  */
-function weekdayOf(iso: string): number {
+function dayOf(iso: string, bucket: DayBucket): number {
   const [ano, mes, dia] = iso.slice(0, 10).split("-").map(Number);
-  return new Date(ano, mes - 1, dia).getDay();
+  return bucket === "DAY_OF_MONTH" ? dia : new Date(ano, mes - 1, dia).getDay();
 }

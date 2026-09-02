@@ -139,22 +139,25 @@ export interface SpendingSummary {
   purchaseCount: number;
   purchasesWithTax: number;
   byMonth: MonthlySpending[];
-  bestWeekday: BestPurchaseWeekday;
+  /** O mesmo cálculo em dois recortes: dia da semana e dia do mês. */
+  bestPurchaseDay: { weekday: BestPurchaseDay; dayOfMonth: BestPurchaseDay };
 }
 
-export interface WeekdayPriceIndex {
-  /** 0 = domingo. */
-  weekday: number;
+export type DayBucket = "WEEKDAY" | "DAY_OF_MONTH";
+
+export interface DayPriceIndex {
+  /** 0–6 (domingo=0) no recorte de semana; 1–31 no de mês. */
+  day: number;
   /** 100 = o preço de sempre. 96 = costuma sair 4% mais barato nesse dia. */
   index: number;
   observations: number;
   products: number;
 }
 
-export interface BestPurchaseWeekday {
+export interface BestPurchaseDay {
   /** `null` quando ainda não dá pra afirmar — `reason` diz por quê. */
-  best: WeekdayPriceIndex | null;
-  weekdays: WeekdayPriceIndex[];
+  best: DayPriceIndex | null;
+  days: DayPriceIndex[];
   comparableProducts: number;
   observations: number;
   reason: "SEM_COMPRAS" | "SEM_PRODUTO_REPETIDO" | "POUCA_AMOSTRA" | null;

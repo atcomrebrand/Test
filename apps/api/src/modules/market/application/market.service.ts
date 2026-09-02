@@ -3,7 +3,7 @@ import { MarketRepository } from "../domain/market.repository";
 import { groupByCanonical, resolveCanonicalId, suggestProductMerges } from "../domain/product-merge";
 import { groupPurchaseOccasions, ProductPricePoint, summarizeProductPrices } from "../domain/product-price-history";
 import { summarizeSpending } from "../domain/spending-summary";
-import { bestPurchaseWeekday } from "../domain/best-purchase-weekday";
+import { bestPurchaseDay } from "../domain/best-purchase-day";
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
@@ -31,6 +31,22 @@ export class MarketService {
    *  can show its totals without a second notion of what's in range. */
   async getSpendingSummary(userId: string, from?: string, to?: string) {
     const purchases = await this.market.listPurchases(userId, from ? new Date(from) : undefined, to ? new Date(to) : undefined);
+
+    const observacoes = purchases.flatMap((purchase) =>
+      purchase.items.map((item) => ({
+        // O canônico, não a linha: produto que o usuário já uniu ("PAO BRIOCHE" num mercado, "PAO DE
+        // LEITE BRIOCHE WICKBOLD" no outro) precisa contar como um só, senão ele nunca aparece em
+        // dois dias diferentes e a comparação perde justamente os casos que a união existe pra
+        // resolver.
+        productId: item.product.canonicalId ?? item.product.id,
+        purchaseDate: isoDate(purchase.purchaseDate),
+        storeName: purchase.storeName,
+        quantity: Number(item.quantity),
+        unitPrice: Number(item.unitPrice),
+        totalPrice: Number(item.totalPrice),
+      })),
+    );
+
     return {
       ...summarizeSpending(
         purchases.map((purchase) => ({
@@ -39,24 +55,13 @@ export class MarketService {
           taxAmount: purchase.taxAmount === null ? null : Number(purchase.taxAmount),
         })),
       ),
-      // Sai da mesma consulta que já estava carregada: as compras vêm com os itens, então o melhor
-      // dia não custa uma segunda ida ao banco.
-      bestWeekday: bestPurchaseWeekday(
-        purchases.flatMap((purchase) =>
-          purchase.items.map((item) => ({
-            // O canônico, não a linha: produto que o usuário já uniu ("PAO BRIOCHE" num mercado,
-            // "PAO DE LEITE BRIOCHE WICKBOLD" no outro) precisa contar como um só, senão ele nunca
-            // aparece em dois dias diferentes e a comparação perde justamente os casos que a união
-            // existe pra resolver.
-            productId: item.product.canonicalId ?? item.product.id,
-            purchaseDate: isoDate(purchase.purchaseDate),
-            storeName: purchase.storeName,
-            quantity: Number(item.quantity),
-            unitPrice: Number(item.unitPrice),
-            totalPrice: Number(item.totalPrice),
-          })),
-        ),
-      ),
+      // Os dois recortes saem das MESMAS observações, montadas uma vez: elas vêm da consulta que já
+      // estava carregada (as compras trazem os itens), e varrer a lista duas vezes é aritmética em
+      // memória — nenhum dos dois custa uma ida a mais ao banco.
+      bestPurchaseDay: {
+        weekday: bestPurchaseDay(observacoes, "WEEKDAY"),
+        dayOfMonth: bestPurchaseDay(observacoes, "DAY_OF_MONTH"),
+      },
     };
   }
 
