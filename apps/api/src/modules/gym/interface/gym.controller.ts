@@ -4,6 +4,7 @@ import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
 import { AuthUser, CurrentUser } from "../../../common/decorators/current-user.decorator";
 import { GymExercisesService } from "../application/gym-exercises.service";
 import { GymProfileService } from "../application/gym-profile.service";
+import { GymMuscleMapService } from "../application/gym-muscle-map.service";
 import { GymProgressService, ProgressRange } from "../application/gym-progress.service";
 import { GymSessionsService } from "../application/gym-sessions.service";
 import { GymWorkoutsService } from "../application/gym-workouts.service";
@@ -45,6 +46,7 @@ export class GymController {
     private readonly workouts: GymWorkoutsService,
     private readonly sessions: GymSessionsService,
     private readonly progress: GymProgressService,
+    private readonly muscleMap: GymMuscleMapService,
   ) {}
 
   // --- Início e perfil ---
@@ -194,6 +196,15 @@ export class GymController {
     const ano = Number(year) || agora.getFullYear();
     const mes = Number(month) || agora.getMonth() + 1;
     return this.progress.calendar(user.userId, ano, Math.min(12, Math.max(1, mes)));
+  }
+
+  /** Janelas oferecidas na tela. Dia solto não entra: 3 dias não é uma unidade de treino, e a
+   *  faixa de séries que pinta o boneco é semanal. */
+  @Get("muscle-map")
+  muscleMapEndpoint(@CurrentUser() user: AuthUser, @Query("days") days?: string) {
+    const permitidos = [7, 14, 30, 90];
+    const pedido = Number(days);
+    return this.muscleMap.map(user.userId, permitidos.includes(pedido) ? pedido : 7);
   }
 
   @Get("progress")

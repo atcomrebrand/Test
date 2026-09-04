@@ -9,6 +9,7 @@ import { formatDate } from "@/lib/format";
 import { useGymProgress, useGymRecords } from "../api";
 import { formatMinutes, formatVolume, GYM, RECORD_LABEL } from "../theme";
 import { ProgressRange } from "../types";
+import { Corpo } from "../components/Corpo";
 import { Medidas } from "../components/Medidas";
 import { Fotos } from "../components/Fotos";
 import { Metas } from "../components/Metas";
@@ -20,10 +21,10 @@ const RANGES: { value: ProgressRange; label: string }[] = [
   { value: "YEAR", label: "Ano" },
 ];
 
-type Aba = "PERFORMANCE" | "MEDIDAS" | "FOTOS" | "METAS";
+type Aba = "CORPO" | "PERFORMANCE" | "MEDIDAS" | "FOTOS" | "METAS";
 
 export default function Progresso() {
-  const [aba, setAba] = useState<Aba>("PERFORMANCE");
+  const [aba, setAba] = useState<Aba>("CORPO");
   const [range, setRange] = useState<ProgressRange>("M3");
 
   return (
@@ -39,6 +40,7 @@ export default function Progresso() {
       <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
         {(
           [
+            ["CORPO", "Corpo"],
             ["PERFORMANCE", "Performance"],
             ["MEDIDAS", "Medidas"],
             ["FOTOS", "Fotos"],
@@ -58,6 +60,7 @@ export default function Progresso() {
         ))}
       </div>
 
+      {aba === "CORPO" && <Corpo />}
       {aba === "PERFORMANCE" && <Performance range={range} setRange={setRange} />}
       {aba === "MEDIDAS" && <Medidas />}
       {aba === "FOTOS" && <Fotos />}

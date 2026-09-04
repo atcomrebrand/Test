@@ -638,6 +638,46 @@ indicador despencaria toda semana por um motivo que não é o desempenho de ning
 está em 82,5 fez 12,5% do caminho, não 82,5% — contar do zero mostraria uma barra quase cheia no
 primeiro dia e quase parada por meses.
 
+**O mapa muscular pinta SÉRIES, nunca quilos.** É a decisão que faz o boneco (aba Corpo, em
+`/academia/progresso`) dizer a verdade. Volume em kg não é comparável entre músculos: um leg press
+soma 10.000 kg no mesmo esforço em que uma elevação lateral soma 800, então a perna ficaria
+permanentemente vermelha e o ombro permanentemente verde — o desenho mostraria a anatomia dos
+exercícios, não o treino. Conferido nos dados reais: glúteos com 65.665 kg e 22 séries contra ombros
+com 44.297 kg e 78. Série é a unidade comparável, e é a que a literatura usa. **Os quilos continuam
+na resposta e aparecem no detalhe**, que é o único lugar onde significam algo: um músculo comparado
+com ele mesmo ao longo das semanas.
+
+**Músculo secundário conta meia série.** Supino é peito, mas também é tríceps e ombro. Só o primário
+faria o mapa afirmar que a pessoa nunca treina tríceps quando ela treina em todo empurrar; inteiro
+faria uma série de supino valer o mesmo pros dois, o que também não é verdade.
+
+**As faixas de intensidade vêm de fora, não da própria pessoa.** ~10 séries semanais por grupo como
+piso útil e 20+ como volume alto, escalado pela janela escolhida. Uma escala relativa aos outros
+músculos faria quem treina pouco ver vermelho por treinar menos ainda o resto.
+
+**O último treino ignora a janela; a carga não.** "Faz quanto tempo que não treino isso" é a
+pergunta do modo Atenção, e limitá-la aos 7 dias escolhidos responderia sempre "faz mais de 7" —
+músculo parado há três meses ficaria igual ao nunca treinado. Por isso a janela some da tela nesse
+modo, e um segundo `findMany` (enxuto, só pra quem ficou sem data) vai buscar mais fundo.
+
+**São dois modos, com respostas invertidas de propósito.** *Carga* responde "onde peguei pesado" — o
+não treinado fica apagado. *Atenção* responde o oposto, "o que estou esquecendo" — aí quem acende é
+o abandonado. Mesmo boneco; o seletor diz qual escala está no ar, e a legenda muda junto, porque
+"vermelho" quer dizer coisas opostas nos dois.
+
+**O corpo não tem silhueta separada — ele é a soma das formas**, e a base neutra usa a mesma cor do
+músculo não treinado. É o que permite "não treinou" sumir dentro do corpo em vez de virar um buraco
+na figura.
+
+**Cada grupo tem área de toque própria, invisível, e as áreas não se sobrepõem.** O alvo é a região,
+não o desenho: o desenho tem vãos, e o centro do peito — onde o dedo pousa — caía entre os dois
+peitorais e acertava o tronco. É também o que torna alcançáveis no celular o antebraço e a
+panturrilha.
+
+**A cor nunca é a única informação.** Verde e vermelho são o par que some no daltonismo mais comum,
+então o mesmo dado está escrito na lista abaixo do boneco, no `aria-label` de cada grupo e no painel
+de detalhe. A lista também alcança o músculo pequeno sem depender da mira.
+
 **A foto do exercício mora numa tabela SUA, não na coluna do exercício.** O catálogo é global
 (`userId = null`, o mesmo padrão da carteira principal dos investimentos), então gravar a foto na
 linha dele seria escrever no exercício de todo mundo — e `getOwned`, com razão, proíbe editar o

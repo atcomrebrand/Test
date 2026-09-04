@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import {
   GymCalendar, GymExercise, GymExerciseDetail, GymHome, GymMeasurement, GymPhoto, GymPrefill, GymProfile,
-  GymProgress, GymRecord, GymSessionDetail, GymSessionSummary, GymTarget, GymWorkout, ProgressRange,
+  GymProgress, GymRecord, MuscleMapResponse, GymSessionDetail, GymSessionSummary, GymTarget, GymWorkout, ProgressRange,
 } from "./types";
 
 function invalidate(qc: ReturnType<typeof useQueryClient>) {
@@ -11,6 +11,15 @@ function invalidate(qc: ReturnType<typeof useQueryClient>) {
 
 export function useGymHome(range: ProgressRange = "MONTH") {
   return useQuery({ queryKey: ["gym", "home", range], queryFn: () => api.get<GymHome>("/gym/home", { params: { range } }) });
+}
+
+/** O mapa muscular. A janela entra na chave: 7 e 30 dias são respostas diferentes e as duas valem
+ *  ficar em cache, porque alternar entre elas é o uso normal da tela. */
+export function useMuscleMap(days: number) {
+  return useQuery({
+    queryKey: ["gym", "muscle-map", days],
+    queryFn: () => api.get<MuscleMapResponse>("/gym/muscle-map", { params: { days } }),
+  });
 }
 
 /** Dias com treino de um mês. Trocar de mês é uma consulta pequena e cacheada. */

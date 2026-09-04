@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { GymExercisesService } from "./application/gym-exercises.service";
 import { GymProfileService } from "./application/gym-profile.service";
+import { GymMuscleMapService } from "./application/gym-muscle-map.service";
 import { GymProgressService } from "./application/gym-progress.service";
 import { GymSessionsService } from "./application/gym-sessions.service";
 import { GymWorkoutsService } from "./application/gym-workouts.service";
@@ -15,6 +16,6 @@ import { GymController } from "./interface/gym.controller";
  */
 @Module({
   controllers: [GymController],
-  providers: [GymProfileService, GymExercisesService, GymWorkoutsService, GymSessionsService, GymProgressService],
+  providers: [GymProfileService, GymExercisesService, GymWorkoutsService, GymSessionsService, GymProgressService, GymMuscleMapService],
 })
 export class GymModule {}

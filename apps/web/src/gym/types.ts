@@ -222,3 +222,43 @@ export interface GymTarget {
   targetValue: number; startValue: number | null; currentValue: number | null;
   progressPercent: number; deadline: string | null; achievedAt: string | null;
 }
+
+// ---------------------------------------------------------------------------
+// Mapa muscular
+// ---------------------------------------------------------------------------
+
+export type MuscleIntensity = "NENHUM" | "POUCO" | "MEDIO" | "MUITO";
+
+export interface MuscleLoad {
+  muscle: GymMuscle;
+  /** Séries efetivas: 1 quando o exercício é do músculo, 0,5 quando ele entra como secundário.
+   *  É esta a medida que pinta o boneco — quilo não é comparável entre músculos. */
+  sets: number;
+  /** Volume em kg. Serve pro detalhe, onde a comparação é do músculo com ele mesmo no tempo. */
+  volume: number;
+  sessions: number;
+  /** Olha o histórico inteiro, não só a janela — é o que responde "faz quanto tempo que não treino
+   *  isso". `null` = nunca treinado. */
+  lastTrainedAt: string | null;
+  daysSince: number | null;
+  intensity: MuscleIntensity;
+  topWeight: number;
+  topExercise: string | null;
+}
+
+export interface MuscleWeekPoint {
+  /** Domingo da semana. */
+  week: string;
+  volume: number;
+  sets: number;
+  topWeight: number;
+}
+
+export interface MuscleMapResponse {
+  days: number;
+  today: string;
+  muscles: MuscleLoad[];
+  /** Sempre 12 semanas, independente da janela do boneco: "estou evoluindo nisso?" não é a mesma
+   *  pergunta que "treinei isso essa semana?", e 7 dias dariam um ponto só. */
+  evolution: Record<string, MuscleWeekPoint[]>;
+}
