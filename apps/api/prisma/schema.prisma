@@ -1,0 +1,2420 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum CardBrand {
+  VISA
+  MASTERCARD
+  ELO
+  AMEX
+  HIPERCARD
+  OTHER
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  LATE
+  CANCELLED
+}
+
+enum PurchaseKind {
+  INSTALLMENT
+  CASH
+  RECURRING
+}
+
+enum NotificationType {
+  UPCOMING_DUE
+  LIMIT_WARNING
+  LATE_INSTALLMENT
+  SPENDING_INCREASE
+  CLOSING_SOON
+  DIVIDEND_PAYMENT
+  TRACKING_FORGOT_CHECKOUT
+  TRACKING_LONG_SESSION
+  TRACKING_PAYMENT_REMINDER
+  TRACKING_START_REMINDER
+  TRACKING_END_REMINDER
+  HOUSEHOLD_BILL_DUE
+  HOUSEHOLD_MONTH_FULLY_PAID
+}
+
+enum Theme {
+  LIGHT
+  DARK
+  SYSTEM
+}
+
+enum FinancingKind {
+  CAR
+  MOTORCYCLE
+  HOUSE
+  OTHER
+}
+
+enum FinancingInstallmentStatus {
+  PENDING
+  PAID
+  LATE
+  CANCELLED
+}
+
+enum RecurringBillingCycle {
+  MONTHLY
+  ANNUAL
+}
+
+// ---------------------------------------------------------------------------
+// Investments module enums (isolated from the credit-card domain above)
+// ---------------------------------------------------------------------------
+
+/// Fundos ("FUND") kept as structure-only for now — no dedicated CRUD/UI yet.
+enum InvestmentAssetClass {
+  STOCK
+  FII
+  CRYPTO
+  FUND
+}
+
+enum InvestmentTransactionType {
+  BUY
+  SELL
+}
+
+enum InvestmentIncomeType {
+  DIVIDENDO
+  JCP
+  RENDIMENTO
+  JUROS
+  STAKING
+  OUTRO
+}
+
+enum FixedIncomeType {
+  CDB
+  LCI
+  LCA
+  TESOURO
+  OUTRO
+}
+
+enum FixedIncomeLiquidity {
+  DIARIA
+  NO_VENCIMENTO
+  OUTRO
+}
+
+/// POS_FIXADO_CDI uses cdiPercent; PREFIXADO and IPCA_MAIS use fixedRatePercent (IPCA_MAIS as the spread over IPCA).
+enum FixedIncomeIndexer {
+  PREFIXADO
+  POS_FIXADO_CDI
+  IPCA_MAIS
+  OUTRO
+}
+
+// ---------------------------------------------------------------------------
+// Core entities
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(cuid())
+  name          String
+  /// Como o assistente deve chamar a pessoa, quando ela quer ser tratada por outro nome que não o
+  /// do cadastro (apelido, primeiro nome, o que for). Nulo = usa o `name`.
+  preferredName String?
+  email         String   @unique
+  passwordHash  String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  cards                 Card[]
+  categories            Category[]
+  purchases             Purchase[]
+  installments          Installment[]
+  payments              Payment[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
+  settings              Setting?
+  financings            Financing[]
+  financingInstallments FinancingInstallment[]
+  financingPayoffQuotes FinancingPayoffQuote[]
+  financingAssetValues  FinancingAssetValue[]
+
+  investmentAssets        InvestmentAsset[]
+  investmentTransactions  InvestmentTransaction[]
+  investmentIncomes       InvestmentIncome[]
+  investmentFixedIncomes  InvestmentFixedIncome[]
+  investmentPortfolios    InvestmentPortfolio[]
+  investmentContributions InvestmentContribution[]
+  investmentCashAccounts  InvestmentCashAccount[]
+  investmentAuditLogs     InvestmentAuditLog[]
+  investmentSetting       InvestmentSetting?
+
+  pushSubscriptions   PushSubscription[]
+  webauthnCredentials WebAuthnCredential[]
+
+  trackingJobs        TrackingJob[]
+  trackingSessions    TrackingSession[]
+  trackingIncomes     TrackingIncome[]
+  trackingAuditLogs   TrackingAuditLog[]
+  trackingJobPayments TrackingJobPayment[]
+
+  householdBillCategories   HouseholdBillCategory[]
+  householdIncomeCategories HouseholdIncomeCategory[]
+  householdBills            HouseholdBill[]
+  householdBillEntries      HouseholdBillEntry[]
+  householdCards            HouseholdCard[]
+  householdCardEntries      HouseholdCardEntry[]
+  householdIncomes          HouseholdIncome[]
+  householdAuditLogs        HouseholdAuditLog[]
+  householdPresumedSalary   HouseholdPresumedSalary?
+
+  assistantMemories AssistantMemory[]
+
+  marketPurchases     MarketPurchase[]
+  marketProducts      MarketProduct[]
+  marketPurchaseItems MarketPurchaseItem[]
+
+  gymProfile           GymProfile?
+  gymExercises         GymExercise[]
+  gymExerciseFavorites GymExerciseFavorite[]
+  gymExercisePhotos    GymExercisePhoto[]
+  gymWorkouts          GymWorkout[]
+  gymSessions          GymSession[]
+  gymMeasurements      GymMeasurement[]
+  gymPhotos            GymPhoto[]
+  gymPersonalRecords   GymPersonalRecord[]
+  gymTargets           GymTarget[]
+
+  crmPortfolios           CrmPortfolio[]
+  crmPlans                CrmPlan[]
+  crmPaymentMethods       CrmPaymentMethod[]
+  crmOrigins              CrmOrigin[]
+  crmTags                 CrmTag[]
+  crmCustomers            CrmCustomer[]
+  crmSubscriptions        CrmSubscription[]
+  crmPayments             CrmPayment[]
+  crmCustomerEvents       CrmCustomerEvent[]
+  crmLeads                CrmLead[]
+  crmResellers            CrmReseller[]
+  crmResellerPortfolios   CrmResellerPortfolio[]
+  crmRecharges            CrmRecharge[]
+  crmCreditMovements      CrmCreditMovement[]
+  crmCreditPriceChanges   CrmCreditPriceChange[]
+  crmApproxClientsChanges CrmApproxClientsChange[]
+  crmPanelRecharges       CrmPanelRecharge[]
+  crmPanelCreditMovements CrmPanelCreditMovement[]
+  crmMessageTemplates     CrmMessageTemplate[]
+  crmSettings             CrmSettings?
+  crmAuditLogs            CrmAuditLog[]
+
+  @@map("users")
+}
+
+/// One row per device/browser subscribed to Web Push (a phone added to the home screen counts as
+/// one). `endpoint` is unique because it's the push service's own per-device URL — resubscribing
+/// the same device naturally reuses the same endpoint. keys.p256dh/auth are supplied by the
+/// browser's subscribe() call and are otherwise-meaningless base64url blobs to us.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+/// A single fact, preference, or belief the user told the assistant to remember — either the
+/// assistant saves it itself mid-conversation (e.g. "sempre prefiro respostas diretas, sem
+/// rodeio") or the user manages it directly in Configurações. Every memory gets injected into the
+/// system prompt on every chat() call, so it shapes all future answers, not just when asked again.
+model AssistantMemory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@map("assistant_memories")
+}
+
+/// A Face ID/Touch ID (or other platform authenticator) passkey registered for login.
+/// `counter` guards against cloned authenticators (must strictly increase on every use, per the
+/// WebAuthn spec) — Int is enough headroom for a device used many times a day for decades.
+model WebAuthnCredential {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialId String   @unique
+  publicKey    Bytes
+  counter      Int      @default(0)
+  deviceType   String
+  backedUp     Boolean  @default(false)
+  transports   String[]
+  name         String?
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@map("webauthn_credentials")
+}
+
+model Card {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  bank        String
+  brand       CardBrand @default(OTHER)
+  color       String    @default("#6D5BFF")
+  limitAmount Decimal   @db.Decimal(12, 2)
+  lastDigits  String    @db.VarChar(4)
+  closingDay  Int // 1-28
+  dueDay      Int // 1-28
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  purchases          Purchase[]
+  installments       Installment[]
+  /// Household cards ("Casa") that link to this one to show a fatura presumida based on this
+  /// card's installments. Purely a read-side cross-module reference — this side is never written
+  /// to, and this card's own data/behavior is completely unaffected by whether anything links here.
+  householdCardLinks HouseholdCard[]
+
+  @@index([userId, active])
+  @@map("cards")
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String   @default("tag")
+  color     String   @default("#8B8B8B")
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  purchases Purchase[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("categories")
+}
+
+model Purchase {
+  id                String                 @id @default(cuid())
+  userId            String
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId            String
+  card              Card                   @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  categoryId        String?
+  category          Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name              String
+  merchant          String?
+  notes             String?
+  totalAmount       Decimal                @db.Decimal(12, 2)
+  purchaseDate      DateTime
+  kind              PurchaseKind           @default(INSTALLMENT)
+  installmentsCount Int                    @default(1)
+  downPayment       Decimal?               @db.Decimal(12, 2)
+  isRecurring       Boolean                @default(false)
+  recurrenceEndDate DateTime?
+  /// RECURRING only: MONTHLY or ANNUAL billing (e.g. a domain renewed yearly).
+  billingCycle      RecurringBillingCycle?
+  /// RECURRING only: whether it renews automatically. Purely informational — doesn't change generation.
+  autoRenew         Boolean?               @default(true)
+  tags              String[]               @default([])
+  isFavorite        Boolean                @default(false)
+  attachmentUrl     String?
+  attachmentName    String?
+  deletedAt         DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  installments Installment[]
+  auditLogs    AuditLog[]
+
+  @@index([userId, purchaseDate])
+  @@index([userId, deletedAt])
+  @@index([cardId])
+  @@index([categoryId])
+  @@map("purchases")
+}
+
+model Installment {
+  id             String            @id @default(cuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchaseId     String
+  purchase       Purchase          @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  cardId         String
+  card           Card              @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  number         Int // 1..N
+  amount         Decimal           @db.Decimal(12, 2)
+  referenceMonth Int // 1-12, invoice competence month
+  referenceYear  Int
+  dueDate        DateTime
+  status         InstallmentStatus @default(PENDING)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  payment Payment?
+
+  @@unique([purchaseId, number])
+  @@index([userId, referenceYear, referenceMonth])
+  @@index([userId, status])
+  @@index([cardId, referenceYear, referenceMonth])
+  @@map("installments")
+}
+
+model Payment {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installmentId String      @unique
+  installment   Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  amountPaid    Decimal     @db.Decimal(12, 2)
+  paidAt        DateTime    @default(now())
+  method        String?
+
+  @@index([userId])
+  @@map("payments")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model Setting {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  user                     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  theme                    Theme    @default(SYSTEM)
+  currency                 String   @default("BRL")
+  alertUpcomingDue         Boolean  @default(true)
+  alertLimitWarning        Boolean  @default(true)
+  alertLateInstall         Boolean  @default(true)
+  alertSpendingJump        Boolean  @default(true)
+  limitWarningPct          Int      @default(80)
+  dashboardWidgets         String[] @default(["summary", "evolution", "category", "limit", "recent"])
+  /// Ordem dos cards de módulo na Home, por rota ("/parcelas", "/academia"...).
+  ///
+  /// Vazio = ordem padrão do código. É isso que faz quem já usa o app não ver nada mudar sem ter
+  /// escolhido nada — e módulo novo, que ninguém podia ter ordenado ainda, entrar no fim da lista
+  /// em vez de sumir por não estar na preferência salva.
+  homeModules              String[] @default([])
+  /// Whether financing (car/moto/house) installments count toward the dashboard's "geral" totals.
+  includeFinancingInTotals Boolean  @default(true)
+  /// Requires re-verifying Face ID/Touch ID every time the app is opened/returns to the
+  /// foreground, even with a valid JWT session already stored — an app-lock layer on top of
+  /// login, not a replacement for it. Only meaningful once the user has at least one
+  /// WebAuthnCredential registered; enforced in the frontend (hides/disables the toggle
+  /// otherwise) since there's nothing to lock the user out with if they turn this on with no
+  /// passkey on file.
+  biometricLockEnabled     Boolean  @default(false)
+  updatedAt                DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model AuditLog {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchaseId String?
+  purchase   Purchase? @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  entity     String
+  entityId   String
+  action     String
+  changes    Json?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, entity, entityId])
+  @@map("audit_logs")
+}
+
+/// Non-credit-card financing: car, motorcycle, house etc. Fixed installment
+/// amount supplied by the user — no interest/amortization math, since the
+/// contract already tells them what each payment is.
+model Financing {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name              String
+  kind              FinancingKind @default(OTHER)
+  institution       String?
+  totalAmount       Decimal       @db.Decimal(12, 2)
+  installmentAmount Decimal       @db.Decimal(12, 2)
+  installmentsCount Int
+  firstDueDate      DateTime
+  /// Latest cash-payoff quote from the lender ("quitação à vista") — overwritten each time a new proposal arrives.
+  payoffAmount      Decimal?      @db.Decimal(12, 2)
+  payoffQuotedAt    DateTime?
+  /// Quanto o bem vale hoje: tabela FIPE pro veículo, valor de mercado pro imóvel. É a outra
+  /// metade do patrimônio — sem ela o app só enxerga a dívida e subestima o líquido. Nullable
+  /// porque nem todo financiamento tem um bem com valor conhecido (ou ainda não foi informado).
+  assetValue        Decimal?      @db.Decimal(12, 2)
+  assetValueAt      DateTime?
+  /// Foto do bem (carro/imóvel) como data URL, já redimensionada no cliente pra um quadrado
+  /// pequeno. Guardar aqui em vez de em arquivo evita storage/rota estática só pra isso — são
+  /// poucas dezenas de KB por financiamento, e a foto viaja junto do registro no backup.
+  photo             String?
+  notes             String?
+  active            Boolean       @default(true)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  installments FinancingInstallment[]
+  payoffQuotes FinancingPayoffQuote[]
+  assetValues  FinancingAssetValue[]
+
+  @@index([userId, active])
+  @@map("financings")
+}
+
+/// Histórico do valor de mercado do bem — a FIPE muda todo mês e imóvel se reavalia de tempos em
+/// tempos, então guardar a série é o que permite ver se o patrimônio está subindo ou se o bem está
+/// desvalorizando mais rápido do que a dívida cai.
+model FinancingAssetValue {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  financingId String
+  financing   Financing @relation(fields: [financingId], references: [id], onDelete: Cascade)
+  amount      Decimal   @db.Decimal(12, 2)
+  /// De onde veio o número (ex.: "Tabela FIPE", "Avaliação da imobiliária") — texto livre.
+  source      String?
+  valuedAt    DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([financingId, valuedAt])
+  @@map("financing_asset_values")
+}
+
+/// History of cash-payoff ("quitação à vista") proposals, so a new quote can be compared
+/// against previous ones instead of just overwriting the last value.
+model FinancingPayoffQuote {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  financingId String
+  financing   Financing @relation(fields: [financingId], references: [id], onDelete: Cascade)
+  amount      Decimal   @db.Decimal(12, 2)
+  quotedAt    DateTime  @default(now())
+  createdAt   DateTime  @default(now())
+
+  @@index([financingId, quotedAt])
+  @@map("financing_payoff_quotes")
+}
+
+model FinancingInstallment {
+  id          String                     @id @default(cuid())
+  userId      String
+  user        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  financingId String
+  financing   Financing                  @relation(fields: [financingId], references: [id], onDelete: Cascade)
+  number      Int
+  amount      Decimal                    @db.Decimal(12, 2)
+  dueDate     DateTime
+  status      FinancingInstallmentStatus @default(PENDING)
+  paidAt      DateTime?
+  paidAmount  Decimal?                   @db.Decimal(12, 2)
+  createdAt   DateTime                   @default(now())
+  updatedAt   DateTime                   @updatedAt
+
+  @@unique([financingId, number])
+  @@index([userId, status])
+  @@index([userId, dueDate])
+  @@map("financing_installments")
+}
+
+// ---------------------------------------------------------------------------
+// Investments module ("/investimentos") — fully isolated from the tables
+// above. Only relation back to User (auth/ownership) is shared.
+// ---------------------------------------------------------------------------
+
+/// A held position: a stock/FII ticker, a crypto coin, or (structure-only) a fund quota.
+/// Quantity/average price/current value are always derived from InvestmentTransaction rows,
+/// never stored directly, so they can never drift out of sync.
+model InvestmentAsset {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class             InvestmentAssetClass
+  ticker            String
+  name              String?
+  broker            String?
+  wallet            String? // crypto only
+  network           String? // crypto only
+  /// APY de staking (% a.a.) configurado manualmente — cada corretora oferece uma taxa
+  /// diferente pra staking de stablecoins e outras criptos, então não há uma taxa "de mercado"
+  /// única pra buscar automaticamente.
+  stakingApyPercent Decimal?             @db.Decimal(7, 4)
+  /// What % of the position's invested amount is actually staked (0-100) — most people don't
+  /// stake their entire holding. Null/unset is treated as 100% for anyone who configured staking
+  /// before this field existed, so their existing estimate doesn't silently change.
+  stakingPercent    Decimal?             @db.Decimal(5, 2)
+  favorite          Boolean              @default(false)
+  notes             String?
+  deletedAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  transactions InvestmentTransaction[]
+  incomes      InvestmentIncome[]
+
+  @@index([userId, class])
+  @@index([userId, deletedAt])
+  @@map("investment_assets")
+}
+
+/// A single buy/sell lot. Never deleted (financial record) — correct via update if entered wrong.
+model InvestmentTransaction {
+  id              String                    @id @default(cuid())
+  userId          String
+  user            User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId         String
+  asset           InvestmentAsset           @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  type            InvestmentTransactionType
+  quantity        Decimal                   @db.Decimal(20, 8)
+  unitPrice       Decimal                   @db.Decimal(20, 8)
+  fees            Decimal                   @default(0) @db.Decimal(12, 2)
+  transactionDate DateTime
+  notes           String?
+  createdAt       DateTime                  @default(now())
+
+  @@index([assetId, transactionDate])
+  @@index([userId, transactionDate])
+  @@map("investment_transactions")
+}
+
+/// Dividendos/JCP/rendimentos (stocks & FIIs) or juros (renda fixa). Exactly one of
+/// assetId/fixedIncomeId is set — enforced in the application layer.
+model InvestmentIncome {
+  id            String                 @id @default(cuid())
+  userId        String
+  user          User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assetId       String?
+  asset         InvestmentAsset?       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  fixedIncomeId String?
+  fixedIncome   InvestmentFixedIncome? @relation(fields: [fixedIncomeId], references: [id], onDelete: Cascade)
+  type          InvestmentIncomeType
+  amount        Decimal                @db.Decimal(14, 2)
+  paymentDate   DateTime
+  notes         String?
+  createdAt     DateTime               @default(now())
+
+  @@index([userId, paymentDate])
+  @@index([assetId])
+  @@index([fixedIncomeId])
+  @@map("investment_incomes")
+}
+
+/// CDB/LCI/LCA/Tesouro Direto applications. Always exposes gross AND net (after IR/IOF) value —
+/// see FixedIncomeCalculator. Never hard-deleted; withdraw via redeemedAt/redeemedNetAmount.
+/// Uma carteira separada dentro da mesma conta — pensada pra cuidar do investimento de outra
+/// pessoa (um filho, por exemplo) sem misturar com o seu dinheiro.
+///
+/// A carteira principal NÃO tem linha aqui: ela é representada por `portfolioId = null` nas
+/// aplicações. Isso é de propósito — toda aplicação que já existia em produção continua sendo da
+/// principal sem precisar de migração de dado, e toda consulta que não pede carteira devolve só as
+/// nulas, então nenhum total existente muda.
+model InvestmentPortfolio {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  /// Cor do rótulo na tela. Só visual.
+  color     String?
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  fixedIncomes InvestmentFixedIncome[]
+
+  @@index([userId, deletedAt])
+  @@map("investment_portfolios")
+}
+
+model InvestmentFixedIncome {
+  id                String               @id @default(cuid())
+  userId            String
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution       String
+  type              FixedIncomeType
+  /// Base de rendimento: o valor que compõe desde applicationDate. Num resgate parcial ele é
+  /// reduzido proporcionalmente, então deixa de ser "o dinheiro que eu pus" — pra isso é o
+  /// contributedAmount abaixo.
+  principalAmount   Decimal              @db.Decimal(14, 2)
+  /// Dinheiro que o usuário efetivamente aportou e que ainda está nesta aplicação. null = nunca
+  /// houve resgate parcial, então é igual ao principalAmount (o caso de toda linha já existente).
+  contributedAmount Decimal?             @db.Decimal(14, 2)
+  applicationDate   DateTime
+  maturityDate      DateTime
+  liquidity         FixedIncomeLiquidity
+  indexer           FixedIncomeIndexer
+  /// PREFIXADO: taxa fixa a.a. IPCA_MAIS: spread a.a. sobre o IPCA. Unused for POS_FIXADO_CDI.
+  fixedRatePercent  Decimal?             @db.Decimal(7, 4)
+  /// POS_FIXADO_CDI only — e.g. 110 = 110% do CDI.
+  cdiPercent        Decimal?             @db.Decimal(7, 4)
+  /// null = carteira principal (a sua). Quem lê sem pedir carteira recebe só as nulas — é o que
+  /// mantém o dinheiro de outra carteira fora do seu patrimônio, do dashboard e do gráfico.
+  portfolioId       String?
+  portfolio         InvestmentPortfolio? @relation(fields: [portfolioId], references: [id], onDelete: Restrict)
+  redeemedAt        DateTime?
+  redeemedNetAmount Decimal?             @db.Decimal(14, 2)
+  notes             String?
+  deletedAt         DateTime?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  incomes InvestmentIncome[]
+
+  @@index([userId, deletedAt])
+  @@index([userId, maturityDate])
+  @@index([userId, portfolioId])
+  @@map("investment_fixed_incomes")
+}
+
+/// Aportes: money moved into the portfolio, not necessarily tied to one specific asset yet.
+/// Backend-only for now (dedicated CRUD/UI is a later round) — feeds the dashboard's
+/// "aportes do mês" metric alongside buy transactions and fixed-income applications.
+model InvestmentContribution {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      DateTime
+  amount    Decimal  @db.Decimal(14, 2)
+  category  String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, date])
+  @@map("investment_contributions")
+}
+
+/// Caixa / contas bancárias — simple balance tracked manually, counted in patrimônio total.
+model InvestmentCashAccount {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  institution String?
+  balance     Decimal   @default(0) @db.Decimal(14, 2)
+  notes       String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([userId, deletedAt])
+  @@map("investment_cash_accounts")
+}
+
+/// TTL cache for external market-data lookups (BRAPI/CoinGecko/Bacen) — the interface layer
+/// must never call those providers directly, only through this cache.
+model InvestmentPriceCache {
+  id                     String               @id @default(cuid())
+  symbol                 String
+  assetClass             InvestmentAssetClass
+  price                  Decimal              @db.Decimal(20, 8)
+  currency               String               @default("BRL")
+  changePercent          Decimal?             @db.Decimal(10, 4)
+  /// True when this price is a substitute for an instrument BRAPI/CoinGecko can't price directly
+  /// (e.g. a B3 fractional-lot ticker priced via its round-lot counterpart) — must stay disclosed
+  /// across cache hits, not just on the first fetch.
+  approximate            Boolean              @default(false)
+  source                 String
+  fetchedAt              DateTime             @default(now())
+  /// Historical price series ({date, close}[]) — populated only when the detail view was fetched.
+  history                Json?
+  /// Loose key/value fundamentals (P/L, market cap, 52w high/low, etc.) — provider-dependent.
+  fundamentals           Json?
+  /// AdvancedFundamentals (P/VP, ROE, ROA, margens, payout, balanço/DRE histórico) — a separate,
+  /// heavier fetch than `fundamentals` above, cached on its own timestamp/TTL so a slow advanced
+  /// lookup never blocks the basic price/detail view.
+  advancedFundamentals   Json?
+  advancedFundamentalsAt DateTime?
+
+  @@unique([symbol, assetClass])
+  @@map("investment_price_cache")
+}
+
+/// Deep historical daily closing prices backfilled once from B3's public COTAHIST series
+/// (mercado à vista only — no options/futures/forwards), not user-scoped and never refetched
+/// automatically like InvestmentPriceCache above. Populated by the one-off
+/// `pnpm run import:cotahist` script (apps/api/scripts/import-cotahist.ts), not by the running
+/// app. MarketPriceService.getHistory() merges this in for "MAX"/"CUSTOM" chart ranges to extend
+/// charts further back than BRAPI/Yahoo's free-tier history windows go.
+model HistoricalPrice {
+  id     String   @id @default(cuid())
+  ticker String
+  date   DateTime @db.Date
+  close  Decimal  @db.Decimal(18, 4)
+
+  @@unique([ticker, date])
+  @@index([ticker])
+  @@map("historical_prices")
+}
+
+model InvestmentAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  changes   Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@map("investment_audit_logs")
+}
+
+/// Série diária de indicador do Bacen (SGS) — hoje só o CDI (série 12), em % ao dia, apenas dias
+/// úteis. Vale guardar porque é história imutável: a taxa de um dia que já passou nunca muda, então
+/// é buscada uma vez e reusada pra sempre; só a ponta mais recente precisa de rede. Não tem userId
+/// de propósito — é dado público, o mesmo pra todo mundo.
+model EconomicDailyRate {
+  id     String   @id @default(cuid())
+  series Int
+  date   DateTime @db.Date
+  /// % ao dia, como o Bacen publica (ex.: 0.05513100 = 0,055131%).
+  value  Decimal  @db.Decimal(12, 8)
+
+  @@unique([series, date])
+  @@index([series, date])
+  @@map("economic_daily_rates")
+}
+
+model InvestmentSetting {
+  id                     String   @id @default(cuid())
+  userId                 String   @unique
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency               String   @default("BRL")
+  autoUpdatePrices       Boolean  @default(true)
+  assetDropAlertPercent  Int?
+  cryptoDropAlertPercent Int?
+  updatedAt              DateTime @updatedAt
+
+  @@map("investment_settings")
+}
+
+// ---------------------------------------------------------------------------
+// Tracking module ("/horas") — hours/billing/productivity tracking, fully
+// isolated from the domains above. Only relation back to User is shared.
+// ---------------------------------------------------------------------------
+
+enum TrackingSessionStatus {
+  RUNNING
+  PAUSED
+  COMPLETED
+}
+
+enum TrackingJobType {
+  FIXO
+  FREELANCE
+}
+
+enum TrackingIncomeCategory {
+  DIVIDENDO
+  VENDA
+  BONIFICACAO
+  CASHBACK
+  REEMBOLSO
+  PRESENTE
+  OUTRO
+}
+
+enum TrackingCurrency {
+  BRL
+  USD
+}
+
+/// Unifica trabalho fixo e freela/projeto avulso — ambos cronometrados no Modo Foco pelo mesmo
+/// motor de sessões, só divergindo em como o valor/hora é calculado (ver `type`):
+/// - FIXO: `expectedHoursPerDay` + `weekdays` estimam um valor/hora a partir de `monthlyValue`
+///   antes de existir histórico de sessões (estimateJobHourlyRate).
+/// - FREELANCE: não tem jornada nem salário mensal — só um valor total combinado
+///   (`totalAgreedValue`) pelo projeto inteiro. O valor/hora é sempre `totalAgreedValue` dividido
+///   pelo total de horas cronometradas até agora (computeFreelanceHourlyRate), recalculado a cada
+///   sessão nova — não existe estimativa "antes de cronometrar" como no fixo.
+model TrackingJob {
+  id                  String           @id @default(cuid())
+  userId              String
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                TrackingJobType  @default(FIXO)
+  name                String
+  company             String
+  client              String?
+  /// Obrigatório só quando type = FIXO.
+  monthlyValue        Decimal?         @db.Decimal(12, 2)
+  /// Obrigatório só quando type = FREELANCE — valor total combinado pelo projeto inteiro.
+  totalAgreedValue    Decimal?         @db.Decimal(12, 2)
+  /// Moeda de monthlyValue/totalAgreedValue. Quando USD, o valor é convertido pra BRL em tempo real
+  /// (cotação do dia) em toda estimativa/exibição — a fonte da verdade pro valor realmente
+  /// recebido em cada mês (só p/ FIXO) continua sendo a confirmação manual em TrackingJobPayment.
+  currency            TrackingCurrency @default(BRL)
+  expectedHoursPerDay Float            @default(8)
+  startDate           DateTime
+  endDate             DateTime?
+  paymentMethod       String?
+  /// Dia do mês em que o pagamento cai (1-31) — usado pra calcular "próximo pagamento" e a
+  /// confirmação mensal no dashboard. Só faz sentido pra FIXO (recorrente); freelance fica null.
+  paymentDay          Int?
+  color               String           @default("#7C3AED")
+  /// 0=domingo..6=sábado — só relevante pra FIXO.
+  weekdays            Int[]            @default([1, 2, 3, 4, 5])
+  /// Datas específicas de folga ("YYYY-MM-DD"), além do padrão semanal em weekdays — férias,
+  /// feriados, licenças etc. Só relevante pra FIXO; suprime lembretes de início/fim nesses dias e
+  /// aparece marcado no Calendário.
+  daysOff             String[]         @default([])
+  /// "HH:mm", opcional — quando definido, dispara o lembrete "hora de iniciar" nesse horário, nos
+  /// weekdays configurados, se não houver sessão ativa pro trabalho naquele momento.
+  expectedStartTime   String?
+  /// "HH:mm", opcional — quando definido, dispara o lembrete "hora de encerrar" nesse horário
+  /// exato pra sessão em andamento; se não definido, o lembrete usa expectedHoursPerDay em vez
+  /// de um horário fixo (dispara quando a sessão atinge essa carga horária).
+  expectedEndTime     String?
+  notes               String?
+  /// Serviço com sistema de colocação (um ranking diário: posição, satisfação e tempo de resposta).
+  /// Desligado por padrão porque é a exceção — só um dos trabalhos funciona assim, e o resto não
+  /// pode ganhar uma pergunta a mais ao encerrar por causa dele.
+  tracksPlacement     Boolean          @default(false)
+  active              Boolean          @default(true)
+  deletedAt           DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  sessions TrackingSession[]
+  payments TrackingJobPayment[]
+
+  @@index([userId, active])
+  @@index([userId, deletedAt])
+  @@map("tracking_jobs")
+}
+
+/// Confirmação manual, uma por (trabalho, mês), de quanto foi realmente recebido naquele mês —
+/// perguntada no dia de pagamento. Existe porque um salário fixo pode não bater exatamente com a
+/// estimativa por horas (`estimateJobHourlyRate`), e essa é a única fonte confiável do valor real.
+/// `exchangeRate`/`amountBRL` travam a cotação usada no momento da confirmação, pra esse número
+/// nunca mais oscilar com a cotação atual — diferente da estimativa "ao vivo" mostrada no card do
+/// trabalho, que sempre usa a cotação de hoje.
+model TrackingJobPayment {
+  id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId          String
+  job            TrackingJob      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  referenceYear  Int
+  referenceMonth Int
+  /// Valor na moeda do trabalho (a mesma de TrackingJob.currency no momento da confirmação).
+  amount         Decimal          @db.Decimal(12, 2)
+  currency       TrackingCurrency
+  /// Cotação USD→BRL usada, só quando currency = USD.
+  exchangeRate   Decimal?         @db.Decimal(12, 6)
+  /// Valor já convertido pra BRL — é o que toda agregação (dashboard/relatórios) de fato usa.
+  amountBRL      Decimal          @db.Decimal(12, 2)
+  confirmedAt    DateTime         @default(now())
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([jobId, referenceYear, referenceMonth])
+  @@index([userId])
+  @@map("tracking_job_payments")
+}
+
+/// Cache simples da cotação de câmbio (hoje só USD→BRL), com TTL controlado em TrackingFxService —
+/// evita bater na API externa a cada requisição e mantém um valor conhecido caso ela esteja fora.
+model TrackingFxRateCache {
+  id            String   @id @default(cuid())
+  pair          String   @unique
+  rate          Decimal  @db.Decimal(12, 6)
+  previousClose Decimal? @db.Decimal(12, 6)
+  fetchedAt     DateTime @default(now())
+
+  @@map("tracking_fx_rate_cache")
+}
+
+/// One check-in→check-out timer session against a TrackingJob. Only one RUNNING/PAUSED session
+/// may exist per user at a time — enforced in TrackingSessionsService, not a DB constraint (same
+/// convention as ownership checks elsewhere in this codebase).
+model TrackingSession {
+  id                  String                @id @default(cuid())
+  userId              String
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId               String
+  job                 TrackingJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  checkIn             DateTime
+  checkOut            DateTime?
+  status              TrackingSessionStatus @default(RUNNING)
+  notes               String?
+  /// Colocação do dia, só em trabalho com `tracksPlacement`. Os três são independentes e todos
+  /// opcionais: a pergunta pode ser pulada inteira, ou respondida pela metade quando um dos números
+  /// ainda não saiu. Nulo é "não informado", nunca zero — zero é um valor legítimo em minutos.
+  ///
+  /// `placement` é a posição (1 = primeiro; menor é melhor). `satisfactionPercent` é a nota dos
+  /// clientes (voto de 1 a 5 estrelas) já consolidada em porcentagem pelo próprio serviço; maior é
+  /// melhor. `responseMinutes` é o tempo de resposta em minutos inteiros; menor é melhor.
+  placement           Int?
+  satisfactionPercent Decimal?              @db.Decimal(5, 2)
+  responseMinutes     Int?
+  /// Marca que o lembrete "hora de encerrar" já foi enviado pra essa sessão específica, pra não
+  /// repetir a cada tick do cron depois que o limite (horário fixo ou expectedHoursPerDay) é cruzado.
+  endReminderSentAt   DateTime?
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+
+  pauses TrackingSessionPause[]
+
+  @@index([userId, status])
+  @@index([userId, checkIn])
+  @@index([jobId])
+  @@map("tracking_sessions")
+}
+
+/// Each pause/resume cycle is its own row (never an accumulated counter) so the net worked time
+/// can always be recomputed from real timestamps alone, even after a reload/crash/device switch.
+model TrackingSessionPause {
+  id        String          @id @default(cuid())
+  sessionId String
+  session   TrackingSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  pausedAt  DateTime
+  resumedAt DateTime?
+
+  @@index([sessionId])
+  @@map("tracking_session_pauses")
+}
+
+/// Outras entradas (dividendos, vendas, cashback, etc.) — counts toward total revenue but not
+/// toward hours worked.
+model TrackingIncome {
+  id        String                 @id @default(cuid())
+  userId    String
+  user      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  category  TrackingIncomeCategory @default(OUTRO)
+  amount    Decimal                @db.Decimal(12, 2)
+  date      DateTime
+  notes     String?
+  deletedAt DateTime?
+  createdAt DateTime               @default(now())
+
+  @@index([userId, date])
+  @@index([userId, deletedAt])
+  @@map("tracking_incomes")
+}
+
+/// Unlike InvestmentAuditLog (which only ever stores the new value), this keeps both `before` and
+/// `after` so edits to check-in/check-out times and values show a real diff in the Histórico page.
+model TrackingAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@map("tracking_audit_logs")
+}
+
+// ---------------------------------------------------------------------------
+// Contas da Casa — módulo independente de fluxo financeiro mensal da casa.
+// Não reaproveita Card/Category/Purchase/Installment de Parcelas: a filosofia aqui é lançamento
+// manual de fatura/reserva por mês, não parcela por parcela.
+// ---------------------------------------------------------------------------
+
+/// Nunca escolhido manualmente pelo usuário — sempre recalculado a partir de amount/reservedAmount/
+/// paidAmount/dueDate (ver domain/bill-entry-status.ts). Persistido só pra permitir filtrar/agrupar
+/// sem recalcular tudo em toda leitura.
+enum HouseholdBillStatus {
+  PENDING
+  PARTIALLY_RESERVED
+  RESERVED
+  PAID
+  LATE
+  SKIPPED
+}
+
+model HouseholdBillCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String   @default("tag")
+  color     String   @default("#8B8B8B")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  bills HouseholdBill[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("household_bill_categories")
+}
+
+model HouseholdIncomeCategory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  icon      String   @default("wallet")
+  color     String   @default("#8B8B8B")
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  incomes HouseholdIncome[]
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("household_income_categories")
+}
+
+/// Cadastro permanente da conta (ex: Energia). As competências mensais (HouseholdBillEntry) são
+/// geradas automaticamente a partir daqui, sob demanda, ao abrir a tela de um mês — sem precisar de
+/// um botão "iniciar mês" nem de cron (mesmo padrão do rolling horizon de assinaturas recorrentes
+/// em Parcelas).
+model HouseholdBill {
+  id                String                 @id @default(cuid())
+  userId            String
+  user              User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId        String?
+  category          HouseholdBillCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  name              String
+  dueDay            Int
+  defaultAmount     Decimal                @db.Decimal(12, 2)
+  /// Quando false, a competência mensal sempre usa defaultAmount e não pode ser editada.
+  allowAmountChange Boolean                @default(true)
+  mandatory         Boolean                @default(true)
+  active            Boolean                @default(true)
+  /// Posição de exibição, controlada pelo usuário arrastando os cards em Contas. Ordenado junto com
+  /// id como desempate estável, pra nunca "pular" de lugar quando duas contas têm o mesmo order.
+  order             Int                    @default(0)
+  notes             String?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  entries HouseholdBillEntry[]
+
+  @@index([userId, active])
+  @@map("household_bills")
+}
+
+/// Uma linha por (conta, mês) — a "competência mensal". reservedAmount e paidAmount são
+/// independentes: reservar não significa pagar, pagar não exige ter reservado antes.
+model HouseholdBillEntry {
+  id             String              @id @default(cuid())
+  userId         String
+  user           User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  billId         String
+  bill           HouseholdBill       @relation(fields: [billId], references: [id], onDelete: Cascade)
+  referenceYear  Int
+  referenceMonth Int
+  /// dueDay do HouseholdBill resolvido pra essa competência (clampado ao último dia do mês quando
+  /// o mês tem menos dias que o dueDay, ex: dueDay=31 em fevereiro).
+  dueDate        DateTime
+  amount         Decimal             @db.Decimal(12, 2)
+  reservedAmount Decimal             @default(0) @db.Decimal(12, 2)
+  paidAmount     Decimal             @default(0) @db.Decimal(12, 2)
+  paidAt         DateTime?
+  status         HouseholdBillStatus @default(PENDING)
+  /// "Não precisou pagar esse mês" — a deliberate override, independent of the reserved/paid
+  /// amounts, for a bill that simply didn't apply this competência. Takes priority over every
+  /// other status in computeBillEntryStatus.
+  skipped        Boolean             @default(false)
+  notes          String?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  @@unique([billId, referenceYear, referenceMonth])
+  @@index([userId, referenceYear, referenceMonth])
+  @@index([userId, status])
+  @@map("household_bill_entries")
+}
+
+model HouseholdCard {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  closingDay   Int
+  dueDay       Int
+  color        String   @default("#6D5BFF")
+  icon         String   @default("credit-card")
+  active       Boolean  @default(true)
+  /// Posição de exibição, controlada pelo usuário arrastando os cards em Contas. Ordenado junto com
+  /// id como desempate estável, pra nunca "pular" de lugar quando duas contas têm o mesmo order.
+  order        Int      @default(0)
+  /// Optional link to a Parcelamento Card — when set, a month whose fatura hasn't been entered yet
+  /// (totalInvoice still 0) shows that card's installment total for the same competência as a
+  /// "fatura presumida" instead, computed live and never written back. Nullable/SetNull so linking,
+  /// unlinking, or deleting the Parcelamento card never touches this card's own real entries.
+  linkedCardId String?
+  linkedCard   Card?    @relation(fields: [linkedCardId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  entries HouseholdCardEntry[]
+
+  @@index([userId, active])
+  @@index([linkedCardId])
+  @@map("household_cards")
+}
+
+/// Lançamento manual, um por (cartão, mês). totalInvoice é o valor total da fatura, que não
+/// necessariamente é quanto sai do bolso esse mês — parte já foi provisionada antes. O valor real a
+/// pagar (totalInvoice - provisioned) é sempre calculado, nunca guardado, pra nunca dessincronizar.
+model HouseholdCardEntry {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId         String
+  card           HouseholdCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  referenceYear  Int
+  referenceMonth Int
+  totalInvoice   Decimal       @db.Decimal(12, 2)
+  provisioned    Decimal       @default(0) @db.Decimal(12, 2)
+  paid           Boolean       @default(false)
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@unique([cardId, referenceYear, referenceMonth])
+  @@index([userId, referenceYear, referenceMonth])
+  @@map("household_card_entries")
+}
+
+model HouseholdIncome {
+  id                 String                   @id @default(cuid())
+  userId             String
+  user               User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  categoryId         String?
+  category           HouseholdIncomeCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  date               DateTime
+  description        String?
+  /// Sempre em BRL, sempre digitado pelo usuário — o valor líquido de fato recebido. Pra entrada em
+  /// dólar (isForeignCurrency), grossAmountForeign/exchangeRate abaixo são só referência.
+  amount             Decimal                  @db.Decimal(12, 2)
+  /// "Dinheiro Gringo" — entrada recebida em dólar. grossAmountForeign e exchangeRate só existem
+  /// quando true; amount continua sendo a única fonte de verdade pros totais em BRL do resto do app.
+  isForeignCurrency  Boolean                  @default(false)
+  grossAmountForeign Decimal?                 @db.Decimal(12, 2)
+  exchangeRate       Decimal?                 @db.Decimal(12, 6)
+  notes              String?
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+
+  @@index([userId, date])
+  @@index([categoryId])
+  @@map("household_incomes")
+}
+
+/// Um "chão" opcional pro Dashboard usar quando nenhuma HouseholdIncome ainda foi lançada num
+/// mês (o salário simplesmente ainda não caiu). Nunca é lançado como entrada de verdade — é só uma
+/// estimativa recalculada a cada consulta; se em dólar, a conversão pra BRL é sempre pela cotação
+/// atual (nunca uma cotação travada), porque o objetivo é "quanto isso valeria hoje", não histórico.
+model HouseholdPresumedSalary {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isForeignCurrency Boolean  @default(false)
+  amountBRL         Decimal? @db.Decimal(12, 2)
+  amountUsd         Decimal? @db.Decimal(12, 2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("household_presumed_salaries")
+}
+
+model HouseholdAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@map("household_audit_logs")
+}
+
+/// One grocery run — normally one NFC-e imported from its QR code, but a purchase typed by hand is
+/// equally valid (accessKey stays null then). The unique index on (userId, accessKey) is what makes
+/// re-scanning the same nota a no-op instead of a duplicate; Postgres treats NULLs as distinct, so
+/// it constrains imported notas without ever blocking manual entries.
+model MarketPurchase {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeName    String
+  storeCnpj    String?
+  /// 44-digit NFC-e access key, digits only.
+  accessKey    String?
+  purchaseDate DateTime
+  totalAmount  Decimal   @db.Decimal(12, 2)
+  /// "Valor aproximado dos tributos" (Lei 12.741/2012). Approximate by law — IBPT reference tables
+  /// by NCM, federal + estadual + municipal lumped together — so it must never be presented as the
+  /// tax actually collected. Null for notas that don't print the line and for manual entries.
+  taxAmount    Decimal?  @db.Decimal(12, 2)
+  notes        String?
+  deletedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  items MarketPurchaseItem[]
+
+  @@unique([userId, accessKey])
+  @@index([userId, purchaseDate])
+  @@map("market_purchases")
+}
+
+/// A product identity across purchases — the row price history hangs off of. Grouping is by
+/// normalizedKey (see market-product-key.ts) rather than by the store's own product code, which is
+/// internal to each supermarket and so differs for the identical item between stores.
+model MarketProduct {
+  id            String          @id @default(cuid())
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Display name — the description from the nota that first introduced this product.
+  name          String
+  normalizedKey String
+  unit          String?
+  category      String?
+  /// Quando preenchido, este produto foi unido a outro: as compras dele passam a contar pro
+  /// histórico do canônico. É ponteiro, não exclusão — a linha continua aqui com o nome que o
+  /// mercado deu (o mesmo motivo pelo qual MarketPurchaseItem.description é guardado literal), e
+  /// desfazer a união é limpar o campo. `SetNull` porque, se o canônico sumisse, o certo é o
+  /// absorvido voltar a ter histórico próprio, não desaparecer junto.
+  canonicalId   String?
+  canonical     MarketProduct?  @relation("MarketProductMerge", fields: [canonicalId], references: [id], onDelete: SetNull)
+  absorbed      MarketProduct[] @relation("MarketProductMerge")
+  /// Código de barras normalizado em 14 dígitos, quando a nota trouxe um que passa no dígito
+  /// verificador GS1 (ver gtin.ts). É identidade **global**: o mesmo produto tem o mesmo número em
+  /// qualquer mercado, então quando dois produtos batem aqui não há o que adivinhar. Null é o caso
+  /// normal de balança e de mercado que numera do seu jeito — esses seguem agrupados pelo nome.
+  /// Não é unique: dois produtos podem carregar o mesmo GTIN pelo tempo entre um ser descoberto e
+  /// a união acontecer, e uma constraint transformaria isso em erro 500 no meio de uma importação.
+  gtin          String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  items MarketPurchaseItem[]
+
+  @@unique([userId, normalizedKey])
+  @@index([userId, canonicalId])
+  @@index([userId, gtin])
+  @@map("market_products")
+}
+
+/// One line of a nota. quantity/unitPrice carry 4 decimals because produce is sold by weight
+/// (0,586 KG at 7,9900/KG) — rounding those to 2 would lose real money on the line total.
+model MarketPurchaseItem {
+  id          String         @id @default(cuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purchaseId  String
+  purchase    MarketPurchase @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  productId   String
+  product     MarketProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  /// Verbatim description from the nota, kept so a mis-grouped product can be traced back to what
+  /// the store actually called it.
+  description String
+  storeCode   String?
+  /// O GTIN lido do `storeCode` desta linha, quando era um. Guardado por linha (e não só no
+  /// produto) pra dar pra rastrear de qual nota veio o código que identificou o produto.
+  gtin        String?
+  quantity    Decimal        @db.Decimal(12, 4)
+  unit        String
+  unitPrice   Decimal        @db.Decimal(12, 4)
+  totalPrice  Decimal        @db.Decimal(12, 2)
+  createdAt   DateTime       @default(now())
+
+  @@index([userId, productId])
+  @@index([purchaseId])
+  @@map("market_purchase_items")
+}
+
+// ---------------------------------------------------------------------------
+// CRM — clientes, assinaturas e revendedores
+//
+// Módulo independente do Contas da Casa: nenhuma tabela household é referenciada
+// aqui, e nenhuma regra daquele módulo depende destas.
+// ---------------------------------------------------------------------------
+
+/// Estados do cliente. Só CANCELLED e INACTIVE são gravados (`manualStatus`) — atos deliberados
+/// de quem opera. Os demais são derivados de `currentDueDate` em computeCustomerStatus, porque um
+/// status gravado envelhece sozinho: "ativo" continuaria ativo no banco no dia seguinte ao
+/// vencimento sem ninguém tocar em nada.
+enum CrmCustomerStatus {
+  LEAD
+  TRIAL
+  ACTIVE
+  DUE_SOON
+  LATE
+  DELINQUENT
+  CANCELLED
+  INACTIVE
+  RECOVERY
+}
+
+enum CrmSubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  EXPIRED
+}
+
+enum CrmLeadStage {
+  NEW
+  CONTACTED
+  INTERESTED
+  TRIAL
+  CONVERTED
+  LOST
+}
+
+/// Independente do status dos clientes finais do revendedor: um revendedor suspenso pode ter
+/// centenas de clientes ativos, e um ativo pode estar sem nenhum.
+enum CrmResellerStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  NEGOTIATING
+  BLOCKED
+}
+
+enum CrmCreditMovementKind {
+  RECHARGE
+  USAGE
+  ADJUSTMENT
+}
+
+enum CrmTemplateCategory {
+  RENEWAL
+  DUE
+  DELINQUENCY
+  RETENTION
+  SUPPORT
+  WELCOME
+  RESELLER
+  OTHER
+}
+
+/// Moeda do serviço. O que é vendido em dólar também é recebido em dólar, e o custo do crédito
+/// daquele painel também é em dólar — a moeda acompanha o serviço inteiro, não só o preço.
+enum CrmCurrency {
+  BRL
+  USD
+}
+
+/// Movimentação do estoque próprio de créditos (o painel de cima).
+enum CrmPanelMovementKind {
+  RECHARGE
+  CONSUMPTION
+  ADJUSTMENT
+}
+
+enum CrmBillingPeriod {
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+  CUSTOM
+}
+
+/// Os dois serviços. É entidade e não enum porque o nome é configurável pelo usuário e porque
+/// revendedor e cliente precisam apontar pra ele por id — trocar o nome não pode reescrever dado.
+model CrmPortfolio {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String      @default("#6366f1")
+  currency  CrmCurrency @default(BRL)
+  order     Int         @default(0)
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  panelRecharges     CrmPanelRecharge[]
+  panelMovements     CrmPanelCreditMovement[]
+  customers          CrmCustomer[]
+  subscriptions      CrmSubscription[]
+  payments           CrmPayment[]
+  plans              CrmPlan[]
+  leads              CrmLead[]
+  resellerPortfolios CrmResellerPortfolio[]
+  recharges          CrmRecharge[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+  @@map("crm_portfolios")
+}
+
+model CrmPlan {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId   String
+  portfolio     CrmPortfolio     @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  name          String
+  price         Decimal          @db.Decimal(12, 2)
+  /// Quantos créditos do painel uma renovação deste pacote consome. Mensal costuma ser 1 e anual
+  /// 12, mas quem define é o painel de cima — por isso é campo, não cálculo.
+  creditCost    Int              @default(1)
+  billingPeriod CrmBillingPeriod @default(MONTHLY)
+  /// Só quando billingPeriod = CUSTOM.
+  customDays    Int?
+  active        Boolean          @default(true)
+  order         Int              @default(0)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  subscriptions CrmSubscription[]
+
+  @@index([userId, portfolioId, active])
+  @@map("crm_plans")
+}
+
+/// Global ao usuário, não por portfólio: PIX é o mesmo PIX nos dois serviços, e duplicar a forma
+/// de pagamento duplicaria também a taxa — que é justamente o número que não pode divergir.
+model CrmPaymentMethod {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name       String
+  feePercent Decimal  @default(0) @db.Decimal(5, 2)
+  feeFixed   Decimal  @default(0) @db.Decimal(12, 2)
+  active     Boolean  @default(true)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  subscriptions CrmSubscription[]
+
+  @@unique([userId, name])
+  @@index([userId, active])
+  @@map("crm_payment_methods")
+}
+
+model CrmOrigin {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  customers CrmCustomer[]
+  leads     CrmLead[]
+
+  @@unique([userId, name])
+  @@map("crm_origins")
+}
+
+model CrmTag {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name      String
+  color     String   @default("#64748b")
+  createdAt DateTime @default(now())
+
+  customers CrmCustomerTag[]
+  resellers CrmResellerTag[]
+  leads     CrmLeadTag[]
+
+  @@unique([userId, name])
+  @@map("crm_tags")
+}
+
+model CrmCustomerTag {
+  customerId String
+  customer   CrmCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        CrmTag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([customerId, tagId])
+  @@map("crm_customer_tags")
+}
+
+model CrmResellerTag {
+  resellerId String
+  reseller   CrmReseller @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  tagId      String
+  tag        CrmTag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([resellerId, tagId])
+  @@map("crm_reseller_tags")
+}
+
+model CrmLeadTag {
+  leadId String
+  lead   CrmLead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tagId  String
+  tag    CrmTag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([leadId, tagId])
+  @@map("crm_lead_tags")
+}
+
+model CrmCustomer {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId  String
+  portfolio    CrmPortfolio  @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  name         String
+  nickname     String?
+  phone        String
+  /// Nulo = usa o `phone`. Existe porque nem sempre o WhatsApp é o telefone do cadastro.
+  whatsapp     String?
+  email        String?
+  document     String?
+  originId     String?
+  origin       CrmOrigin?    @relation(fields: [originId], references: [id], onDelete: SetNull)
+  /// Quem indicou. Auto-relação em vez de texto livre pra "indicação" virar métrica de verdade.
+  referredById String?
+  referredBy   CrmCustomer?  @relation("CrmReferral", fields: [referredById], references: [id], onDelete: SetNull)
+  referrals    CrmCustomer[] @relation("CrmReferral")
+
+  /// Vencimento vigente, desnormalizado da assinatura ativa e reescrito na mesma transação da
+  /// renovação. É o que torna as janelas do painel de vencimentos (hoje/3/7/30 dias) uma varredura
+  /// de índice em vez de um cálculo linha a linha em JS.
+  currentDueDate    DateTime?
+  /// Só CANCELLED/INACTIVE/RECOVERY — decisões de quem opera, que o cálculo não deve sobrescrever.
+  manualStatus      CrmCustomerStatus?
+  trialEndsAt       DateTime?
+  /// Início da relação, preservado entre assinaturas: é o que responde "cliente há quanto tempo".
+  firstSubscribedAt DateTime?
+  vip               Boolean            @default(false)
+  /// Marcado à mão: o cálculo automático de VIP não pode desmarcar quem foi promovido na mão.
+  vipManual         Boolean            @default(false)
+  notes             String?
+  deletedAt         DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  subscriptions CrmSubscription[]
+  payments      CrmPayment[]
+  events        CrmCustomerEvent[]
+  tags          CrmCustomerTag[]
+  convertedLead CrmLead?
+
+  @@index([userId, portfolioId, deletedAt])
+  @@index([userId, currentDueDate])
+  @@index([userId, phone])
+  @@map("crm_customers")
+}
+
+model CrmSubscription {
+  id              String                @id @default(cuid())
+  userId          String
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId      String
+  customer        CrmCustomer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  portfolioId     String
+  portfolio       CrmPortfolio          @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  planId          String?
+  plan            CrmPlan?              @relation(fields: [planId], references: [id], onDelete: SetNull)
+  startDate       DateTime
+  dueDate         DateTime
+  amount          Decimal               @db.Decimal(12, 2)
+  /// Sobrescreve o custo do plano nesta assinatura específica. Nulo = herda do plano.
+  creditCost      Int?
+  billingPeriod   CrmBillingPeriod      @default(MONTHLY)
+  customDays      Int?
+  paymentMethodId String?
+  paymentMethod   CrmPaymentMethod?     @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+  status          CrmSubscriptionStatus @default(ACTIVE)
+  lastPaymentAt   DateTime?
+  cancelledAt     DateTime?
+  notes           String?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+
+  payments CrmPayment[]
+
+  @@index([userId, customerId])
+  @@index([userId, portfolioId, status])
+  @@map("crm_subscriptions")
+}
+
+/// Receita de cliente direto. Separada de CrmRecharge de propósito (§55): sendo tabelas distintas,
+/// somar as duas origens por engano deixa de ser possível — não é uma flag que dá pra esquecer de
+/// filtrar. Taxa e forma de pagamento são copiadas pra cá no momento do pagamento; mudar a taxa do
+/// PIX amanhã não pode reescrever o líquido de ontem.
+model CrmPayment {
+  id                String           @id @default(cuid())
+  userId            String
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId        String
+  customer          CrmCustomer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  subscriptionId    String?
+  subscription      CrmSubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+  portfolioId       String
+  portfolio         CrmPortfolio     @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  paidAt            DateTime
+  grossAmount       Decimal          @db.Decimal(12, 2)
+  feePercent        Decimal          @default(0) @db.Decimal(5, 2)
+  feeFixed          Decimal          @default(0) @db.Decimal(12, 2)
+  feeAmount         Decimal          @default(0) @db.Decimal(12, 2)
+  netAmount         Decimal          @db.Decimal(12, 2)
+  paymentMethodId   String?
+  /// Rótulo congelado: a forma de pagamento pode ser renomeada ou desativada depois.
+  paymentMethodName String?
+  periodStart       DateTime?
+  periodEnd         DateTime?
+  /// Estorno é registro novo, nunca DELETE — o histórico financeiro não encolhe.
+  reversedAt        DateTime?
+  notes             String?
+  createdAt         DateTime         @default(now())
+
+  @@index([userId, portfolioId, paidAt])
+  @@index([userId, customerId, paidAt])
+  @@map("crm_payments")
+}
+
+/// Timeline do cliente. Linha append-only: o que aconteceu aconteceu.
+model CrmCustomerEvent {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  customerId  String
+  customer    CrmCustomer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  kind        String
+  description String
+  amount      Decimal?    @db.Decimal(12, 2)
+  createdAt   DateTime    @default(now())
+
+  @@index([userId, customerId, createdAt])
+  @@map("crm_customer_events")
+}
+
+model CrmLead {
+  id                  String       @id @default(cuid())
+  userId              String
+  user                User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId         String
+  portfolio           CrmPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  name                String
+  phone               String
+  whatsapp            String?
+  originId            String?
+  origin              CrmOrigin?   @relation(fields: [originId], references: [id], onDelete: SetNull)
+  stage               CrmLeadStage @default(NEW)
+  lastContactAt       DateTime?
+  nextContactAt       DateTime?
+  /// Preenchido na conversão. O lead não é apagado ao virar cliente — é o que permite medir taxa
+  /// de conversão por origem depois.
+  convertedCustomerId String?      @unique
+  convertedCustomer   CrmCustomer? @relation(fields: [convertedCustomerId], references: [id], onDelete: SetNull)
+  convertedAt         DateTime?
+  lostReason          String?
+  notes               String?
+  deletedAt           DateTime?
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+
+  tags CrmLeadTag[]
+
+  @@index([userId, portfolioId, stage])
+  @@index([userId, nextContactAt])
+  @@map("crm_leads")
+}
+
+/// A pessoa do revendedor, sem portfólio: o vínculo comercial mora em CrmResellerPortfolio, senão
+/// o mesmo João viraria dois cadastros por atender os dois serviços (§45).
+model CrmReseller {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  companyName String?
+  phone       String
+  whatsapp    String?
+  email       String?
+  notes       String?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  portfolios CrmResellerPortfolio[]
+  tags       CrmResellerTag[]
+
+  @@index([userId, deletedAt])
+  @@index([userId, phone])
+  @@map("crm_resellers")
+}
+
+/// O vínculo revendedor × serviço: é aqui que vivem crédito, preço e estimativa de clientes, porque
+/// são números por serviço. Saldo NÃO é coluna — vem sempre de CrmCreditMovement.
+model CrmResellerPortfolio {
+  id                  String            @id @default(cuid())
+  userId              String
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerId          String
+  reseller            CrmReseller       @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  portfolioId         String
+  portfolio           CrmPortfolio      @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  status              CrmResellerStatus @default(ACTIVE)
+  /// Preço vigente do crédito. Recarga antiga guarda o próprio preço e nunca é reprecificada.
+  creditPrice         Decimal           @default(0) @db.Decimal(12, 2)
+  /// ESTIMATIVA informada à mão — não é contagem de clientes cadastrados no CRM (§37). A UI é
+  /// obrigada a rotular como estimativa e o dashboard soma isso num bloco separado.
+  approxActiveClients Int               @default(0)
+  approxUpdatedAt     DateTime?
+  lowCreditThreshold  Int               @default(10)
+  startedAt           DateTime          @default(now())
+  notes               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  recharges     CrmRecharge[]
+  movements     CrmCreditMovement[]
+  priceChanges  CrmCreditPriceChange[]
+  approxChanges CrmApproxClientsChange[]
+
+  @@unique([resellerId, portfolioId])
+  @@index([userId, portfolioId, status])
+  @@map("crm_reseller_portfolios")
+}
+
+/// Receita de revendedor. unitPrice fica congelado na linha (§36).
+model CrmRecharge {
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerPortfolioId String
+  resellerPortfolio   CrmResellerPortfolio @relation(fields: [resellerPortfolioId], references: [id], onDelete: Cascade)
+  portfolioId         String
+  portfolio           CrmPortfolio         @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  date                DateTime
+  quantity            Int
+  unitPrice           Decimal              @db.Decimal(12, 2)
+  totalAmount         Decimal              @db.Decimal(12, 2)
+  paymentMethodId     String?
+  paymentMethodName   String?
+  feePercent          Decimal              @default(0) @db.Decimal(5, 2)
+  feeFixed            Decimal              @default(0) @db.Decimal(12, 2)
+  feeAmount           Decimal              @default(0) @db.Decimal(12, 2)
+  netAmount           Decimal              @db.Decimal(12, 2)
+  notes               String?
+  createdAt           DateTime             @default(now())
+
+  movements CrmCreditMovement[]
+
+  @@index([userId, portfolioId, date])
+  @@index([resellerPortfolioId, date])
+  @@map("crm_recharges")
+}
+
+/// Extrato de créditos. `quantity` é assinado (+recarga, −uso) e o saldo é sempre a soma disso —
+/// nunca um número digitado (§31). Linha nunca é apagada: erro se corrige com ADJUSTMENT contrário.
+model CrmCreditMovement {
+  id                  String                @id @default(cuid())
+  userId              String
+  user                User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerPortfolioId String
+  resellerPortfolio   CrmResellerPortfolio  @relation(fields: [resellerPortfolioId], references: [id], onDelete: Cascade)
+  kind                CrmCreditMovementKind
+  quantity            Int
+  rechargeId          String?
+  recharge            CrmRecharge?          @relation(fields: [rechargeId], references: [id], onDelete: SetNull)
+  note                String?
+  createdAt           DateTime              @default(now())
+
+  @@index([resellerPortfolioId, createdAt])
+  @@index([userId, createdAt])
+  @@map("crm_credit_movements")
+}
+
+model CrmCreditPriceChange {
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerPortfolioId String
+  resellerPortfolio   CrmResellerPortfolio @relation(fields: [resellerPortfolioId], references: [id], onDelete: Cascade)
+  previousPrice       Decimal              @db.Decimal(12, 2)
+  newPrice            Decimal              @db.Decimal(12, 2)
+  changedAt           DateTime             @default(now())
+
+  @@index([resellerPortfolioId, changedAt])
+  @@map("crm_credit_price_changes")
+}
+
+/// Histórico da estimativa (§37): valor anterior, novo e quando mudou.
+model CrmApproxClientsChange {
+  id                  String               @id @default(cuid())
+  userId              String
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  resellerPortfolioId String
+  resellerPortfolio   CrmResellerPortfolio @relation(fields: [resellerPortfolioId], references: [id], onDelete: Cascade)
+  previousValue       Int
+  newValue            Int
+  changedAt           DateTime             @default(now())
+
+  @@index([resellerPortfolioId, changedAt])
+  @@map("crm_approx_clients_changes")
+}
+
+model CrmMessageTemplate {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  category    CrmTemplateCategory @default(OTHER)
+  body        String
+  /// Separa os templates de revendedor dos de cliente: as variáveis disponíveis são outras.
+  forReseller Boolean             @default(false)
+  active      Boolean             @default(true)
+  order       Int                 @default(0)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@index([userId, active])
+  @@map("crm_message_templates")
+}
+
+model CrmSettings {
+  id                               String   @id @default(cuid())
+  userId                           String   @unique
+  user                             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Critérios de VIP. Nulo = critério desligado.
+  vipMinMonths                     Int?
+  vipMinRevenue                    Decimal? @db.Decimal(12, 2)
+  vipMinRenewals                   Int?
+  /// Janelas do semáforo de atividade do revendedor (§39).
+  resellerAttentionDays            Int      @default(30)
+  resellerInactiveDays             Int      @default(60)
+  defaultLowCreditThreshold        Int      @default(10)
+  /// Alerta quando o estoque do painel de um serviço cai até aqui.
+  panelLowCreditThreshold          Int      @default(20)
+  /// Quando ligado, dar créditos a um revendedor sai do seu próprio estoque — que é como funciona
+  /// quando o revendedor usa um sub-painel do seu. Desligue se o painel dele for comprado à parte.
+  deductResellerRechargesFromPanel Boolean  @default(true)
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
+
+  @@map("crm_settings")
+}
+
+model CrmAuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entity    String
+  entityId  String
+  action    String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([userId, entity, entityId])
+  @@index([userId, createdAt])
+  @@map("crm_audit_logs")
+}
+
+/// Compra de créditos no painel de cima — o estoque que abastece as renovações.
+///
+/// É a contraparte de CrmRecharge: lá o revendedor compra de você, aqui você compra de quem está
+/// acima. Tabelas distintas porque uma é receita e a outra é custo, e confundir as duas inverteria
+/// o sinal do lucro.
+model CrmPanelRecharge {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId String
+  portfolio   CrmPortfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  date        DateTime
+  quantity    Int
+  /// Preço pago por crédito, congelado nesta compra. É dele que sai o custo médio do estoque.
+  unitPrice   Decimal      @db.Decimal(12, 4)
+  totalAmount Decimal      @db.Decimal(12, 2)
+  /// Cópia da moeda do serviço no momento da compra: trocar a moeda do serviço depois não pode
+  /// reinterpretar o que já foi pago.
+  currency    CrmCurrency  @default(BRL)
+  notes       String?
+  createdAt   DateTime     @default(now())
+
+  movements CrmPanelCreditMovement[]
+
+  @@index([userId, portfolioId, date])
+  @@map("crm_panel_recharges")
+}
+
+/// Extrato do estoque próprio. Mesma regra do extrato de revendedor: o saldo é a soma daqui, nunca
+/// um número guardado, e linha nenhuma é apagada.
+model CrmPanelCreditMovement {
+  id              String               @id @default(cuid())
+  userId          String
+  user            User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId     String
+  portfolio       CrmPortfolio         @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  kind            CrmPanelMovementKind
+  /// Assinado: positivo entra (compra), negativo sai (renovação, repasse a revendedor).
+  quantity        Int
+  panelRechargeId String?
+  panelRecharge   CrmPanelRecharge?    @relation(fields: [panelRechargeId], references: [id], onDelete: SetNull)
+  /// Qual renovação consumiu — é o que liga o extrato ao cliente e permite auditar o consumo.
+  subscriptionId  String?
+  customerId      String?
+  /// Repasse pra revendedor, quando a configuração debita do estoque.
+  rechargeId      String?
+  note            String?
+  createdAt       DateTime             @default(now())
+
+  @@index([userId, portfolioId, createdAt])
+  @@map("crm_panel_credit_movements")
+}
+
+// ---------------------------------------------------------------------------
+// Academia
+// ---------------------------------------------------------------------------
+
+enum GymObjective {
+  HIPERTROFIA
+  FORCA
+  EMAGRECIMENTO
+  CONDICIONAMENTO
+  MANUTENCAO
+}
+
+enum GymLevel {
+  INICIANTE
+  INTERMEDIARIO
+  AVANCADO
+}
+
+enum GymMuscle {
+  PEITO
+  COSTAS
+  BICEPS
+  TRICEPS
+  OMBROS
+  QUADRICEPS
+  POSTERIORES
+  GLUTEOS
+  PANTURRILHAS
+  ABDOMEN
+  TRAPEZIO
+  ANTEBRACO
+}
+
+enum GymEquipment {
+  BARRA
+  HALTER
+  MAQUINA
+  CABO
+  PESO_CORPORAL
+  SMITH
+  KETTLEBELL
+  ELASTICO
+  OUTRO
+}
+
+enum GymWeightUnit {
+  KG
+  LB
+}
+
+/// Qual fórmula estima a repetição máxima. Configurável porque cada uma erra pra um lado em faixas
+/// diferentes de repetição, e trocar a fórmula não pode reescrever o histórico.
+enum GymOneRmFormula {
+  EPLEY
+  BRZYCKI
+  LOMBARDI
+}
+
+enum GymPhotoPose {
+  FRENTE
+  COSTAS
+  LATERAL
+}
+
+/// O que exatamente foi superado. Guardado por tipo porque "levantou mais peso" e "fez mais
+/// repetição no mesmo peso" são conquistas diferentes e ambas valem aviso.
+enum GymRecordKind {
+  PESO_MAXIMO
+  REPS_NO_PESO
+  VOLUME_EXERCICIO
+  UM_RM
+}
+
+enum GymTargetKind {
+  CARGA
+  FREQUENCIA_SEMANAL
+  PESO_CORPORAL
+}
+
+/// Preferências e dados do praticante. Separado do `User` de propósito: é dado do módulo, e quem
+/// nunca abriu a Academia não tem linha aqui.
+model GymProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  objective          GymObjective @default(HIPERTROFIA)
+  level              GymLevel     @default(INICIANTE)
+  heightCm           Int?
+  birthDate          DateTime?
+  /// Quantos treinos por semana a pessoa pretende fazer — é o denominador do "4 / 5 treinos".
+  weeklyTarget       Int          @default(4)
+  sessionMinutes     Int          @default(60)
+  /// Herdado por exercício novo num treino. Alterar aqui não mexe no que já foi configurado.
+  defaultRestSeconds Int          @default(90)
+
+  weightUnit       GymWeightUnit   @default(KG)
+  oneRmFormula     GymOneRmFormula @default(EPLEY)
+  soundEnabled     Boolean         @default(true)
+  vibrationEnabled Boolean         @default(true)
+  /// Concluir uma série já deixa a próxima em execução, sem passar pelo ▶.
+  ///
+  /// Ligado por padrão: é o caminho de menos toques no meio do treino, e quem prefere o controle
+  /// manual desliga uma vez aqui em vez de desligar em cada exercício de cada ficha.
+  autoAdvanceSets  Boolean         @default(true)
+  /// Onboarding concluído. Sem isso a tela inicial do módulo é o onboarding.
+  onboardedAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("gym_profiles")
+}
+
+/// Exercício do catálogo ou criado pela pessoa.
+///
+/// `userId = null` é o catálogo global, semeado por script e compartilhado por todo mundo — o mesmo
+/// padrão da carteira principal dos investimentos. É isso que permite crescer o catálogo sem
+/// migration e sem duplicar 135 linhas por usuário.
+model GymExercise {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Identidade estável do exercício do catálogo, pro seed ser idempotente e pra reimportar sem
+  /// duplicar. Nulo nos criados pela pessoa.
+  slug String?
+
+  name             String
+  primaryMuscle    GymMuscle
+  secondaryMuscles GymMuscle[]
+  equipment        GymEquipment
+  description      String?
+  /// Passo a passo da execução, uma etapa por item.
+  instructions     String[]
+  tips             String[]
+  commonMistakes   String[]
+  /// Imagem em data URL, mesmo tratamento da foto do bem financiado: são poucos KB e não valem
+  /// storage, rota estática e backup à parte.
+  image            String?
+  videoUrl         String?
+
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  workoutExercises GymWorkoutExercise[]
+  sets             GymSet[]
+  favorites        GymExerciseFavorite[]
+  userPhotos       GymExercisePhoto[]
+  records          GymPersonalRecord[]
+  targets          GymTarget[]
+
+  @@unique([slug])
+  @@index([userId, archivedAt])
+  @@index([primaryMuscle])
+  @@map("gym_exercises")
+}
+
+/// A foto que VOCÊ pôs num exercício.
+///
+/// Mora numa tabela sua, e não na coluna `image` do exercício, pelo mesmo motivo do favorito: o
+/// catálogo é global (`userId = null`) e compartilhado — gravar a foto nele seria escrever no
+/// exercício de todo mundo. Assim a foto vale tanto pro exercício do catálogo quanto pro que você
+/// criou, sem o catálogo deixar de ser imutável.
+model GymExercisePhoto {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  /// Data URL, já redimensionada no cliente e revalidada no servidor.
+  image     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, exerciseId])
+  @@map("gym_exercise_photos")
+}
+
+model GymExerciseFavorite {
+  id         String      @id @default(cuid())
+  userId     String
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+
+  @@unique([userId, exerciseId])
+  @@map("gym_exercise_favorites")
+}
+
+/// Uma ficha ("Treino A — Peito + Tríceps").
+model GymWorkout {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name                        String
+  description                 String?
+  /// Ordem na lista, arrastável.
+  order                       Int     @default(0)
+  /// Descanso entre exercícios. Nulo = usa o descanso do próprio exercício; 0 = nenhum.
+  restBetweenExercisesSeconds Int?
+  notes                       String?
+
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  exercises GymWorkoutExercise[]
+  sessions  GymSession[]
+
+  @@index([userId, archivedAt, order])
+  @@map("gym_workouts")
+}
+
+/// O exercício dentro de uma ficha, com o que foi planejado pra ele.
+model GymWorkoutExercise {
+  id        String     @id @default(cuid())
+  workoutId String
+  workout   GymWorkout @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  order         Int
+  sets          Int      @default(3)
+  targetRepsMin Int      @default(8)
+  targetRepsMax Int      @default(12)
+  targetWeight  Decimal? @db.Decimal(8, 2)
+  /// Descanso DESTE exercício, em segundos. Nasce do `defaultRestSeconds` do perfil e é editável
+  /// individualmente — é o que o cronômetro dispara ao concluir cada série.
+  restSeconds   Int      @default(90)
+  notes         String?
+
+  @@unique([workoutId, order])
+  @@index([exerciseId])
+  @@map("gym_workout_exercises")
+}
+
+/// Uma sessão de treino executada.
+model GymSession {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// A ficha que originou a sessão. `SetNull` porque apagar a ficha não pode apagar o histórico do
+  /// que já foi treinado.
+  workoutId String?
+  workout   GymWorkout? @relation(fields: [workoutId], references: [id], onDelete: SetNull)
+  /// Nome congelado no momento do treino: renomear a ficha depois não reescreve o passado.
+  name      String
+
+  /// Identidade gerada no aparelho. É o que torna a subida da sessão feita offline idempotente —
+  /// reenviar a mesma sessão atualiza, não duplica.
+  clientId String @unique
+
+  startedAt       DateTime
+  finishedAt      DateTime?
+  /// Duração real medida por timestamp, gravada na conclusão.
+  durationSeconds Int?
+  totalVolume     Decimal?  @db.Decimal(12, 2)
+  notes           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sets    GymSet[]
+  records GymPersonalRecord[]
+
+  @@index([userId, startedAt])
+  @@map("gym_sessions")
+}
+
+/// Uma série executada, com tudo que aconteceu no descanso depois dela.
+model GymSet {
+  id        String     @id @default(cuid())
+  sessionId String
+  session   GymSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  /// Posição do exercício dentro da sessão, congelada — reordenar a ficha depois não embaralha o
+  /// histórico.
+  exerciseOrder Int @default(0)
+  setNumber     Int
+
+  weight    Decimal @db.Decimal(8, 2)
+  reps      Int
+  completed Boolean @default(true)
+  notes     String?
+
+  /// O descanso desta série. Guardado com o que foi CONFIGURADO e o que foi REALMENTE descansado:
+  /// são números diferentes sempre que a pessoa pula, pausa ou estende, e é dessa diferença que sai
+  /// a estatística de descanso.
+  restSeconds           Int?
+  restStartedAt         DateTime?
+  restEndedAt           DateTime?
+  restActualSeconds     Int?
+  restWasPaused         Boolean   @default(false)
+  restWasSkipped        Boolean   @default(false)
+  restAdjustmentSeconds Int       @default(0)
+
+  completedAt DateTime @default(now())
+
+  @@unique([sessionId, exerciseId, setNumber])
+  @@index([exerciseId, completedAt])
+  @@map("gym_sets")
+}
+
+model GymMeasurement {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date DateTime
+
+  weightKg   Decimal? @db.Decimal(6, 2)
+  chest      Decimal? @db.Decimal(6, 2)
+  waist      Decimal? @db.Decimal(6, 2)
+  abdomen    Decimal? @db.Decimal(6, 2)
+  hip        Decimal? @db.Decimal(6, 2)
+  armRight   Decimal? @db.Decimal(6, 2)
+  armLeft    Decimal? @db.Decimal(6, 2)
+  thighRight Decimal? @db.Decimal(6, 2)
+  thighLeft  Decimal? @db.Decimal(6, 2)
+  calfRight  Decimal? @db.Decimal(6, 2)
+  calfLeft   Decimal? @db.Decimal(6, 2)
+  /// Medidas que a pessoa criou, como { "pescoço": 39.5 }. Json porque inventar coluna por medida
+  /// nova exigiria migration a cada ideia.
+  custom     Json?
+  notes      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("gym_measurements")
+}
+
+model GymPhoto {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  date  DateTime
+  pose  GymPhotoPose
+  /// Data URL, já redimensionada no cliente. Nunca sai do banco pra lugar nenhum.
+  image String
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, pose, date])
+  @@map("gym_photos")
+}
+
+/// Recorde pessoal, detectado automaticamente ao concluir a sessão.
+model GymPersonalRecord {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  exerciseId String
+  exercise   GymExercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  sessionId String?
+  session   GymSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  kind           GymRecordKind
+  weight         Decimal       @db.Decimal(8, 2)
+  reps           Int
+  /// 1RM estimado no momento — congelado, porque a fórmula é configurável e trocá-la depois não
+  /// pode reescrever recorde que já foi comemorado.
+  estimatedOneRm Decimal?      @db.Decimal(8, 2)
+  /// De quanto foi a superação em relação ao recorde anterior ("+5 kg").
+  improvement    Decimal?      @db.Decimal(8, 2)
+
+  achievedAt DateTime
+
+  @@index([userId, achievedAt])
+  @@index([userId, exerciseId, kind, achievedAt])
+  @@map("gym_personal_records")
+}
+
+/// Meta. `GymTarget` e não `GymGoal` porque `objective` do perfil já é "objetivo" — dois nomes
+/// parecidos pra coisas diferentes é confusão garantida seis meses depois.
+model GymTarget {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  kind       GymTargetKind
+  /// Só nas metas de carga.
+  exerciseId String?
+  exercise   GymExercise?  @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+
+  label       String
+  targetValue Decimal   @db.Decimal(10, 2)
+  /// De onde a meta partiu, pra barra de progresso não começar do zero absoluto.
+  startValue  Decimal?  @db.Decimal(10, 2)
+  deadline    DateTime?
+  achievedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, achievedAt])
+  @@map("gym_targets")
+}

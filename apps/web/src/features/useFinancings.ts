@@ -1,0 +1,192 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import toast from "react-hot-toast";
+import { api } from "@/lib/api";
+import { Financing, FinancingSummary } from "@/types";
+
+function invalidateAll(qc: ReturnType<typeof useQueryClient>) {
+  qc.invalidateQueries({ queryKey: ["financings"] });
+  qc.invalidateQueries({ queryKey: ["dashboard"] });
+}
+
+export function useFinancings() {
+  return useQuery({
+    queryKey: ["financings"],
+    queryFn: () => api.get<Financing[]>("/financings"),
+  });
+}
+
+export function useFinancingSummary() {
+  return useQuery({
+    queryKey: ["financings", "summary"],
+    queryFn: () => api.get<FinancingSummary>("/financings/summary"),
+  });
+}
+
+export function useCreateFinancing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) => api.post("/financings", data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Financiamento cadastrado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateFinancing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) => api.patch(`/financings/${id}`, data),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Financiamento atualizado!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export interface PayoffComparison {
+  previousAmount: number | null;
+  percentChange: number | null;
+  isBestInWindow: boolean;
+  windowMonths: number;
+  bestInWindowAmount: number | null;
+}
+
+export function useUpdatePayoff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, payoffAmount, payoffQuotedAt }: { id: string; payoffAmount: number; payoffQuotedAt?: string }) =>
+      api.patch<{ financing: Financing; comparison: PayoffComparison }>(`/financings/${id}/payoff`, {
+        payoffAmount,
+        payoffQuotedAt,
+      }),
+    onSuccess: () => {
+      invalidateAll(qc);
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export interface PayoffQuote {
+  amount: number;
+  quotedAt: string;
+}
+
+export function useFinancingPayoffQuotes(id: string | null) {
+  return useQuery({
+    queryKey: ["financings", id, "payoff-quotes"],
+    queryFn: () => api.get<PayoffQuote[]>(`/financings/${id}/payoff-quotes`),
+    enabled: !!id,
+  });
+}
+
+export interface AssetValuation {
+  amount: number;
+  valuedAt: string;
+  source: string | null;
+}
+
+export interface AssetValueTrend {
+  first: AssetValuation;
+  latest: AssetValuation;
+  previous: AssetValuation | null;
+  changeFromPrevious: number | null;
+  changePercentFromPrevious: number | null;
+  changeSinceFirst: number;
+  changePercentSinceFirst: number | null;
+  daysTracked: number;
+}
+
+export interface AssetValueComparison {
+  previousAmount: number | null;
+  percentChange: number | null;
+  trend: AssetValueTrend | null;
+}
+
+export function useUpdateAssetValue() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, assetValue, valuedAt, source }: { id: string; assetValue: number; valuedAt?: string; source?: string }) =>
+      api.patch<{ financing: Financing; comparison: AssetValueComparison }>(`/financings/${id}/asset-value`, {
+        assetValue,
+        valuedAt,
+        source,
+      }),
+    onSuccess: (_data, vars) => {
+      invalidateAll(qc);
+      qc.invalidateQueries({ queryKey: ["financings", vars.id, "asset-values"] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+/** `photo: null` remove a foto. O backend valida tipo e tamanho — o resize no cliente é conforto. */
+export function useUpdateAssetPhoto() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, photo }: { id: string; photo: string | null }) =>
+      api.patch<Financing>(`/financings/${id}/photo`, { photo }),
+    onSuccess: () => invalidateAll(qc),
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useFinancingAssetValues(id: string | null) {
+  return useQuery({
+    queryKey: ["financings", id, "asset-values"],
+    queryFn: () => api.get<{ valuations: AssetValuation[]; trend: AssetValueTrend | null }>(`/financings/${id}/asset-values`),
+    enabled: !!id,
+  });
+}
+
+export function useDeleteFinancing() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/financings/${id}`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Financiamento excluído.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function usePayFinancingInstallment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, paidAmount }: { id: string; paidAmount?: number }) =>
+      api.post(`/financings/installments/${id}/pay`, { paidAmount }),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Parcela marcada como paga!");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUnpayFinancingInstallment() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.post(`/financings/installments/${id}/unpay`),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Pagamento revertido.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}
+
+export function useUpdateFinancingInstallmentStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: "PENDING" | "LATE" | "CANCELLED" }) =>
+      api.patch(`/financings/installments/${id}/status`, { status }),
+    onSuccess: () => {
+      invalidateAll(qc);
+      toast.success("Status atualizado.");
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+}

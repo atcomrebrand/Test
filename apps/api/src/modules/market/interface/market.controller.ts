@@ -1,0 +1,77 @@
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Throttle } from "@nestjs/throttler";
+import { AuthUser, CurrentUser } from "../../../common/decorators/current-user.decorator";
+import { JwtAuthGuard } from "../../../common/guards/jwt-auth.guard";
+import { CommitNotaDto, ListPurchasesQueryDto, MergeProductsDto, ScanNotaDto } from "../application/dto/market.dto";
+import { MarketImportService } from "../application/market-import.service";
+import { MarketService } from "../application/market.service";
+
+@UseGuards(JwtAuthGuard)
+@Controller("market")
+export class MarketController {
+  constructor(
+    private readonly market: MarketService,
+    private readonly importService: MarketImportService,
+  ) {}
+
+  /** Read-only: reaches out to SEFAZ-SP and returns what it found, persisting nothing. Rate-limited
+   *  tighter than the app default because each call is an outbound request to a public government
+   *  portal — a scan loop hammering it would be both rude and a good way to get blocked. */
+  @Throttle({ default: { limit: 20, ttl: 60000 } })
+  @Post("notas/scan")
+  scan(@CurrentUser() user: AuthUser, @Body() dto: ScanNotaDto) {
+    return this.importService.preview(user.userId, dto.code);
+  }
+
+  @Post("notas/commit")
+  commit(@CurrentUser() user: AuthUser, @Body() dto: CommitNotaDto) {
+    return this.importService.commit(user.userId, dto);
+  }
+
+  /** Spending and tax totals for the same window as the purchases list. */
+  @Get("summary")
+  getSummary(@CurrentUser() user: AuthUser, @Query() query: ListPurchasesQueryDto) {
+    return this.market.getSpendingSummary(user.userId, query.from, query.to);
+  }
+
+  @Get("purchases")
+  listPurchases(@CurrentUser() user: AuthUser, @Query() query: ListPurchasesQueryDto) {
+    return this.market.listPurchases(user.userId, query.from, query.to);
+  }
+
+  @Get("purchases/:id")
+  getPurchase(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.market.getPurchase(user.userId, id);
+  }
+
+  @Delete("purchases/:id")
+  removePurchase(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.market.removePurchase(user.userId, id);
+  }
+
+  @Get("products")
+  listProducts(@CurrentUser() user: AuthUser) {
+    return this.market.listProducts(user.userId);
+  }
+
+  @Get("products/:id")
+  getProduct(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.market.getProduct(user.userId, id);
+  }
+
+  @Get("products-merge/suggestions")
+  suggestMerges(@CurrentUser() user: AuthUser, @Query("minScore") minScore?: string) {
+    const limiar = Number(minScore);
+    return this.market.suggestMerges(user.userId, Number.isFinite(limiar) && limiar > 0 ? limiar : undefined);
+  }
+
+  @Post("products-merge")
+  mergeProducts(@CurrentUser() user: AuthUser, @Body() dto: MergeProductsDto) {
+    return this.market.mergeProducts(user.userId, dto.canonicalId, dto.ids);
+  }
+
+  @Delete("products-merge/:id")
+  unmergeProduct(@CurrentUser() user: AuthUser, @Param("id") id: string) {
+    return this.market.unmergeProduct(user.userId, id);
+  }
+}

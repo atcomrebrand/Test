@@ -1,0 +1,541 @@
+import { ReactNode, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import {
+  ArrowUpDown,
+  LayoutGrid,
+  List,
+  Plus,
+  LineChart,
+  Trash2,
+  ArrowLeftRight,
+  Coins,
+  RefreshCw,
+  Percent,
+  Star,
+  ArrowDownCircle,
+  Undo2,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  Pencil,
+} from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { Card, CardContent } from "@/components/ui/Card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { Skeleton } from "@/components/ui/Skeleton";
+import { Tabs } from "@/components/ui/Tabs";
+import { Select } from "@/components/ui/Input";
+import { cn } from "@/lib/cn";
+import { formatCurrency, formatDate } from "@/lib/format";
+import {
+  useAssets,
+  useDeleteAsset,
+  useRefreshAssets,
+  useToggleFavorite,
+  useFixedIncomes,
+  useDeleteFixedIncome,
+  useUnredeemFixedIncome,
+} from "../api";
+import { AssetClass, InvestmentAsset, InvestmentFixedIncome } from "../types";
+import {
+  ASSET_SORT_OPTIONS,
+  AssetSort,
+  FIXED_INCOME_SORT_OPTIONS,
+  FixedIncomeSort,
+  sortAssets,
+  sortFixedIncomes,
+  summarizeAssets,
+} from "../sortPortfolio";
+import { usePortfolioSort, usePortfolioPreference } from "../usePortfolioSort";
+import { AssetFormModal } from "../components/AssetFormModal";
+import { TransactionModal } from "../components/TransactionModal";
+import { AssetIncomeModal } from "../components/AssetIncomeModal";
+import { StakingConfigModal } from "../components/StakingConfigModal";
+import { YieldingIndicator } from "../components/YieldingIndicator";
+import { FixedIncomeFormModal } from "../components/FixedIncomeFormModal";
+import { AddInterestModal } from "../components/AddInterestModal";
+import { RedeemFixedIncomeModal } from "../components/RedeemFixedIncomeModal";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { PortfolioEvolutionChart } from "../components/PortfolioEvolutionChart";
+import { FixedIncomeCard } from "../components/FixedIncomeCard";
+import { AssetRow, FixedIncomeRow } from "../components/PortfolioListRow";
+
+type PortfolioTab = AssetClass | "RENDA_FIXA";
+
+/** Card mostra tudo de um ativo; lista alinha a mesma informação em colunas pra comparar vários.
+ *  A escolha vale pras quatro abas — é preferência de como a pessoa lê, não de qual aba está. */
+type PortfolioView = "CARD" | "LIST";
+
+const TAB_OPTIONS = [
+  { value: "STOCK", label: "Ações" },
+  { value: "FII", label: "FIIs" },
+  { value: "CRYPTO", label: "Criptomoedas" },
+  { value: "RENDA_FIXA", label: "Renda Fixa" },
+];
+
+const TAB_EMPTY_LABEL: Record<AssetClass, string> = {
+  STOCK: "ação",
+  FII: "FII",
+  CRYPTO: "criptomoeda",
+};
+
+/** Same collapsible group pattern used in Contas ("Contas da casa" / "Faturas de cartão") — a
+ *  header with a count badge you can close instead of one long flat grid. */
+function AccordionSection({
+  title,
+  count,
+  open,
+  onToggle,
+  dense,
+  children,
+}: {
+  title: string;
+  count: number;
+  open: boolean;
+  onToggle: () => void;
+  /** Visão em lista: uma coluna, linhas coladas — a grade de duas colunas quebraria o alinhamento
+   *  que é justamente o motivo de existir a lista. */
+  dense?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      <button
+        onClick={onToggle}
+        className="flex w-full items-center justify-between rounded-xl surface border border-[rgb(var(--border))] px-4 py-3 text-left transition-colors hover:surface-2"
+      >
+        <span className="flex items-center gap-2 font-semibold">
+          {title}
+          <Badge tone="neutral">{count}</Badge>
+        </span>
+        {open ? <ChevronUp className="h-4 w-4 text-muted" /> : <ChevronDown className="h-4 w-4 text-muted" />}
+      </button>
+      {open &&
+        (count > 0 ? (
+          <div className={dense ? "flex flex-col gap-2" : "grid grid-cols-1 gap-4 md:grid-cols-2"}>{children}</div>
+        ) : (
+          <p className="px-1 text-sm text-muted">Nada por aqui.</p>
+        ))}
+    </div>
+  );
+}
+
+
+export default function Portfolio() {
+  const [tab, setTab] = useState<PortfolioTab>("STOCK");
+  const isFixedIncome = tab === "RENDA_FIXA";
+
+  const { data, isLoading } = useAssets(isFixedIncome ? undefined : tab, !isFixedIncome);
+  const refreshPrices = useRefreshAssets(isFixedIncome ? undefined : tab);
+  const remove = useDeleteAsset();
+  const toggleFavorite = useToggleFavorite();
+
+  const { data: fixedIncomes, isLoading: fixedIncomesLoading } = useFixedIncomes();
+  const unredeemFixedIncome = useUnredeemFixedIncome();
+  const removeFixedIncome = useDeleteFixedIncome();
+  const [assetSort, setAssetSort] = usePortfolioSort<AssetSort>("assets", "default");
+  const [fixedSort, setFixedSort] = usePortfolioSort<FixedIncomeSort>("fixed", "default");
+  const [view, setView] = usePortfolioPreference<PortfolioView>("view", "CARD");
+
+  // Card e linha recebem exatamente as mesmas props, então a escolha é de qual componente montar —
+  // não de duplicar a lista inteira em dois ramos de JSX que depois saem de sincronia.
+  const FixedIncomeItem = view === "LIST" ? FixedIncomeRow : FixedIncomeCard;
+
+  // useMemo porque a ordenação copia e percorre a lista, e a tela re-renderiza a cada modal aberto.
+  const sortedAssets = useMemo(() => sortAssets(data ?? [], assetSort), [data, assetSort]);
+  const totals = useMemo(() => summarizeAssets(sortedAssets), [sortedAssets]);
+
+  const activeFixedIncomes = useMemo(
+    () => sortFixedIncomes(fixedIncomes?.filter((f) => !f.redeemedAt) ?? [], fixedSort),
+    [fixedIncomes, fixedSort],
+  );
+  const redeemedFixedIncomes = useMemo(
+    () => sortFixedIncomes(fixedIncomes?.filter((f) => f.redeemedAt) ?? [], fixedSort),
+    [fixedIncomes, fixedSort],
+  );
+
+  const [formOpen, setFormOpen] = useState(false);
+  const [transactionTarget, setTransactionTarget] = useState<string | null>(null);
+  const [incomeTarget, setIncomeTarget] = useState<string | null>(null);
+  const [stakingTarget, setStakingTarget] = useState<InvestmentAsset | null>(null);
+  const [interestTarget, setInterestTarget] = useState<string | null>(null);
+  const [redeemTarget, setRedeemTarget] = useState<InvestmentFixedIncome | null>(null);
+  const [editFixedIncome, setEditFixedIncome] = useState<InvestmentFixedIncome | null>(null);
+  const [unredeemTarget, setUnredeemTarget] = useState<InvestmentFixedIncome | null>(null);
+  const [openFixedIncomeSections, setOpenFixedIncomeSections] = useState({ active: true, redeemed: false });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-bold">Carteira</h1>
+          <p className="text-sm text-muted">Ações, FIIs, criptomoedas e renda fixa, tudo em um só lugar.</p>
+        </div>
+        <div className="flex gap-2">
+          {!isFixedIncome && (
+            <Button variant="outline" onClick={() => refreshPrices.mutate()} loading={refreshPrices.isPending}>
+              <RefreshCw className="h-4 w-4" />
+              Atualizar preços
+            </Button>
+          )}
+          <Button onClick={() => setFormOpen(true)}>
+            <Plus className="h-4 w-4" />
+            {isFixedIncome ? "Nova aplicação" : "Novo ativo"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Dois gráficos, e a ordem responde às perguntas na ordem em que elas são feitas: primeiro
+          "como está indo no geral", depois "o que tem dentro", e só então "como está indo esta
+          classe". O de cima é sempre a carteira toda, independente da aba — por isso ele fica
+          ACIMA do seletor, onde nada do que se escolhe abaixo o altera. Ele é acordeão porque é o
+          único dos dois que não muda com a navegação: quem já sabe o total quer o espaço de volta,
+          e a escolha fica guardada. */}
+      <PortfolioEvolutionChart tab="TOTAL" prefKey="total" collapsibleTitle="Carteira toda" />
+
+      <Tabs value={tab} onChange={(v) => setTab(v as PortfolioTab)} options={TAB_OPTIONS} />
+
+      {/* Depois do seletor porque este é da aba aberta — grudado na escolha que o define. */}
+      <PortfolioEvolutionChart tab={tab} />
+
+      {/* Ordenação + total do que está na tela. Ficam juntos porque, depois de ordenar, a pergunta
+          seguinte costuma ser "e isso tudo dá quanto". */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-2">
+          <ArrowUpDown className="h-4 w-4 shrink-0 text-muted" />
+          {isFixedIncome ? (
+            <Select
+              options={FIXED_INCOME_SORT_OPTIONS}
+              value={fixedSort}
+              onChange={(e) => setFixedSort(e.target.value as FixedIncomeSort)}
+              className="w-56"
+            />
+          ) : (
+            <Select
+              options={ASSET_SORT_OPTIONS}
+              value={assetSort}
+              onChange={(e) => setAssetSort(e.target.value as AssetSort)}
+              className="w-56"
+            />
+          )}
+        </div>
+
+        {/* Alternância de visão. Fica colada na ordenação porque as duas respondem à mesma
+            pergunta — "como eu quero olhar isso" — e separá-las obrigaria a procurar em dois
+            cantos da tela. */}
+        <div className="flex rounded-lg surface-2 p-0.5">
+          {(
+            [
+              ["CARD", "Cards", LayoutGrid],
+              ["LIST", "Lista", List],
+            ] as [PortfolioView, string, typeof LayoutGrid][]
+          ).map(([value, label, Icon]) => (
+            <button
+              key={value}
+              type="button"
+              onClick={() => setView(value)}
+              aria-pressed={view === value}
+              // O rótulo some em tela estreita (fica só o ícone), então o nome acessível não pode
+              // depender dele — sem isso o leitor de tela anuncia um botão mudo no celular.
+              aria-label={`Ver em ${label.toLowerCase()}`}
+              title={`Ver em ${label.toLowerCase()}`}
+              className={cn(
+                "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors",
+                view === value ? "surface shadow-sm" : "text-muted hover:text-[rgb(var(--text))]",
+              )}
+            >
+              <Icon className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+
+        {!isFixedIncome && totals.count > 0 && (
+          <div className="ml-auto flex flex-wrap items-center gap-x-4 gap-y-1 text-right">
+            <span className="text-xs text-muted">
+              {totals.count} ativo{totals.count > 1 ? "s" : ""}
+            </span>
+            <span>
+              <span className="block text-[11px] leading-none text-muted">Valor</span>
+              <span className="font-bold">{formatCurrency(totals.value)}</span>
+            </span>
+            <span>
+              <span className="block text-[11px] leading-none text-muted">Lucro</span>
+              <span className={cn("font-bold", totals.profit >= 0 ? "text-emerald-500" : "text-red-500")}>
+                {formatCurrency(totals.profit)}
+              </span>
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Sem cotação não entra na soma. Dizer isso evita a conclusão errada de que o ativo some ou
+          de que o total já contempla tudo. */}
+      {!isFixedIncome && totals.withoutPrice > 0 && (
+        <p className="-mt-1 text-xs text-amber-600 dark:text-amber-400">
+          {totals.withoutPrice} ativo{totals.withoutPrice > 1 ? "s" : ""} sem cotação — fica{totals.withoutPrice > 1 ? "m" : ""} no fim da
+          lista e fora do total.
+        </p>
+      )}
+
+      {isFixedIncome ? (
+        <>
+          {fixedIncomesLoading && (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              {Array.from({ length: 2 }).map((_, i) => (
+                <Skeleton key={i} className="h-64 rounded-2xl" />
+              ))}
+            </div>
+          )}
+
+          {!fixedIncomesLoading && (!fixedIncomes || fixedIncomes.length === 0) && (
+            <EmptyState
+              icon={<LineChart className="h-7 w-7" />}
+              title="Nenhuma aplicação de renda fixa"
+              description="Cadastre um CDB, LCI, LCA ou Tesouro Direto pra acompanhar valor bruto, líquido, IR e IOF automaticamente."
+              action={
+                <Button onClick={() => setFormOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Cadastrar aplicação
+                </Button>
+              }
+            />
+          )}
+
+          <div className="flex flex-col gap-4">
+            <AccordionSection
+              title="Ativos"
+              count={activeFixedIncomes.length}
+              open={openFixedIncomeSections.active}
+              onToggle={() => setOpenFixedIncomeSections((s) => ({ ...s, active: !s.active }))}
+              dense={view === "LIST"}
+            >
+              {activeFixedIncomes.map((f) => (
+                <FixedIncomeItem
+                  key={f.id}
+                  f={f}
+                  onRegisterInterest={() => setInterestTarget(f.id)}
+                  onRedeem={() => setRedeemTarget(f)}
+                  onUnredeem={() => setUnredeemTarget(f)}
+                  onEdit={() => setEditFixedIncome(f)}
+                  onRemove={() => removeFixedIncome.mutate(f.id)}
+                />
+              ))}
+            </AccordionSection>
+
+            <AccordionSection
+              title="Resgatados"
+              count={redeemedFixedIncomes.length}
+              open={openFixedIncomeSections.redeemed}
+              onToggle={() => setOpenFixedIncomeSections((s) => ({ ...s, redeemed: !s.redeemed }))}
+              dense={view === "LIST"}
+            >
+              {redeemedFixedIncomes.map((f) => (
+                <FixedIncomeItem
+                  key={f.id}
+                  f={f}
+                  onRegisterInterest={() => setInterestTarget(f.id)}
+                  onRedeem={() => setRedeemTarget(f)}
+                  onUnredeem={() => setUnredeemTarget(f)}
+                  onEdit={() => setEditFixedIncome(f)}
+                  onRemove={() => removeFixedIncome.mutate(f.id)}
+                />
+              ))}
+            </AccordionSection>
+          </div>
+        </>
+      ) : (
+        <>
+          {isLoading && (
+            <div
+              className={
+                view === "LIST" ? "flex flex-col gap-2" : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+              }
+            >
+              {Array.from({ length: view === "LIST" ? 5 : 3 }).map((_, i) => (
+                <Skeleton key={i} className={view === "LIST" ? "h-16 rounded-2xl" : "h-56 rounded-2xl"} />
+              ))}
+            </div>
+          )}
+
+          {!isLoading && (!data || data.length === 0) && (
+            <EmptyState
+              icon={<LineChart className="h-7 w-7" />}
+              title={`Nenhuma ${TAB_EMPTY_LABEL[tab as AssetClass]} cadastrada`}
+              description="Cadastre o ativo e depois registre as compras/vendas para o sistema calcular preço médio, lucro e rentabilidade automaticamente."
+              action={
+                <Button onClick={() => setFormOpen(true)}>
+                  <Plus className="h-4 w-4" />
+                  Cadastrar
+                </Button>
+              }
+            />
+          )}
+
+          <div
+            className={
+              view === "LIST" ? "flex flex-col gap-2" : "grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3"
+            }
+          >
+            {sortedAssets.map((asset) =>
+              view === "LIST" ? (
+                <AssetRow
+                  key={asset.id}
+                  asset={asset}
+                  assetClass={tab as AssetClass}
+                  onTransaction={() => setTransactionTarget(asset.id)}
+                  onIncome={() => setIncomeTarget(asset.id)}
+                  onStaking={() => setStakingTarget(asset)}
+                  onToggleFavorite={() => toggleFavorite.mutate({ id: asset.id, favorite: !asset.favorite })}
+                  onRemove={() => remove.mutate(asset.id)}
+                />
+              ) : (
+              <Card key={asset.id}>
+                <CardContent className="flex flex-col gap-4">
+                  <div className="flex items-start justify-between">
+                    <Link to={`/investimentos/carteira/${asset.id}`} className="group">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold group-hover:text-emerald-600 dark:group-hover:text-emerald-400">{asset.ticker}</p>
+                        {tab === "CRYPTO" && asset.staking && <YieldingIndicator />}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                        {asset.broker && <Badge tone="neutral">{asset.broker}</Badge>}
+                        {asset.wallet && <Badge tone="neutral">{asset.wallet}</Badge>}
+                      </div>
+                    </Link>
+                    <div className="flex items-center gap-2">
+                      {asset.currentPrice !== null && (
+                        <span className="text-right text-xs">
+                          <span className="block text-muted">{asset.priceIsApproximate ? "ao vivo (aprox.)" : "ao vivo"}</span>
+                          <span className="font-semibold">{formatCurrency(asset.currentPrice)}</span>
+                        </span>
+                      )}
+                      <button
+                        onClick={() => toggleFavorite.mutate({ id: asset.id, favorite: !asset.favorite })}
+                        className={cn(
+                          "rounded-lg p-1.5 transition-colors hover:bg-amber-500/10",
+                          asset.favorite ? "text-amber-500" : "text-muted hover:text-amber-500",
+                        )}
+                        aria-label={asset.favorite ? "Remover dos favoritos" : "Marcar como favorito"}
+                      >
+                        <Star className="h-4 w-4" fill={asset.favorite ? "currentColor" : "none"} />
+                      </button>
+                      <button
+                        onClick={() => remove.mutate(asset.id)}
+                        className="rounded-lg p-1.5 text-muted transition-colors hover:bg-red-500/10 hover:text-red-500"
+                        aria-label="Remover"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-xs text-muted">Quantidade</p>
+                      <p className="font-semibold">{asset.position.quantity}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted">Preço médio</p>
+                      <p className="font-semibold">{formatCurrency(asset.position.averagePrice)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted">Valor investido</p>
+                      <p className="font-semibold">{formatCurrency(asset.position.investedAmount)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted">Valor atual</p>
+                      <p className="font-semibold">{asset.currentValue !== null ? formatCurrency(asset.currentValue) : "—"}</p>
+                    </div>
+                  </div>
+
+                  {asset.profit !== null && (
+                    <div className={`rounded-xl p-3 text-sm font-semibold ${asset.profit >= 0 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "bg-red-500/10 text-red-600 dark:text-red-400"}`}>
+                      {formatCurrency(asset.profit)} ({asset.profitPercent?.toFixed(2)}%)
+                    </div>
+                  )}
+
+                  {asset.dividendsReceived > 0 && (
+                    <p className="text-xs text-muted">
+                      Proventos recebidos: <span className="font-medium text-[rgb(var(--text))]">{formatCurrency(asset.dividendsReceived)}</span>
+                      {asset.dividendYield !== null && ` (DY ${asset.dividendYield.toFixed(2)}%)`}
+                    </p>
+                  )}
+
+                  {tab === "CRYPTO" && asset.staking && (
+                    <div className="rounded-xl bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+                      <p className="font-semibold">
+                        {asset.staking.stakingPercent}% da posição em staking a {asset.staking.apyPercent}% a.a.
+                      </p>
+                      <p>
+                        Estimativa acumulada: {formatCurrency(asset.staking.estimatedYield)} ({asset.staking.daysHeld} dias)
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" size="sm" onClick={() => setTransactionTarget(asset.id)}>
+                      <ArrowLeftRight className="h-4 w-4" />
+                      Compra/Venda
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setIncomeTarget(asset.id)}>
+                      <Coins className="h-4 w-4" />
+                      Provento
+                    </Button>
+                    {tab === "CRYPTO" && (
+                      <Button variant="outline" size="sm" onClick={() => setStakingTarget(asset)}>
+                        <Percent className="h-4 w-4" />
+                        Staking
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+              ),
+            )}
+          </div>
+        </>
+      )}
+
+      {!isFixedIncome && <AssetFormModal open={formOpen} onClose={() => setFormOpen(false)} assetClass={tab as AssetClass} />}
+      {isFixedIncome && <FixedIncomeFormModal open={formOpen} onClose={() => setFormOpen(false)} />}
+      <FixedIncomeFormModal open={!!editFixedIncome} onClose={() => setEditFixedIncome(null)} fixedIncome={editFixedIncome} />
+      <TransactionModal assetId={transactionTarget} onClose={() => setTransactionTarget(null)} />
+      <AssetIncomeModal assetId={incomeTarget} onClose={() => setIncomeTarget(null)} />
+      <StakingConfigModal asset={stakingTarget} onClose={() => setStakingTarget(null)} />
+      <AddInterestModal fixedIncomeId={interestTarget} onClose={() => setInterestTarget(null)} />
+      <RedeemFixedIncomeModal fixedIncome={redeemTarget} onClose={() => setRedeemTarget(null)} />
+      <ConfirmModal
+        open={!!unredeemTarget}
+        onClose={() => setUnredeemTarget(null)}
+        title="Desfazer resgate"
+        confirmLabel="Desfazer resgate"
+        loading={unredeemFixedIncome.isPending}
+        onConfirm={() => {
+          if (!unredeemTarget) return;
+          unredeemFixedIncome.mutate(unredeemTarget.id, { onSuccess: () => setUnredeemTarget(null) });
+        }}
+        description={
+          unredeemTarget && (
+            <div className="flex flex-col gap-1">
+              <p>Isso vai voltar esta aplicação pro estado ativo, desfazendo o resgate abaixo:</p>
+              <div className="mt-1 rounded-xl surface-2 p-3">
+                <p className="font-semibold">{unredeemTarget.institution}</p>
+                <p>
+                  Valor resgatado: {formatCurrency(unredeemTarget.redeemedNetAmount ?? 0)} em{" "}
+                  {unredeemTarget.redeemedAt ? formatDate(unredeemTarget.redeemedAt) : "-"}
+                </p>
+                <p>Valor aplicado: {formatCurrency(unredeemTarget.principalAmount)}</p>
+              </div>
+              <p className="mt-1 text-xs">
+                Confira se é essa a aplicação certa antes de confirmar — se o resgate foi parcial, a fatia resgatada vira um registro
+                separado, então tem que desfazer o registro certo.
+              </p>
+            </div>
+          )
+        }
+      />
+    </div>
+  );
+}

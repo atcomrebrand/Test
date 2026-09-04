@@ -1,0 +1,118 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 250 250 252;
+  --surface: 255 255 255;
+  --surface-2: 246 246 249;
+  --border: 228 228 234;
+  --text: 23 23 28;
+  --text-muted: 110 110 122;
+  --ring: 109 91 255;
+}
+
+.dark {
+  --bg: 15 15 18;
+  --surface: 24 24 28;
+  --surface-2: 32 32 38;
+  --border: 42 42 50;
+  --text: 240 240 245;
+  --text-muted: 150 150 162;
+  --ring: 144 120 255;
+}
+
+* {
+  border-color: rgb(var(--border));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection {
+  background: rgb(var(--ring) / 0.25);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--border));
+  border-radius: 999px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.surface {
+  background-color: rgb(var(--surface));
+}
+.surface-2 {
+  background-color: rgb(var(--surface-2));
+}
+.text-muted {
+  color: rgb(var(--text-muted));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/*
+ * iOS Safari auto-zooms the whole page when a focused form field has a
+ * computed font-size under 16px, and doesn't zoom back out on blur — so
+ * every tap on a sub-16px input forces the user to manually pinch-zoom out
+ * afterwards. Force 16px on every text-entry field below the `sm` breakpoint
+ * as a safety net, on top of the shared Input/Select/Textarea components
+ * already using text-base for the same reason.
+ */
+/*
+ * O !important não é preguiça: sem ele esta regra não valia nada. `input` tem especificidade de
+ * elemento e perde de qualquer utilitário `.text-sm` do Tailwind, que é justamente o caso em que o
+ * zoom acontece — campo sem classe de tamanho nenhuma já não zoomava. A regra existia desde o
+ * começo e nunca chegou a proteger nada; nove campos passaram por baixo dela.
+ *
+ * 639.98px e não 640px porque o breakpoint `sm` do Tailwind é min-width 640px: em 640 exato as
+ * duas regras valiam ao mesmo tempo.
+ */
+@media (max-width: 639.98px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+/*
+ * Modo privacidade: o que o `formatCurrency` não alcança.
+ *
+ * Cada gráfico escreve seu próprio `tickFormatter` (o "12k" do eixo não passa por lugar nenhum
+ * comum), e o tooltip do recharts às vezes formata sozinho. Em vez de sair mexendo em sete
+ * formatadores diferentes — e ter que lembrar do oitavo no próximo gráfico —, o borrão pega todos
+ * de uma vez e passa a valer de graça pra qualquer gráfico novo.
+ *
+ * A LINHA E A BARRA CONTINUAM VISÍVEIS, de propósito: a forma da curva não diz quanto se tem, e
+ * esconder o gráfico inteiro deixaria a tela parecendo quebrada em vez de protegida.
+ */
+html.privacy .recharts-yAxis .recharts-cartesian-axis-tick-value,
+html.privacy .recharts-tooltip-wrapper {
+  filter: blur(5px);
+  user-select: none;
+}

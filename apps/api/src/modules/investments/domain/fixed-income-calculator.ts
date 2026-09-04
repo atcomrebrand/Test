@@ -1,0 +1,290 @@
+import { FixedIncomeIndexer, FixedIncomeType } from "@prisma/client";
+
+/** Standard Brazilian regressive IOF table — % of the gross yield retained, by day held (1-30).
+ *  Day 30 onward: 0% (IOF only applies to redemptions within 30 days of application). */
+const IOF_TABLE_BY_DAY: Record<number, number> = {
+  1: 96, 2: 93, 3: 90, 4: 86, 5: 83, 6: 80, 7: 76, 8: 73, 9: 70, 10: 66,
+  11: 63, 12: 60, 13: 56, 14: 53, 15: 50, 16: 46, 17: 43, 18: 40, 19: 36, 20: 33,
+  21: 30, 22: 26, 23: 23, 24: 20, 25: 16, 26: 13, 27: 10, 28: 6, 29: 3,
+};
+
+/** IR regressive table — types exempt from IR for individual investors (LCI/LCA) always return 0. */
+const IR_EXEMPT_TYPES: FixedIncomeType[] = ["LCI", "LCA"];
+
+/** Dias úteis num ano, a base sobre a qual o CDI é cotado no Brasil. */
+const DIAS_UTEIS_NO_ANO = 252;
+
+export interface FixedIncomeCalculationInput {
+  principalAmount: number;
+  /** Dinheiro que o usuário efetivamente aportou e ainda está aqui. Só difere do principalAmount
+   *  depois de um resgate parcial, quando o principal vira uma base de rendimento em vez do
+   *  dinheiro colocado. Omitido = os dois são a mesma coisa. */
+  contributedAmount?: number | null;
+  applicationDate: Date;
+  /** Date to value as of — "today" for the live dashboard, or a hypothetical redemption date. */
+  asOfDate: Date;
+  type: FixedIncomeType;
+  indexer: FixedIncomeIndexer;
+  fixedRatePercent?: number | null;
+  cdiPercent?: number | null;
+  /** Current annualized CDI rate (%), required for POS_FIXADO_CDI. */
+  cdiAnnualRate?: number | null;
+  /**
+   * Fator de rendimento já acumulado da série diária oficial do CDI pro período (1 = nada rendeu).
+   * Quando vem preenchido é ele que manda: é o mesmo número que o banco usa, dia útil por dia útil,
+   * com as mudanças de taxa no dia em que aconteceram. Sem ele o cálculo cai na `cdiAnnualRate`,
+   * que é uma extrapolação da taxa de hoje pro passado inteiro — serve, mas não bate cent a cent.
+   */
+  cdiAccrualFactor?: number | null;
+  /** Current 12-month accumulated IPCA rate (%), required for IPCA_MAIS. */
+  ipcaAnnualRate?: number | null;
+}
+
+export interface FixedIncomeCalculationResult {
+  daysElapsed: number;
+  grossValue: number;
+  grossYield: number;
+  iofRate: number;
+  iofAmount: number;
+  irRate: number;
+  irAmount: number;
+  netYield: number;
+  netValue: number;
+  grossProfitabilityPercent: number;
+  netProfitabilityPercent: number;
+  /** O que o usuário pôs de dinheiro e ainda está aqui — é isso que a tela chama de "Investido". */
+  contributedAmount: number;
+  /** Ganho de verdade: o que dá pra sacar hoje menos o que foi aportado. Sem resgate parcial é
+   *  idêntico ao netYield; depois de um, é ele que bate com o extrato, porque o netYield mede
+   *  contra a base de rendimento (inflada pelo juro que já tinha rendido) e não contra o aporte. */
+  netGain: number;
+  netGainPercent: number;
+}
+
+/**
+ * Dias corridos entre duas datas, comparando **calendário**, não instantes.
+ *
+ * IR e IOF são contados em dias corridos desde a aplicação — é aritmética de datas, e a hora
+ * gravada não pode entrar nisso. Sem normalizar, uma applicationDate com 3h de deslocamento fazia
+ * o `Math.floor` comer um dia e cair na faixa de IOF errada, enquanto a janela do CDI (que já
+ * normalizava) contava o dia certo. As duas contas discordavam em silêncio.
+ */
+function daysBetween(from: Date, to: Date): number {
+  const inicio = Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate());
+  const fim = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
+  return Math.max(0, Math.round((fim - inicio) / 86_400_000));
+}
+
+function compound(principal: number, annualRatePercent: number, days: number): number {
+  return principal * Math.pow(1 + annualRatePercent / 100, days / 365);
+}
+
+/**
+ * Converte "X% do CDI" na taxa anual que o papel realmente rende.
+ *
+ * Não é `CDI × X%`, por mais que pareça. O CDI é cotado ao ano sobre 252 dias úteis, e o papel
+ * rende **X% da taxa diária**, capitalizada dia a dia — o percentual entra antes da capitalização,
+ * não depois. Com CDI a 14,9%, um CDB de 130% rende 19,79% a.a., não os 19,37% que a conta linear
+ * sugere; sobre R$ 8.000 isso são uns R$ 12 de diferença em ~150 dias, e cresce com o tempo.
+ *
+ * Em 100% do CDI os dois caminhos dão exatamente a mesma coisa (é o ponto onde a curva toca a
+ * reta); acima disso a linear rende de menos, abaixo rende de mais.
+ */
+export function effectiveAnnualRateForCdi(cdiAnnualPercent: number, cdiPercent: number): number {
+  const cdiDiario = Math.pow(1 + cdiAnnualPercent / 100, 1 / DIAS_UTEIS_NO_ANO) - 1;
+  const papelDiario = cdiDiario * (cdiPercent / 100);
+  return (Math.pow(1 + papelDiario, DIAS_UTEIS_NO_ANO) - 1) * 100;
+}
+
+/**
+ * Acumula a série diária oficial do CDI num único fator de rendimento — é assim que o banco faz.
+ *
+ * Cada dia útil rende `taxa_do_dia × percentual_do_papel`, e os dias se multiplicam entre si. Como
+ * a série só traz dia útil, feriado e fim de semana ficam de fora sozinhos, sem precisar de
+ * calendário nenhum; e como cada dia carrega a taxa que valia naquele dia, uma mudança de Selic no
+ * meio do caminho não reescreve o passado.
+ *
+ * `dailyRatesPercent` vem em % ao dia, do jeito que o Bacen publica (ex.: 0.055131 = 0,055131%).
+ */
+export function accrueCdiFactor(dailyRatesPercent: number[], cdiPercent: number): number {
+  const share = cdiPercent / 100;
+  let factor = 1;
+  for (const daily of dailyRatesPercent) factor *= 1 + (daily / 100) * share;
+  return factor;
+}
+
+function isBusinessDay(date: Date): boolean {
+  const dow = date.getUTCDay();
+  return dow !== 0 && dow !== 6;
+}
+
+/**
+ * Que dia é hoje **no Brasil**, como data pura (meia-noite UTC).
+ *
+ * O servidor roda em UTC, e das 21h à meia-noite de Brasília o UTC já virou o dia seguinte. Usar
+ * `new Date()` direto fazia a liquidação pular um dia útil inteiro nesse intervalo — num domingo
+ * às 23h, o app achava que era segunda e liquidava na terça. Quem manda aqui é o calendário do
+ * mercado, não o do servidor.
+ */
+export function todayInBrazil(now: Date): Date {
+  const [year, month, day] = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  })
+    .format(now)
+    .split("-")
+    .map(Number);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
+/**
+ * Próximo dia útil depois de `date` — é nele que o dinheiro de um resgate cai, e é por isso que o
+ * extrato do banco mostra a posição avaliada nessa data e não "agora". Só considera fim de semana;
+ * feriado bancário faz o valor adiantar um dia, o que custa o rendimento de um dia até a série do
+ * Bacen alcançar (e aí se corrige sozinho).
+ */
+export function nextBusinessDay(date: Date): Date {
+  const next = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  do {
+    next.setUTCDate(next.getUTCDate() + 1);
+  } while (!isBusinessDay(next));
+  return next;
+}
+
+/**
+ * Quando o dinheiro cairia se o resgate fosse pedido agora.
+ *
+ * CDB de liquidez diária liquida **no mesmo dia útil** — só rola pra frente quando hoje não é dia
+ * útil. Usar `nextBusinessDay` direto sempre avançava um dia (o `do...while` nunca considera a data
+ * recebida), o que numa segunda-feira jogava a liquidação pra terça: um dia a mais de IOF e um dia
+ * útil a mais de rendimento.
+ *
+ * O erro passou batido porque a primeira conferência contra o extrato foi feita num domingo, e no
+ * domingo as duas regras dão a mesma resposta (segunda). Só numa leitura em dia útil elas se
+ * separam — foi o que apareceu ao comparar 6% (dia 28) com os 10% (dia 27) do banco.
+ */
+export function settlementDate(date: Date): Date {
+  const today = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  return isBusinessDay(today) ? today : nextBusinessDay(today);
+}
+
+/** Dias úteis (seg–sex) no intervalo [from, to], contando as duas pontas. 0 se from > to. */
+export function businessDaysBetween(from: Date, to: Date): number {
+  let count = 0;
+  const cursor = new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate()));
+  const end = Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), to.getUTCDate());
+  while (cursor.getTime() <= end) {
+    if (isBusinessDay(cursor)) count++;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return count;
+}
+
+function irRateForDays(days: number): number {
+  if (days <= 180) return 22.5;
+  if (days <= 360) return 20;
+  if (days <= 720) return 17.5;
+  return 15;
+}
+
+function iofRateForDays(days: number): number {
+  if (days >= 30) return 0;
+  return IOF_TABLE_BY_DAY[Math.max(1, days)] ?? 0;
+}
+
+function grossValueFor(input: FixedIncomeCalculationInput, days: number): number {
+  const { principalAmount, indexer, fixedRatePercent, cdiPercent, cdiAnnualRate, ipcaAnnualRate } = input;
+
+  switch (indexer) {
+    case "PREFIXADO":
+      return compound(principalAmount, fixedRatePercent ?? 0, days);
+    case "POS_FIXADO_CDI": {
+      if (input.cdiAccrualFactor != null) return principalAmount * input.cdiAccrualFactor;
+      const effectiveAnnual = effectiveAnnualRateForCdi(cdiAnnualRate ?? 0, cdiPercent ?? 100);
+      return compound(principalAmount, effectiveAnnual, days);
+    }
+    case "IPCA_MAIS": {
+      const withIpca = compound(principalAmount, ipcaAnnualRate ?? 0, days);
+      return compound(withIpca, fixedRatePercent ?? 0, days);
+    }
+    case "OUTRO":
+    default:
+      return compound(principalAmount, fixedRatePercent ?? 0, days);
+  }
+}
+
+/**
+ * The "grande diferencial" of the renda fixa module: every application always exposes both
+ * bruto and líquido values, with IR and IOF broken out — never just the gross number.
+ *
+ * IOF (when redeeming within 30 days) is deducted from the gross yield first; IR is then applied
+ * on what remains, matching how Receita Federal actually orders the two. LCI/LCA are IR-exempt
+ * for individual investors regardless of holding period.
+ */
+export function calculateFixedIncome(input: FixedIncomeCalculationInput): FixedIncomeCalculationResult {
+  const days = daysBetween(input.applicationDate, input.asOfDate);
+  const grossValue = grossValueFor(input, days);
+  const grossYield = grossValue - input.principalAmount;
+
+  const iofRate = iofRateForDays(days);
+  const iofAmount = grossYield > 0 ? grossYield * (iofRate / 100) : 0;
+  const yieldAfterIof = grossYield - iofAmount;
+
+  const isIrExempt = IR_EXEMPT_TYPES.includes(input.type);
+  const irRate = isIrExempt ? 0 : irRateForDays(days);
+  const irAmount = yieldAfterIof > 0 ? yieldAfterIof * (irRate / 100) : 0;
+
+  const netYield = grossYield - iofAmount - irAmount;
+  const netValue = input.principalAmount + netYield;
+
+  const contributedAmount = input.contributedAmount ?? input.principalAmount;
+  const netGain = netValue - contributedAmount;
+
+  return {
+    daysElapsed: days,
+    grossValue,
+    grossYield,
+    iofRate,
+    iofAmount,
+    irRate,
+    irAmount,
+    netYield,
+    netValue,
+    grossProfitabilityPercent: input.principalAmount > 0 ? (grossYield / input.principalAmount) * 100 : 0,
+    netProfitabilityPercent: input.principalAmount > 0 ? (netYield / input.principalAmount) * 100 : 0,
+    contributedAmount,
+    netGain,
+    netGainPercent: contributedAmount > 0 ? (netGain / contributedAmount) * 100 : 0,
+  };
+}
+
+/**
+ * Inverts calculateFixedIncome's linearity for a partial redemption: given the full position's
+ * current principal and net value, finds how much principal needs to be split off so that slice's
+ * net value equals `targetNetValue` — the cash the user actually wants to walk away with today,
+ * not a slice of the original principal. May return a value greater than `fullPrincipal` when the
+ * target exceeds what's available; callers must guard that case (nothing to redeem against).
+ */
+export function principalForTargetNetValue(fullPrincipal: number, fullNetValue: number, targetNetValue: number): number {
+  if (fullPrincipal <= 0 || fullNetValue <= 0) return 0;
+  return (targetNetValue / fullNetValue) * fullPrincipal;
+}
+
+/**
+ * Divide o dinheiro aportado entre a fatia sacada e o que fica, em regime de caixa: quem saca
+ * R$ 2.000 de um CDB onde pôs R$ 10.000 está tirando R$ 2.000 do próprio dinheiro — sobram
+ * R$ 8.000 aportados, exatamente como o banco mostra. O ganho só aparece quando o saque passa de
+ * tudo que foi aportado; daí a fatia leva o aporte inteiro e o resto (o lucro) fica com ela.
+ *
+ * Isso é deliberadamente diferente de como o principalAmount se divide num resgate parcial: lá a
+ * divisão é proporcional porque ele é a base que rende juro, e o valor bruto/líquido tem que
+ * continuar fechando cent a cent. As duas coisas coexistem — uma diz quanto vale, a outra quanto
+ * custou.
+ */
+export function splitContribution(contributed: number, withdrawnNetAmount: number): { withdrawn: number; remaining: number } {
+  const base = Math.max(0, contributed);
+  const withdrawn = Math.min(Math.max(0, withdrawnNetAmount), base);
+  return { withdrawn, remaining: base - withdrawn };
+}
