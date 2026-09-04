@@ -638,6 +638,24 @@ indicador despencaria toda semana por um motivo que não é o desempenho de ning
 está em 82,5 fez 12,5% do caminho, não 82,5% — contar do zero mostraria uma barra quase cheia no
 primeiro dia e quase parada por meses.
 
+**O desenho do boneco não é nosso, e isso foi decisão.** Os polígonos vêm do pacote
+`react-body-highlighter` (MIT, Copyright (c) 2020 GV79) e estão **vendorizados** em `bodyPaths.ts`,
+gerados por `node scripts/gen-body-paths.js`. A primeira versão da tela usava formas desenhadas à
+mão e nunca passou de blocos arredondados: proporção humana e separação muscular de verdade
+(peitoral, oblíquos, gomos do abdômen, dorsal, sóleo) é trabalho de ilustração, não de ajuste de
+coordenada. O dado é copiado em vez de importado porque o pacote **não exporta os polígonos** — só o
+componente dele, que pinta por frequência de exercício; usá-lo custaria os dois modos, o contorno do
+selecionado e o rótulo acessível por região. Fica o desenho deles com o comportamento nosso, e sem
+dependência em tempo de execução. **3D foi descartado**: `three.js` sozinho é ~600 KB comprimidos
+(o bundle inteiro tem 2,1 MB) e o modelo com malhas nomeadas por músculo custa vários MB — caro
+demais numa VPS de 1 GB pra uma tela que se olha de relance, e a resposta seria a mesma.
+
+**O corpo em repouso usa `rgb(var(--text-muted) / 0.28)`, não `surface-2`.** O token de superfície é
+quase branco no tema claro, e a base do boneco (cabeça, joelhos) sumia dentro do cartão — o corpo
+aparecia sem cabeça. Pelo mesmo motivo o cartão do boneco tem fundo neutro em vez do lima do módulo.
+**O token é `--text-muted`; `--muted` não existe** e cai pra preto em silêncio, que foi como a
+cabeça apareceu preta durante o ajuste.
+
 **O mapa muscular pinta SÉRIES, nunca quilos.** É a decisão que faz o boneco (aba Corpo, em
 `/academia/progresso`) dizer a verdade. Volume em kg não é comparável entre músculos: um leg press
 soma 10.000 kg no mesmo esforço em que uma elevação lateral soma 800, então a perna ficaria

@@ -105,7 +105,9 @@ export function Corpo() {
         </div>
       )}
 
-      <div className={cn("rounded-3xl border p-4", GYM.border, GYM.soft)}>
+      {/* Fundo neutro, e não o lima do módulo: a base do corpo (e o músculo não treinado) é cinza
+          claro, e sobre o lima ela sumia — o boneco aparecia sem cabeça e sem as partes em repouso. */}
+      <div className="rounded-3xl border border-[rgb(var(--border))] surface p-4">
         <div className="mb-2 flex justify-center gap-1">
           {(
             [
@@ -120,7 +122,7 @@ export function Corpo() {
               aria-pressed={vistaAtual === value}
               className={cn(
                 "rounded-full px-3 py-1 text-xs font-semibold transition-colors",
-                vistaAtual === value ? "surface shadow-sm" : "text-muted hover:surface",
+                vistaAtual === value ? "surface-2 shadow-sm" : "text-muted hover:surface-2",
               )}
             >
               {label}
@@ -128,7 +130,7 @@ export function Corpo() {
           ))}
         </div>
 
-        <div className="mx-auto h-[380px] max-w-[240px]">
+        <div className="mx-auto h-[420px] max-w-[210px]">
           <BodyMap
             view={vistaAtual}
             muscles={musculos}
@@ -177,8 +179,8 @@ export function Corpo() {
               <span className="flex min-w-0 items-center gap-2">
                 <span
                   aria-hidden
-                  className={cn("h-2.5 w-2.5 shrink-0 rounded-full", nivel === "NENHUM" && "border border-[rgb(var(--border))]")}
-                  style={{ backgroundColor: { NENHUM: "rgb(var(--surface-2))", POUCO: "#10B981", MEDIO: "#FBBF24", MUITO: "#EF4444" }[nivel] }}
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ backgroundColor: { NENHUM: "rgb(var(--text-muted) / 0.28)", POUCO: "#10B981", MEDIO: "#FBBF24", MUITO: "#EF4444" }[nivel] }}
                 />
                 <span className="truncate">{MUSCLE_LABEL[m.muscle]}</span>
               </span>
@@ -258,12 +260,12 @@ function DetalheMusculo({
               </defs>
               <XAxis
                 dataKey="week"
-                tick={{ fontSize: 10, fill: "rgb(var(--muted))" }}
+                tick={{ fontSize: 10, fill: "rgb(var(--text-muted))" }}
                 tickFormatter={(d: string) => formatDate(d, { day: "2-digit", month: "2-digit" })}
                 tickLine={false}
                 axisLine={false}
               />
-              <YAxis tick={{ fontSize: 10, fill: "rgb(var(--muted))" }} tickLine={false} axisLine={false} width={44} />
+              <YAxis tick={{ fontSize: 10, fill: "rgb(var(--text-muted))" }} tickLine={false} axisLine={false} width={44} />
               <Tooltip
                 contentStyle={{ borderRadius: 12, border: "1px solid rgb(var(--border))", background: "rgb(var(--surface))", fontSize: 13 }}
                 labelFormatter={(d: string) => `Semana de ${formatDate(d, { day: "2-digit", month: "short" })}`}

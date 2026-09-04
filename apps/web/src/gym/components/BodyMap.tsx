@@ -1,7 +1,7 @@
 import { cn } from "@/lib/cn";
 import { GymMuscle, MuscleLoad } from "../types";
 import { MUSCLE_LABEL } from "../theme";
-import { BODY, BodyView, NEUTRAL_SHAPES } from "./bodyPaths";
+import { BODY, BodyView, NEUTRAL_SHAPES, VIEWBOX } from "./bodyPaths";
 
 export type MapMode = "CARGA" | "ATENCAO";
 
@@ -13,7 +13,10 @@ export type MapMode = "CARGA" | "ATENCAO";
  * aparece no texto da legenda, na lista abaixo do boneco e no painel de detalhe.
  */
 const CORES: Record<string, { fill: string; stroke: string }> = {
-  NENHUM: { fill: "rgb(var(--surface-2))", stroke: "rgb(var(--border))" },
+  // Cinza tirado do tom de texto apagado, com transparência: `surface-2` é quase branco no tema
+  // claro e o corpo em repouso sumia no fundo do cartão. Assim ele fica visível como corpo nos dois
+  // temas, e ainda assim discreto o bastante pra não competir com o que foi treinado.
+  NENHUM: { fill: "rgb(var(--text-muted) / 0.28)", stroke: "rgb(var(--surface))" },
   POUCO: { fill: "#10B981", stroke: "#059669" },
   MEDIO: { fill: "#FBBF24", stroke: "#D97706" },
   MUITO: { fill: "#EF4444", stroke: "#DC2626" },
@@ -48,14 +51,13 @@ export function BodyMap({ view, muscles, mode, selected, onSelect }: Props) {
   const porMusculo = new Map(muscles.map((m) => [m.muscle, m]));
 
   return (
-    <svg viewBox="0 0 200 420" className="h-full w-full" role="group" aria-label={view === "FRONT" ? "Corpo de frente" : "Corpo de costas"}>
-      {/* A base não recebe toque: sem isso ela rouba o clique no vão entre as duas metades de um
-          músculo — o centro do peito, que é onde o dedo pousa, acertava o tronco. */}
-      {NEUTRAL_SHAPES[view].map((d, i) => (
-        <path key={i} d={d} fill="rgb(var(--surface-2))" stroke="rgb(var(--border))" strokeWidth={1.5} pointerEvents="none" />
+    <svg viewBox={VIEWBOX} className="h-full w-full" role="group" aria-label={view === "FRONT" ? "Corpo de frente" : "Corpo de costas"}>
+      {/* A base não recebe toque: sem isso ela roubaria o clique nas costuras entre polígonos. */}
+      {NEUTRAL_SHAPES[view].map((pts, i) => (
+        <polygon key={i} points={pts} fill="rgb(var(--text-muted) / 0.28)" stroke="rgb(var(--surface))" strokeWidth={0.4} pointerEvents="none" />
       ))}
 
-      {BODY[view].map(({ muscle, paths, hit }) => {
+      {BODY[view].map(({ muscle, points }) => {
         const dado = porMusculo.get(muscle);
         const nivel = dado ? nivelDe(dado, mode) : "NENHUM";
         const cor = CORES[nivel];
@@ -78,20 +80,18 @@ export function BodyMap({ view, muscles, mode, selected, onSelect }: Props) {
             aria-label={`${MUSCLE_LABEL[muscle]}: ${dado ? `${dado.sets} séries` : "sem treino"}`}
             className="cursor-pointer outline-none"
           >
-            {paths.map((d, i) => (
-              <path
+            {/* Os próprios polígonos são a área de toque: eles seguem o contorno do músculo, então
+                o alvo é anatomicamente o que a pessoa está vendo. O contorno branco fino é o que
+                separa uma região da vizinha sem precisar de traço escuro. */}
+            {points.map((pts, i) => (
+              <polygon
                 key={i}
-                d={d}
+                points={pts}
                 fill={cor.fill}
-                stroke={ativo ? "rgb(var(--text))" : cor.stroke}
-                strokeWidth={ativo ? 2.5 : 1.5}
-                pointerEvents="none"
+                stroke={ativo ? "rgb(var(--text))" : "rgb(var(--surface))"}
+                strokeWidth={ativo ? 1.2 : 0.4}
                 className="transition-[fill,stroke,stroke-width] duration-200"
               />
-            ))}
-            {/* A área de toque por cima, invisível: o alvo é a região, não o desenho. */}
-            {hit.map((d, i) => (
-              <path key={`h${i}`} d={d} fill="transparent" />
             ))}
           </g>
         );
@@ -122,7 +122,7 @@ export function BodyLegend({ mode }: { mode: MapMode }) {
       {faixas.map(([nivel, label]) => (
         <span key={nivel} className="flex items-center gap-1.5 text-[11px] text-muted">
           <span
-            className={cn("h-3 w-3 shrink-0 rounded", nivel === "NENHUM" && "border border-[rgb(var(--border))]")}
+            className="h-3 w-3 shrink-0 rounded"
             style={{ backgroundColor: CORES[nivel].fill }}
           />
           {label}
