@@ -9,6 +9,7 @@ import {
   Wallet,
   CalendarDays,
   FileBarChart,
+  FileText,
   TrendingUp,
   History,
   Search,
@@ -26,6 +27,7 @@ export const TRACKING_NAV = [
   { to: "/horas/entradas", label: "Entradas", icon: Wallet },
   { to: "/horas/calendario", label: "Calendário", icon: CalendarDays },
   { to: "/horas/relatorios", label: "Relatórios", icon: FileBarChart },
+  { to: "/horas/extrato", label: "Extrato", icon: FileText },
   { to: "/horas/estatisticas", label: "Estatísticas", icon: TrendingUp },
   { to: "/horas/historico", label: "Histórico", icon: History },
   { to: "/horas/busca", label: "Busca", icon: Search },
@@ -34,7 +36,8 @@ export const TRACKING_NAV = [
 export function TrackingLayout() {
   return (
     <div className="flex min-h-screen flex-col">
-      <header className="surface sticky top-0 z-20 border-b border-[rgb(var(--border))] pt-[env(safe-area-inset-top)]">
+      {/* Fora da impressão: no papel do extrato só entra o documento. */}
+      <header className="surface sticky top-0 z-20 border-b border-[rgb(var(--border))] pt-[env(safe-area-inset-top)] print:hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 md:px-6">
           <div className="flex items-center gap-3">
             <NavLink

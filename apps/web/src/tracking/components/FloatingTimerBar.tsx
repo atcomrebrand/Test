@@ -26,7 +26,7 @@ export function FloatingTimerBar() {
 
   return (
     <>
-    <div className="fixed inset-x-3 bottom-[calc(4.75rem_+_env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-[rgb(var(--border))] surface px-4 py-3 shadow-elevated md:inset-x-auto md:bottom-4 md:right-4 md:w-80">
+    <div className="print:hidden fixed inset-x-3 bottom-[calc(4.75rem_+_env(safe-area-inset-bottom))] z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-[rgb(var(--border))] surface px-4 py-3 shadow-elevated md:inset-x-auto md:bottom-4 md:right-4 md:w-80">
       <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${session.status === "RUNNING" ? "animate-pulse bg-emerald-500" : "bg-amber-500"}`} />
       <Link to="/horas" className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium text-muted">

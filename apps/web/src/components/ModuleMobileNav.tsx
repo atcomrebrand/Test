@@ -56,7 +56,7 @@ export function ModuleMobileNav({ items, primaryPaths, activeClass, sheetActiveC
       {createPortal(
         <AnimatePresence>
           {open && (
-            <div className="fixed inset-0 z-40 md:hidden">
+            <div className="fixed inset-0 z-40 md:hidden print:hidden">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -120,7 +120,8 @@ export function ModuleMobileNav({ items, primaryPaths, activeClass, sheetActiveC
         document.body,
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around border-t border-[rgb(var(--border))] surface px-2 pb-[calc(0.5rem_+_env(safe-area-inset-bottom))] pt-2 md:hidden">
+      {/* Fora da impressão: navegação não vai pro papel. */}
+      <nav className="fixed inset-x-0 bottom-0 z-30 flex items-center justify-around print:hidden border-t border-[rgb(var(--border))] surface px-2 pb-[calc(0.5rem_+_env(safe-area-inset-bottom))] pt-2 md:hidden">
         {primary.map(({ to, label, shortLabel, icon: Icon, end }) => (
           <NavLink
             key={to}

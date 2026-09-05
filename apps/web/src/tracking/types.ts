@@ -245,3 +245,58 @@ export interface TrackingSearchResult {
   amount: number;
   date: string;
 }
+
+// ---------------------------------------------------------------------------
+// Extrato
+// ---------------------------------------------------------------------------
+
+export type StatementLang = "PT" | "EN";
+/** PERSONAL vê tudo; COMPANY nunca vê dinheiro — e o corte é feito no servidor. */
+export type StatementAudience = "PERSONAL" | "COMPANY";
+
+export interface StatementSession {
+  date: string;
+  checkIn: string;
+  checkOut: string | null;
+  netSeconds: number;
+  /** Sempre 0 na versão da empresa. */
+  value: number;
+  notes: string | null;
+  notesTranslated?: string | null;
+  placement: number | null;
+  satisfactionPercent: number | null;
+  responseMinutes: number | null;
+}
+
+export interface StatementMetric {
+  best: number;
+  average: number;
+  days: number;
+}
+
+export interface TrackingStatement {
+  job: { id: string; name: string; company: string; client: string | null; type: TrackingJobType; tracksPlacement: boolean };
+  period: { from: string; to: string };
+  lang: StatementLang;
+  audience: StatementAudience;
+  translation: { requested: boolean; available: boolean; applied: boolean };
+  generatedAt: string;
+  totals: {
+    netSeconds: number;
+    hours: number;
+    daysWorked: number;
+    sessions: number;
+    averageHoursPerWorkedDay: number;
+    /** `null` na versão da empresa — é assim que a tela sabe que não deve mostrar. */
+    totalValue: number | null;
+    averageHourlyRate: number | null;
+  };
+  byDay: { date: string; hours: number; sessions: number }[];
+  placement: {
+    placement: StatementMetric | null;
+    satisfaction: StatementMetric | null;
+    responseMinutes: StatementMetric | null;
+    points: { date: string; placement: number | null; satisfactionPercent: number | null; responseMinutes: number | null }[];
+  } | null;
+  sessions: StatementSession[];
+}

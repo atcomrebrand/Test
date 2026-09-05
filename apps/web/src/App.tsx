@@ -66,6 +66,7 @@ import Sessions from "./tracking/pages/Sessions";
 import Incomes from "./tracking/pages/Incomes";
 import CalendarView from "./tracking/pages/CalendarView";
 import Reports from "./tracking/pages/Reports";
+import Statement from "./tracking/pages/Statement";
 import Stats from "./tracking/pages/Stats";
 import TrackingHistory from "./tracking/pages/HistoryPage";
 import TrackingSearch from "./tracking/pages/Search";
@@ -146,6 +147,7 @@ export default function App() {
           <Route path="/horas/entradas" element={<Incomes />} />
           <Route path="/horas/calendario" element={<CalendarView />} />
           <Route path="/horas/relatorios" element={<Reports />} />
+          <Route path="/horas/extrato" element={<Statement />} />
           <Route path="/horas/estatisticas" element={<Stats />} />
           <Route path="/horas/historico" element={<TrackingHistory />} />
           <Route path="/horas/busca" element={<TrackingSearch />} />

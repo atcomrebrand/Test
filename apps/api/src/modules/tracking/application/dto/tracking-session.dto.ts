@@ -1,5 +1,5 @@
 import { Type } from "class-transformer";
-import { IsDateString, IsInt, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
+import { IsDateString, IsIn, IsInt, IsNumber, IsOptional, IsString, Max, Min } from "class-validator";
 
 /**
  * Os três números da colocação do dia.
@@ -56,4 +56,29 @@ export class CreateManualSessionDto {
   @IsOptional()
   @IsString()
   notes?: string;
+}
+
+/**
+ * Parâmetros do extrato.
+ *
+ * `audience` chega como parâmetro e é conferido no servidor porque é ele que decide se o dinheiro
+ * entra na resposta — o corte não pode depender da tela.
+ */
+export class StatementQueryDto {
+  @IsString()
+  jobId!: string;
+
+  @IsDateString()
+  from!: string;
+
+  @IsDateString()
+  to!: string;
+
+  @IsOptional()
+  @IsIn(["PT", "EN"])
+  lang?: "PT" | "EN";
+
+  @IsOptional()
+  @IsIn(["PERSONAL", "COMPANY"])
+  audience?: "PERSONAL" | "COMPANY";
 }

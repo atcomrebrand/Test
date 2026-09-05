@@ -101,7 +101,7 @@ export function AssistantWidget() {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-label={open ? "Fechar assistente" : "Abrir assistente"}
-        className="fixed bottom-[calc(9rem_+_env(safe-area-inset-bottom))] right-0 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-accent-500 text-white shadow-elevated transition-transform active:scale-95 md:bottom-20 md:right-0"
+        className="fixed bottom-[calc(9rem_+_env(safe-area-inset-bottom))] right-0 z-40 print:hidden flex h-14 w-14 items-center justify-center rounded-full bg-accent-500 text-white shadow-elevated transition-transform active:scale-95 md:bottom-20 md:right-0"
       >
         {open ? <X className="h-6 w-6" /> : <Bot className="h-6 w-6" />}
       </button>
@@ -113,7 +113,7 @@ export function AssistantWidget() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 12, scale: 0.98 }}
             transition={{ duration: 0.15 }}
-            className="fixed bottom-[calc(15rem_+_env(safe-area-inset-bottom))] right-4 z-40 flex h-[32rem] max-h-[70vh] w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[rgb(var(--border))] surface shadow-elevated md:bottom-40 md:right-6"
+            className="fixed bottom-[calc(15rem_+_env(safe-area-inset-bottom))] right-4 z-40 print:hidden flex h-[32rem] max-h-[70vh] w-96 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[rgb(var(--border))] surface shadow-elevated md:bottom-40 md:right-6"
           >
             <div className="flex items-center justify-between border-b border-[rgb(var(--border))] px-4 py-3">
               <div className="min-w-0">

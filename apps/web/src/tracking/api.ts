@@ -4,6 +4,9 @@ import { api } from "@/lib/api";
 import {
   PlacementJob,
   PlacementPoint,
+  StatementAudience,
+  StatementLang,
+  TrackingStatement,
   ReportPeriod,
   TrackingCalendarDay,
   TrackingDashboardSummary,
@@ -180,6 +183,29 @@ export function usePlacementEvolution() {
   return useQuery({
     queryKey: ["tracking", "placement", "evolution"],
     queryFn: () => api.get<PlacementJob[]>("/tracking/placement/evolution"),
+  });
+}
+
+/**
+ * O extrato de um trabalho num período.
+ *
+ * `enabled` guarda a consulta até haver trabalho escolhido: sem isso a tela dispararia uma
+ * requisição inútil (e, em inglês, uma tradução paga) assim que abrisse.
+ */
+export function useTrackingStatement(params: {
+  jobId: string | null;
+  from: string;
+  to: string;
+  lang: StatementLang;
+  audience: StatementAudience;
+}) {
+  return useQuery({
+    queryKey: ["tracking", "statement", params],
+    queryFn: () =>
+      api.get<TrackingStatement>("/tracking/statement", {
+        params: { jobId: params.jobId, from: params.from, to: params.to, lang: params.lang, audience: params.audience },
+      }),
+    enabled: !!params.jobId && !!params.from && !!params.to,
   });
 }
 

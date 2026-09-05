@@ -7,6 +7,7 @@ import { TrackingDashboardController } from "./interface/tracking-dashboard.cont
 import { TrackingCalendarController } from "./interface/tracking-calendar.controller";
 import { TrackingReportsController } from "./interface/tracking-reports.controller";
 import { TrackingPlacementController } from "./interface/tracking-placement.controller";
+import { TrackingStatementController } from "./interface/tracking-statement.controller";
 import { TrackingStatsController } from "./interface/tracking-stats.controller";
 import { TrackingHistoryController } from "./interface/tracking-history.controller";
 import { TrackingSearchController } from "./interface/tracking-search.controller";
@@ -19,6 +20,8 @@ import { TrackingDashboardService } from "./application/tracking-dashboard.servi
 import { TrackingCalendarService } from "./application/tracking-calendar.service";
 import { TrackingReportsService } from "./application/tracking-reports.service";
 import { TrackingPlacementService } from "./application/tracking-placement.service";
+import { TrackingStatementService } from "./application/tracking-statement.service";
+import { TrackingTranslationService } from "./application/tracking-translation.service";
 import { TrackingStatsService } from "./application/tracking-stats.service";
 import { TrackingHistoryService } from "./application/tracking-history.service";
 import { TrackingSearchService } from "./application/tracking-search.service";
@@ -53,6 +56,7 @@ import { CurrencyApiFxProvider } from "./infrastructure/providers/currency-api-f
     TrackingReportsController,
     TrackingStatsController,
     TrackingPlacementController,
+    TrackingStatementController,
     TrackingHistoryController,
     TrackingSearchController,
     TrackingExportController,
@@ -67,6 +71,8 @@ import { CurrencyApiFxProvider } from "./infrastructure/providers/currency-api-f
     TrackingReportsService,
     TrackingStatsService,
     TrackingPlacementService,
+    TrackingStatementService,
+    TrackingTranslationService,
     TrackingHistoryService,
     TrackingSearchService,
     TrackingExportService,

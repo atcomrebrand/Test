@@ -163,11 +163,12 @@ model User {
   pushSubscriptions   PushSubscription[]
   webauthnCredentials WebAuthnCredential[]
 
-  trackingJobs        TrackingJob[]
-  trackingSessions    TrackingSession[]
-  trackingIncomes     TrackingIncome[]
-  trackingAuditLogs   TrackingAuditLog[]
-  trackingJobPayments TrackingJobPayment[]
+  trackingJobs             TrackingJob[]
+  trackingSessions         TrackingSession[]
+  trackingIncomes          TrackingIncome[]
+  trackingAuditLogs        TrackingAuditLog[]
+  trackingNoteTranslations TrackingNoteTranslation[]
+  trackingJobPayments      TrackingJobPayment[]
 
   householdBillCategories   HouseholdBillCategory[]
   householdIncomeCategories HouseholdIncomeCategory[]
@@ -1034,6 +1035,31 @@ model TrackingIncome {
 
 /// Unlike InvestmentAuditLog (which only ever stores the new value), this keeps both `before` and
 /// `after` so edits to check-in/check-out times and values show a real diff in the Histórico page.
+/// Tradução guardada de um texto escrito pelo usuário (observação de sessão), pro extrato em outro
+/// idioma.
+///
+/// A chave é o **hash do texto de origem**, não o id da sessão. É o que faz a coisa se corrigir
+/// sozinha: editar a observação muda o hash, o cache erra, e a tradução é refeita — sem precisar de
+/// nenhuma invalidação explícita. Duas sessões com a mesma frase compartilham uma tradução só.
+///
+/// Fica por usuário porque o texto é conteúdo privado dele; não é dado global.
+model TrackingNoteTranslation {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// SHA-256 do texto de origem, em hex.
+  sourceHash String
+  /// Idioma de destino ("EN"). O de origem é sempre o que a pessoa escreveu.
+  lang       String
+  text       String
+
+  createdAt DateTime @default(now())
+
+  @@unique([userId, sourceHash, lang])
+  @@map("tracking_note_translations")
+}
+
 model TrackingAuditLog {
   id        String   @id @default(cuid())
   userId    String
