@@ -1,0 +1,299 @@
+import { BadRequestException, ForbiddenException, NotFoundException } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { InvestmentFixedIncome } from "@prisma/client";
+import { PrismaService } from "../../../prisma/prisma.service";
+import { FixedIncomeRepository } from "../domain/fixed-income.repository";
+import {
+  accrueCdiFactor,
+  businessDaysBetween,
+  calculateFixedIncome,
+  settlementDate,
+  principalForTargetNetValue,
+  splitContribution,
+  todayInBrazil,
+} from "../domain/fixed-income-calculator";
+import { DailyCdiWindow, EconomicIndicatorCacheService } from "../infrastructure/economic-indicator-cache.service";
+import { EvolutionCacheService } from "../infrastructure/evolution-cache.service";
+import { AddFixedIncomeInterestDto, CreateFixedIncomeDto, RedeemFixedIncomeDto, UpdateFixedIncomeDto } from "./dto/fixed-income.dto";
+
+@Injectable()
+export class FixedIncomesService {
+  constructor(
+    private readonly fixedIncomes: FixedIncomeRepository,
+    private readonly indicators: EconomicIndicatorCacheService,
+    private readonly prisma: PrismaService,
+    private readonly evolutionCache: EvolutionCacheService,
+  ) {}
+
+  private async assertPortfolio(userId: string, portfolioId: string) {
+    const carteira = await this.prisma.investmentPortfolio.findFirst({
+      where: { id: portfolioId, userId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!carteira) throw new NotFoundException("Carteira não encontrada.");
+  }
+
+  /** Sem carteira = a principal. Ver o comentário em FixedIncomeRepository.findAllByUser: é esse
+   *  padrão que mantém dashboard, patrimônio e gráfico somando só o seu dinheiro. */
+  async findAll(userId: string, portfolioId: string | null = null) {
+    const rows = await this.fixedIncomes.findAllByUser(userId, portfolioId);
+    return Promise.all(rows.map((row) => this.enrich(row)));
+  }
+
+  async findOne(userId: string, id: string) {
+    const fixedIncome = await this.getOwned(userId, id);
+    const [enriched, incomes] = await Promise.all([this.enrich(fixedIncome), this.fixedIncomes.listIncomes(id)]);
+    return { ...enriched, incomeHistory: incomes };
+  }
+
+  async create(userId: string, dto: CreateFixedIncomeDto) {
+    // Carteira conferida antes de gravar: sem isso, um id chutado escreveria na carteira de outra
+    // conta. A checagem é aqui e não pelo serviço de carteiras porque aquele depende deste pra
+    // somar — injetar de volta fecharia um ciclo por causa de uma consulta de duas linhas.
+    if (dto.portfolioId) await this.assertPortfolio(userId, dto.portfolioId);
+
+    const fixedIncome = await this.fixedIncomes.create({
+      userId,
+      portfolioId: dto.portfolioId ?? null,
+      institution: dto.institution,
+      type: dto.type,
+      principalAmount: dto.principalAmount,
+      applicationDate: new Date(dto.applicationDate),
+      maturityDate: new Date(dto.maturityDate),
+      liquidity: dto.liquidity,
+      indexer: dto.indexer,
+      fixedRatePercent: dto.fixedRatePercent,
+      cdiPercent: dto.cdiPercent,
+      notes: dto.notes,
+    });
+    // O gráfico guarda a janela por minutos pra não refazer as séries de preço a cada aba. Quem
+    // acabou de cadastrar espera ver a aplicação lá agora, não no fim do TTL.
+    this.evolutionCache.invalidateUser(userId);
+    return this.enrich(fixedIncome);
+  }
+
+  async update(userId: string, id: string, dto: UpdateFixedIncomeDto) {
+    await this.getOwned(userId, id);
+
+    const { applicationDate, maturityDate, ...rest } = dto;
+    const data: Record<string, unknown> = { ...rest };
+    // Datas chegam como string ISO do DTO; o Prisma aceita, mas converter aqui deixa explícito
+    // que o campo é data e evita depender desse detalhe do driver.
+    if (applicationDate !== undefined) data.applicationDate = new Date(applicationDate);
+    if (maturityDate !== undefined) data.maturityDate = new Date(maturityDate);
+
+    // `principalAmount` agora é editável (era só por SQL). Ele NÃO arrasta `contributedAmount`
+    // junto de propósito: os dois respondem perguntas diferentes — base de rendimento contra
+    // dinheiro do próprio bolso ainda aplicado — e só o resgate parcial mexe nos dois de uma vez.
+    // Corrigir o principal à mão pra bater com o extrato é caso de uso legítimo e documentado.
+    const updated = await this.fixedIncomes.update(id, data);
+    this.evolutionCache.invalidateUser(userId);
+    return this.enrich(updated);
+  }
+
+  async remove(userId: string, id: string) {
+    await this.getOwned(userId, id);
+    await this.fixedIncomes.softDelete(id);
+    this.evolutionCache.invalidateUser(userId);
+    return { id };
+  }
+
+  /**
+   * Marks the application as redeemed at a given date (today by default), locking in the net
+   * value at that moment. `dto.amount` lets this be a partial redemption — and it means the net
+   * cash the user actually wants to walk away with today (what lands in the bank account), not a
+   * slice of the original principal. We back-solve how much principal needs to be split off so its
+   * net value matches that target (calculateFixedIncome's net value is linear in principalAmount,
+   * so this is a simple proportion — see principalForTargetNetValue). That slice becomes its own
+   * application record, already resgatada, with the same terms/dates as the original; the original
+   * keeps the remaining principal, still active and accruing.
+   *
+   * O principal e o dinheiro aportado se dividem por critérios diferentes, de propósito. O
+   * principal é a base que rende juro, então a divisão tem que ser proporcional pro bruto/líquido
+   * continuar fechando cent a cent: sacar R$ 2.000 líquidos de uma posição de R$ 10.048,27 consome
+   * ~R$ 1.990 de base. Já o dinheiro aportado sai em regime de caixa — quem pôs R$ 10.000 e tirou
+   * R$ 2.000 tem R$ 8.000 aplicados, que é o número redondo do extrato do banco. Guardar os dois
+   * separados é o que faz a tela mostrar "Investido: R$ 8.000,00" em vez da base de rendimento.
+   */
+  async redeem(userId: string, id: string, dto: RedeemFixedIncomeDto) {
+    const fixedIncome = await this.getOwned(userId, id);
+    if (fixedIncome.redeemedAt) throw new BadRequestException("Essa aplicação já foi resgatada.");
+
+    const redeemedAt = dto.redeemedAt ? new Date(dto.redeemedAt) : new Date();
+    const principal = Number(fixedIncome.principalAmount);
+    const { calc: fullCalc } = await this.calculate(fixedIncome, redeemedAt);
+
+    if (dto.amount === undefined) {
+      const updated = await this.fixedIncomes.redeem(id, redeemedAt, fullCalc.netValue);
+      this.evolutionCache.invalidateUser(userId);
+      return this.enrich(updated);
+    }
+
+    if (dto.amount > fullCalc.netValue) {
+      throw new BadRequestException("O valor do resgate não pode ser maior que o valor líquido disponível agora.");
+    }
+
+    const requiredPrincipal = Math.round(principalForTargetNetValue(principal, fullCalc.netValue, dto.amount) * 100) / 100;
+
+    if (requiredPrincipal >= principal) {
+      const updated = await this.fixedIncomes.redeem(id, redeemedAt, fullCalc.netValue);
+      this.evolutionCache.invalidateUser(userId);
+      return this.enrich(updated);
+    }
+
+    // Resgate parcial: a parte resgatada vira uma aplicação própria, já resgatada, com os mesmos
+    // termos e datas da original — só o principal muda. A original continua ativa com o principal
+    // reduzido, rendendo normalmente a partir de agora.
+    const aporte = splitContribution(this.contributedOf(fixedIncome), dto.amount);
+
+    const { calc: redeemedCalc } = await this.calculate(fixedIncome, redeemedAt, requiredPrincipal);
+    const redeemedCopy = await this.fixedIncomes.create({
+      userId,
+      // A parte resgatada nasce na MESMA carteira da original. Sem isso, resgatar metade de uma
+      // aplicação da carteira do filho jogaria a metade resgatada na carteira principal — o
+      // dinheiro trocaria de dono sozinho, que é justamente o que a separação existe pra impedir.
+      portfolioId: fixedIncome.portfolioId,
+      institution: fixedIncome.institution,
+      type: fixedIncome.type,
+      principalAmount: requiredPrincipal,
+      contributedAmount: aporte.withdrawn,
+      applicationDate: fixedIncome.applicationDate,
+      maturityDate: fixedIncome.maturityDate,
+      liquidity: fixedIncome.liquidity,
+      indexer: fixedIncome.indexer,
+      fixedRatePercent: fixedIncome.fixedRatePercent ? Number(fixedIncome.fixedRatePercent) : undefined,
+      cdiPercent: fixedIncome.cdiPercent ? Number(fixedIncome.cdiPercent) : undefined,
+      notes: fixedIncome.notes ?? undefined,
+    });
+    await this.fixedIncomes.redeem(redeemedCopy.id, redeemedAt, redeemedCalc.netValue);
+
+    const updatedOriginal = await this.fixedIncomes.update(id, {
+      principalAmount: principal - requiredPrincipal,
+      contributedAmount: aporte.remaining,
+    });
+    this.evolutionCache.invalidateUser(userId);
+    return this.enrich(updatedOriginal);
+  }
+
+  /** Reverts a redemption made by mistake — clears redeemedAt/redeemedNetAmount, making the
+   *  application active again. Doesn't touch a sibling record created by a partial redemption
+   *  (if any); undo that one separately if it was also wrong. */
+  async unredeem(userId: string, id: string) {
+    const fixedIncome = await this.getOwned(userId, id);
+    if (!fixedIncome.redeemedAt) throw new BadRequestException("Essa aplicação não está resgatada.");
+    const updated = await this.fixedIncomes.unredeem(id);
+    this.evolutionCache.invalidateUser(userId);
+    return this.enrich(updated);
+  }
+
+  async addInterest(userId: string, id: string, dto: AddFixedIncomeInterestDto) {
+    await this.getOwned(userId, id);
+    return this.fixedIncomes.addIncome({
+      userId,
+      fixedIncomeId: id,
+      type: dto.type ?? "JUROS",
+      amount: dto.amount,
+      paymentDate: new Date(dto.paymentDate),
+      notes: dto.notes,
+    });
+  }
+
+  private async enrich(fixedIncome: InvestmentFixedIncome) {
+    // Aplicação ativa é avaliada na data de liquidação (próximo dia útil), não "agora" — é nesse
+    // dia que o dinheiro cairia se resgatasse, e é o critério que o extrato usa pra contar IR e
+    // IOF. Antes disso o app ficava um dia atrás e cobrava a faixa de IOF errada.
+    //
+    // O rendimento vai até a véspera dessa data, e o extrato confirma que ele inclui dias úteis que
+    // o Bacen ainda não publicou — daí completarDiasNaoPublicados. Conferido em 2026-08-09
+    // (domingo, série até 06/08): o banco contava 19 dias úteis (incluindo a sexta 07/08, não
+    // publicada) e IOF de 27 dias.
+    const asOfDate = fixedIncome.redeemedAt ?? settlementDate(todayInBrazil(new Date()));
+    const { calc, cdiSource } = await this.calculate(fixedIncome, asOfDate);
+    // contributedAmount vai resolvido no topo também (não só dentro de calculation) porque é o que
+    // as telas e o dashboard mostram como "Investido" — ninguém deveria ter que lembrar do fallback.
+    return { ...fixedIncome, contributedAmount: calc.contributedAmount, calculation: calc, cdiSource };
+  }
+
+  /**
+   * Completa os dias úteis entre a última taxa publicada e a véspera da liquidação, repetindo a
+   * última taxa conhecida. O Bacen publica a taxa de um dia útil só depois dele fechar, mas o banco
+   * já conta esse dia no extrato — sem completar, o app fica um dia atrás.
+   *
+   * O limite é a **véspera da liquidação**, não a liquidação: passar disso conta um dia a mais que
+   * o banco. Foi exatamente o erro que apareceu quando a data de liquidação vinha um dia adiantada
+   * por causa do fuso (ver todayInBrazil).
+   */
+  private completarDiasNaoPublicados(janela: DailyCdiWindow, asOfDate: Date): { rates: number[]; projected: number } {
+    if (janela.rates.length === 0 || !janela.lastDate) return { rates: janela.rates, projected: 0 };
+
+    const primeiroNaoPublicado = new Date(janela.lastDate.getTime() + 86_400_000);
+    const vesperaDaLiquidacao = new Date(asOfDate.getTime() - 86_400_000);
+    const faltando = businessDaysBetween(primeiroNaoPublicado, vesperaDaLiquidacao);
+    if (faltando <= 0) return { rates: janela.rates, projected: 0 };
+
+    const ultimaTaxa = janela.rates[janela.rates.length - 1];
+    return { rates: [...janela.rates, ...Array(faltando).fill(ultimaTaxa)], projected: faltando };
+  }
+
+  /** Aplicação que nunca sofreu resgate parcial tem a coluna nula, e aí o dinheiro aportado é o
+   *  próprio principal — que é exatamente o que valia antes da coluna existir. */
+  private contributedOf(fixedIncome: InvestmentFixedIncome): number {
+    return fixedIncome.contributedAmount === null ? Number(fixedIncome.principalAmount) : Number(fixedIncome.contributedAmount);
+  }
+
+  /** `principalOverride` lets a caller price a hypothetical slice of the position (partial
+   *  redemption) without needing a separate DB row first — same terms/dates, different amount. */
+  private async calculate(fixedIncome: InvestmentFixedIncome, asOfDate: Date, principalOverride?: number) {
+    const needsCdi = fixedIncome.indexer === "POS_FIXADO_CDI";
+    const needsIpca = fixedIncome.indexer === "IPCA_MAIS";
+
+    const [cdiAnnualRate, ipcaAnnualRate, janelaCdi] = await Promise.all([
+      needsCdi ? this.indicators.getAnnualCdiRate() : Promise.resolve(null),
+      needsIpca ? this.indicators.getAnnualIpcaRate() : Promise.resolve(null),
+      needsCdi ? this.indicators.getDailyCdiWindow(fixedIncome.applicationDate, asOfDate) : Promise.resolve(null),
+    ]);
+
+    // Com a série diária o número é o mesmo que o banco calcula, dia útil por dia útil. Sem ela
+    // (Bacen fora do ar, ou aplicação com data anterior ao que a série cobre) o cálculo continua
+    // saindo pela taxa anual de hoje — só que aí é estimativa, e a tela precisa dizer isso.
+    const taxas = janelaCdi ? this.completarDiasNaoPublicados(janelaCdi, asOfDate) : null;
+    const cdiAccrualFactor = taxas ? accrueCdiFactor(taxas.rates, Number(fixedIncome.cdiPercent ?? 100)) : null;
+
+    const calc = calculateFixedIncome({
+      principalAmount: principalOverride ?? Number(fixedIncome.principalAmount),
+      // Com principalOverride estamos precificando uma fatia hipotética que ainda não existe no
+      // banco, então o aporte dela também não existe — cai no próprio override e o netGain sai
+      // zero, que é o certo pra uma cotação de "quanto eu receberia".
+      contributedAmount: principalOverride === undefined ? this.contributedOf(fixedIncome) : undefined,
+      applicationDate: fixedIncome.applicationDate,
+      asOfDate,
+      type: fixedIncome.type,
+      indexer: fixedIncome.indexer,
+      fixedRatePercent: fixedIncome.fixedRatePercent ? Number(fixedIncome.fixedRatePercent) : null,
+      cdiPercent: fixedIncome.cdiPercent ? Number(fixedIncome.cdiPercent) : null,
+      cdiAnnualRate,
+      ipcaAnnualRate,
+      cdiAccrualFactor,
+    });
+
+    return {
+      calc,
+      cdiSource: needsCdi
+        ? {
+            /** true = veio da série diária oficial do Bacen; false = estimado pela taxa anual de hoje. */
+            official: cdiAccrualFactor !== null,
+            businessDays: taxas?.rates.length ?? 0,
+            projectedDays: taxas?.projected ?? 0,
+            lastDate: janelaCdi?.lastDate ?? null,
+          }
+        : null,
+    };
+  }
+
+  private async getOwned(userId: string, id: string) {
+    const fixedIncome = await this.fixedIncomes.findById(id);
+    if (!fixedIncome || fixedIncome.deletedAt) throw new NotFoundException("Aplicação não encontrada.");
+    if (fixedIncome.userId !== userId) throw new ForbiddenException();
+    return fixedIncome;
+  }
+}

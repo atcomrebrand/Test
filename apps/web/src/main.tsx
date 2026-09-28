@@ -1,0 +1,36 @@
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "react-hot-toast";
+import App from "./App";
+import "./index.css";
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { staleTime: 30_000, retry: 1, refetchOnWindowFocus: true },
+  },
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+  });
+}
+
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <App />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            className: "!rounded-2xl !surface !shadow-elevated",
+            style: { background: "rgb(var(--surface))", color: "rgb(var(--text))", border: "1px solid rgb(var(--border))" },
+          }}
+        />
+      </BrowserRouter>
+    </QueryClientProvider>
+  </React.StrictMode>,
+);

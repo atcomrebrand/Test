@@ -1,0 +1,47 @@
+import { InvestmentFixedIncome, InvestmentIncome } from "@prisma/client";
+
+export interface CreateFixedIncomeData {
+  /** null/omitido = carteira principal. */
+  portfolioId?: string | null;
+  userId: string;
+  institution: string;
+  type: string;
+  principalAmount: number;
+  /** Só o resgate parcial passa isto: a fatia sacada nasce com o aporte que lhe cabe, e não com o
+   *  principal proporcional. Omitido em qualquer aplicação normal — aí os dois são iguais. */
+  contributedAmount?: number;
+  applicationDate: Date;
+  maturityDate: Date;
+  liquidity: string;
+  indexer: string;
+  fixedRatePercent?: number;
+  cdiPercent?: number;
+  notes?: string;
+}
+
+export abstract class FixedIncomeRepository {
+  /**
+   * Aplicações de **uma** carteira. `portfolioId` omitido significa a carteira principal (as linhas
+   * com `portfolioId` nulo), que é tudo que existia antes das carteiras separadas.
+   *
+   * O padrão ser a principal não é conveniência, é a garantia: dashboard, patrimônio da Home e
+   * gráfico de evolução chamam sem argumento e continuam somando só o seu dinheiro, sem nenhum
+   * deles precisar saber que carteiras existem.
+   */
+  abstract findAllByUser(userId: string, portfolioId?: string | null): Promise<InvestmentFixedIncome[]>;
+  abstract findById(id: string): Promise<InvestmentFixedIncome | null>;
+  abstract create(data: CreateFixedIncomeData): Promise<InvestmentFixedIncome>;
+  abstract update(id: string, data: Record<string, unknown>): Promise<InvestmentFixedIncome>;
+  abstract softDelete(id: string): Promise<void>;
+  abstract redeem(id: string, redeemedAt: Date, redeemedNetAmount: number): Promise<InvestmentFixedIncome>;
+  abstract unredeem(id: string): Promise<InvestmentFixedIncome>;
+  abstract addIncome(data: {
+    userId: string;
+    fixedIncomeId: string;
+    type: string;
+    amount: number;
+    paymentDate: Date;
+    notes?: string;
+  }): Promise<InvestmentIncome>;
+  abstract listIncomes(fixedIncomeId: string): Promise<InvestmentIncome[]>;
+}

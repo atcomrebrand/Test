@@ -1,0 +1,24 @@
+{
+  "name": "credit-installments",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Sistema de gerenciamento de parcelas de cartao de credito",
+  "scripts": {
+    "dev:api": "pnpm --filter @cc/api start:dev",
+    "dev:web": "pnpm --filter @cc/web dev",
+    "build": "pnpm --filter @cc/api build && pnpm --filter @cc/web build",
+    "seed": "pnpm --filter @cc/api prisma:seed"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "overrides": {
+      "multer": ">=2.2.0",
+      "lodash": ">=4.18.0",
+      "qs": ">=6.15.2",
+      "body-parser": ">=1.20.6",
+      "file-type": ">=21.3.2"
+    }
+  }
+}

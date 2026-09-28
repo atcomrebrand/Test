@@ -1,0 +1,126 @@
+import { FormEvent, useEffect, useState } from "react";
+import { Modal } from "@/components/ui/Modal";
+import { Input, Textarea } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { useUpdateSessionManual } from "../api";
+import { buildSessionTimestamps } from "../lib/sessionTime";
+import { TrackingSession } from "../types";
+
+interface Props {
+  open: boolean;
+  onClose: () => void;
+  session: TrackingSession | null;
+}
+
+function todayISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toLocalDate(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function toLocalTime(iso: string) {
+  const d = new Date(iso);
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Um número em branco vira `null` (apaga) e não `undefined` (não mexe): é o que permite tirar uma
+ *  colocação lançada por engano sem mexer nas outras duas. */
+function toNumberOrNull(raw: string): number | null | undefined {
+  const limpo = raw.trim().replace(",", ".");
+  if (!limpo) return null;
+  const n = Number(limpo);
+  return Number.isFinite(n) ? n : undefined;
+}
+
+/** Corrige as horas de uma sessão já registrada (check-in/check-out/observações) — o trabalho em
+ *  si não é editável aqui, só o horário, já que o objetivo é consertar um lançamento errado.
+ *
+ *  Em trabalho com sistema de colocação os três números do dia também entram: quem pulou a pergunta
+ *  ao encerrar preenche aqui, e quem digitou errado corrige sem ter que refazer a sessão. */
+export function EditSessionModal({ open, onClose, session }: Props) {
+  const update = useUpdateSessionManual();
+
+  const [date, setDate] = useState(todayISO());
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("17:00");
+  const [notes, setNotes] = useState("");
+  const [placement, setPlacement] = useState("");
+  const [satisfaction, setSatisfaction] = useState("");
+  const [response, setResponse] = useState("");
+
+  useEffect(() => {
+    if (!open || !session) return;
+    setDate(toLocalDate(session.checkIn));
+    setStartTime(toLocalTime(session.checkIn));
+    setEndTime(session.checkOut ? toLocalTime(session.checkOut) : "17:00");
+    setNotes(session.notes ?? "");
+    setPlacement(session.placement === null ? "" : String(session.placement));
+    setSatisfaction(session.satisfactionPercent === null ? "" : String(session.satisfactionPercent));
+    setResponse(session.responseMinutes === null ? "" : String(session.responseMinutes));
+  }, [open, session]);
+
+  const { overnight } = buildSessionTimestamps(date, startTime, endTime);
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!session) return;
+    const { checkIn, checkOut } = buildSessionTimestamps(date, startTime, endTime);
+    const data: Record<string, unknown> = { checkIn, checkOut, notes: notes || undefined };
+    // Os campos só vão no payload quando o trabalho tem o sistema: mandá-los num trabalho comum é
+    // recusado pela API de propósito, e a edição de horário não pode quebrar por causa disso.
+    if (session.job.tracksPlacement) {
+      Object.assign(data, {
+        placement: toNumberOrNull(placement),
+        satisfactionPercent: toNumberOrNull(satisfaction),
+        responseMinutes: toNumberOrNull(response),
+      });
+    }
+    update.mutate({ id: session.id, data }, { onSuccess: onClose });
+  }
+
+  if (!session) return null;
+
+  return (
+    <Modal open={open} onClose={onClose} title="Editar sessão" size="md">
+      <form onSubmit={onSubmit} className="flex flex-col gap-4">
+        <p className="text-sm text-muted">
+          {session.job.name} — {session.job.company}
+        </p>
+
+        <Input label="Data" type="date" value={date} onChange={(e) => setDate(e.target.value)} max={todayISO()} required />
+
+        <div className="grid grid-cols-2 gap-4">
+          <Input label="Entrada" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} required />
+          <Input label="Saída" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} required />
+        </div>
+        {overnight && (
+          <p className="-mt-2 text-xs text-muted">Saída antes da entrada — registrada automaticamente no dia seguinte (turno que passa da meia-noite).</p>
+        )}
+
+        {session.job.tracksPlacement && (
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Input label="Colocação" inputMode="numeric" value={placement} onChange={(e) => setPlacement(e.target.value)} placeholder="3" />
+            <Input label="Satisfação (%)" inputMode="decimal" value={satisfaction} onChange={(e) => setSatisfaction(e.target.value)} placeholder="96,5" />
+            <Input label="Resposta (min)" inputMode="numeric" value={response} onChange={(e) => setResponse(e.target.value)} placeholder="4" />
+          </div>
+        )}
+
+        <Textarea label="Observações (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
+
+        <div className="mt-2 flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
+            Cancelar
+          </Button>
+          <Button type="submit" loading={update.isPending}>
+            Salvar
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
