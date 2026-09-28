@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../../../prisma/prisma.service";
 import { FixedCostsInput, computeBreakEven, discountImpact, unitsForTargetProfit } from "../domain/break-even";
 import { UnitEconomicsInput, computeUnitEconomics, minimumPrice, suggestPrice } from "../domain/pricing";
+import { psychologicalPrices } from "../domain/psychological-price";
 
 /** Descontos que a tela sempre mostra. Fixos de propósito: a pergunta "e se eu der 10%?" é a mesma
  *  toda vez, e obrigar a digitar transformaria uma leitura de relance num formulário. */
@@ -69,6 +70,19 @@ export class ProfitCalculatorService {
        *  100% — e aí a tela precisa dizer isso, não mostrar um número. */
       suggested: sugerido,
       minimum: piso,
+      /**
+       * Os preços "de prateleira" acima do sugerido, cada um com a margem que ELE entrega.
+       *
+       * Mostrar o preço bonito sem dizer o que ele fez com o lucro seria trocar precisão por
+       * estética sem avisar — e é justamente o tipo de troca silenciosa que o módulo existe pra
+       * impedir.
+       */
+      rounded: sugerido.ok
+        ? psychologicalPrices(sugerido.price).map((o) => ({
+            ...o,
+            economics: computeUnitEconomics({ ...(semPreco as Omit<UnitEconomicsInput, "price">), price: o.price }),
+          }))
+        : [],
       breakEven: computeBreakEven(economics, ctx.fixed),
       target: unitsForTargetProfit(economics, ctx.fixed, targetProfit),
       discounts: DESCONTOS_PADRAO.map((d) => discountImpact(input, d)),

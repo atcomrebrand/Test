@@ -5,12 +5,11 @@ import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Modal } from "@/components/ui/Modal";
-import { Input, Textarea } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
-import { useProfitProducts, useSaveProduct } from "../api";
+import { useProfitProducts } from "../api";
+import { ProdutoModal } from "../components/ProdutoModal";
 import { formatPercent, toneForProfit } from "../theme";
 
 export default function Produtos() {
@@ -84,59 +83,5 @@ export default function Produtos() {
 
       <ProdutoModal open={criando} onClose={() => setCriando(false)} />
     </div>
-  );
-}
-
-function ProdutoModal({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const salvar = useSaveProduct();
-  const [name, setName] = useState("");
-  const [sku, setSku] = useState("");
-  const [cost, setCost] = useState("");
-  const [packagingCost, setPackaging] = useState("");
-  const [extraCost, setExtra] = useState("");
-  const [notes, setNotes] = useState("");
-
-  const num = (v: string) => (v.trim() === "" ? 0 : Number(v.replace(",", ".")));
-
-  function submit() {
-    salvar.mutate(
-      {
-        data: {
-          name: name.trim(),
-          sku: sku.trim() || undefined,
-          cost: num(cost),
-          packagingCost: num(packagingCost),
-          extraCost: num(extraCost),
-          notes: notes.trim() || undefined,
-        },
-      },
-      {
-        onSuccess: () => {
-          setName(""); setSku(""); setCost(""); setPackaging(""); setExtra(""); setNotes("");
-          onClose();
-        },
-      },
-    );
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title="Novo produto">
-      <div className="flex flex-col gap-4">
-        {/* Só o que é do PRODUTO entra aqui. Taxa é do canal — pedir as duas no mesmo formulário
-            faria cadastrar o mesmo produto uma vez por lugar onde ele é vendido. */}
-        <Input label="Nome" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        <Input label="SKU (opcional)" value={sku} onChange={(e) => setSku(e.target.value)} />
-        <div className="grid gap-3 sm:grid-cols-3">
-          <Input label="Custo (R$)" inputMode="decimal" value={cost} onChange={(e) => setCost(e.target.value)} />
-          <Input label="Embalagem (R$)" inputMode="decimal" value={packagingCost} onChange={(e) => setPackaging(e.target.value)} />
-          <Input label="Outros (R$)" inputMode="decimal" value={extraCost} onChange={(e) => setExtra(e.target.value)} />
-        </div>
-        <Textarea label="Observações (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} />
-        <div className="flex justify-end gap-2">
-          <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-          <Button disabled={!name.trim()} loading={salvar.isPending} onClick={submit}>Cadastrar</Button>
-        </div>
-      </div>
-    </Modal>
   );
 }

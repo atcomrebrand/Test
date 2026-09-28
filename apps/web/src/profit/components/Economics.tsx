@@ -1,7 +1,7 @@
 import { AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
-import { Analysis, DiscountImpact, UnitEconomics } from "../types";
+import { Analysis, DiscountImpact, RoundedPrice, UnitEconomics } from "../types";
 import { PROFIT, formatPercent, toneForProfit } from "../theme";
 
 /**
@@ -72,7 +72,16 @@ function Linha({ label, valor, forte, tone }: { label: string; valor: number; fo
 }
 
 /** O preço sugerido — ou o aviso de que ele não existe. */
-export function SuggestedPrice({ a, targetMargin }: { a: Analysis; targetMargin: number }) {
+export function SuggestedPrice({
+  a,
+  targetMargin,
+  onPickRounded,
+}: {
+  a: Analysis;
+  targetMargin: number;
+  /** Quando existe, os preços de prateleira viram botões que definem o preço do canal. */
+  onPickRounded?: (price: number) => void;
+}) {
   if (!a.suggested.ok) {
     return (
       <div className="flex items-start gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm">
@@ -97,7 +106,41 @@ export function SuggestedPrice({ a, targetMargin }: { a: Analysis; targetMargin:
           pra vender.
         </p>
       )}
+
+      {/* Ninguém vende a R$ 83,33. Cada preço de prateleira vem com a margem que ELE entrega, porque
+          arredondar muda a margem — mostrar só o número bonito seria trocar precisão por estética
+          sem avisar. Sempre pra cima: pra baixo entregaria menos do que foi pedido. */}
+      {a.rounded.length > 0 && (
+        <div className="mt-3 border-t border-[rgb(var(--border))] pt-2">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-muted">Preço de prateleira</p>
+          <div className="flex flex-wrap gap-1.5">
+            {a.rounded.map((r) => (
+              <RoundedChip key={r.price} r={r} onPick={onPickRounded} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function RoundedChip({ r, onPick }: { r: RoundedPrice; onPick?: (price: number) => void }) {
+  const conteudo = (
+    <>
+      <span className="font-bold">{formatCurrency(r.price)}</span>
+      <span className="ml-1 text-[11px] text-muted">{formatPercent(r.economics.marginPercent, 1)}</span>
+    </>
+  );
+  const classe = "rounded-full surface px-2.5 py-1 text-xs";
+
+  // Sem `onPick` (a calculadora avulsa não tem onde gravar) ele é só leitura — botão que não faz
+  // nada é pior que texto.
+  return onPick ? (
+    <button type="button" onClick={() => onPick(r.price)} className={cn(classe, "transition-colors hover:brightness-95")}>
+      {conteudo}
+    </button>
+  ) : (
+    <span className={classe}>{conteudo}</span>
   );
 }
 

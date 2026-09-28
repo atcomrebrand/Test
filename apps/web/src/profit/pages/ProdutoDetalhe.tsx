@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, Check, Crown, Pencil } from "lucide-react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { ArrowLeft, Check, Crown, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/cn";
 import { formatCurrency } from "@/lib/format";
-import { useProfitProduct, useSetProductPrice } from "../api";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
+import { useArchiveProduct, useProfitProduct, useSetProductPrice } from "../api";
+import { ProdutoModal } from "../components/ProdutoModal";
 import { BreakEvenCard, CostBreakdown, DiscountTable, SuggestedPrice, ThreeNumbers } from "../components/Economics";
 import { CHANNEL_LABEL, PROFIT, formatPercent, toneForProfit } from "../theme";
 import { ChannelComparison } from "../types";
@@ -21,10 +23,15 @@ import { ChannelComparison } from "../types";
  */
 export default function ProdutoDetalhe() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const [editando, setEditando] = useState(false);
+  const [arquivando, setArquivando] = useState(false);
+  const arquivar = useArchiveProduct();
   const [meta, setMeta] = useState("0");
   const metaValor = meta.trim() === "" ? 0 : Number(meta.replace(",", ".")) || 0;
   const { data, isLoading } = useProfitProduct(id, metaValor);
   const [aberto, setAberto] = useState<string | null>(null);
+  const definirPreco = useSetProductPrice();
 
   if (isLoading || !data) return <Skeleton className="h-96 rounded-3xl" />;
 
@@ -39,15 +46,27 @@ export default function ProdutoDetalhe() {
         Produtos
       </Link>
 
-      <div className={cn("rounded-3xl border p-5", PROFIT.border, PROFIT.soft)}>
-        <h1 className="text-2xl font-black leading-tight">{data.product.name}</h1>
-        <p className="mt-1 text-sm text-muted">
-          {data.product.sku ? `${data.product.sku} · ` : ""}
-          custo total por unidade{" "}
-          <span className="font-semibold text-[rgb(var(--text))]">
-            {formatCurrency(data.product.cost + data.product.packagingCost + data.product.extraCost)}
-          </span>
-        </p>
+      <div className={cn("flex items-start justify-between gap-3 rounded-3xl border p-5", PROFIT.border, PROFIT.soft)}>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-black leading-tight">{data.product.name}</h1>
+          <p className="mt-1 text-sm text-muted">
+            {data.product.sku ? `${data.product.sku} · ` : ""}
+            custo total por unidade{" "}
+            <span className="font-semibold text-[rgb(var(--text))]">
+              {formatCurrency(data.product.cost + data.product.packagingCost + data.product.extraCost)}
+            </span>
+          </p>
+        </div>
+        {/* Mudou o custo de compra? Todo preço sugerido e toda margem desta tela recalculam — é o
+            motivo de o módulo guardar o produto em vez de ser só calculadora. */}
+        <div className="flex shrink-0 gap-1">
+          <button onClick={() => setEditando(true)} aria-label="Editar produto" className="rounded-lg p-2 text-muted hover:surface-2">
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button onClick={() => setArquivando(true)} aria-label="Arquivar produto" className="rounded-lg p-2 text-muted hover:text-red-500">
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
@@ -80,7 +99,11 @@ export default function ProdutoDetalhe() {
       {selecionado && (
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="flex flex-col gap-4">
-            <SuggestedPrice a={selecionado} targetMargin={selecionado.targetMarginPercent} />
+            <SuggestedPrice
+              a={selecionado}
+              targetMargin={selecionado.targetMarginPercent}
+              onPickRounded={(price) => definirPreco.mutate({ productId: data.product.id, channelId: selecionado.channelId, price })}
+            />
             <Card>
               <CardContent className="flex flex-col gap-3 py-4">
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-muted">
@@ -103,6 +126,17 @@ export default function ProdutoDetalhe() {
           </div>
         </div>
       )}
+
+      <ProdutoModal open={editando} onClose={() => setEditando(false)} produto={data.product} />
+
+      <ConfirmModal
+        open={arquivando}
+        onClose={() => setArquivando(false)}
+        onConfirm={() => arquivar.mutate(data.product.id, { onSuccess: () => navigate("/lucro/produtos") })}
+        title="Arquivar produto"
+        description={`"${data.product.name}" sai da lista. Os preços que você definiu nos canais continuam guardados.`}
+        confirmLabel="Arquivar"
+      />
     </div>
   );
 }
@@ -123,20 +157,45 @@ function LinhaCanal({
   const salvar = useSetProductPrice();
   const [editando, setEditando] = useState(false);
   const [preco, setPreco] = useState(String(c.economics.price));
+  const [margem, setMargem] = useState(String(c.targetMarginPercent));
+
+  const num = (v: string) => (v.trim() === "" ? null : Number(v.replace(",", ".")) || 0);
 
   function confirmar() {
     salvar.mutate(
-      { productId: produtoId, channelId: c.channelId, price: preco.trim() === "" ? null : Number(preco.replace(",", ".")) },
+      {
+        productId: produtoId,
+        channelId: c.channelId,
+        // Preço vazio LIMPA o preço e faz o canal voltar a mostrar o sugerido — é a forma de dizer
+        // "ainda não vendo aqui" sem apagar o canal.
+        price: num(preco),
+        targetMarginPercent: num(margem),
+      },
       { onSuccess: () => setEditando(false) },
     );
   }
 
   if (editando) {
     return (
-      <div className="flex items-center gap-2 rounded-xl surface-2 px-3 py-2">
-        <span className="w-32 shrink-0 truncate text-sm font-semibold">{c.channelName}</span>
-        <Input inputMode="decimal" value={preco} onChange={(e) => setPreco(e.target.value)} className="h-9" autoFocus />
-        <Button className="h-9 shrink-0" loading={salvar.isPending} onClick={confirmar}>
+      <div className="flex flex-wrap items-end gap-2 rounded-xl surface-2 px-3 py-2">
+        <span className="basis-full text-sm font-semibold sm:basis-auto sm:self-center">{c.channelName}</span>
+        <Input
+          label="Preço (R$)"
+          inputMode="decimal"
+          value={preco}
+          onChange={(e) => setPreco(e.target.value)}
+          className="h-9"
+          hint="Vazio = usa o sugerido"
+          autoFocus
+        />
+        <Input
+          label="Margem alvo (%)"
+          inputMode="decimal"
+          value={margem}
+          onChange={(e) => setMargem(e.target.value)}
+          className="h-9 w-28"
+        />
+        <Button className="mb-0.5 h-9 shrink-0" loading={salvar.isPending} onClick={confirmar}>
           <Check className="h-4 w-4" />
         </Button>
       </div>
@@ -174,7 +233,7 @@ function LinhaCanal({
         role="button"
         tabIndex={0}
         aria-label={`Definir preço em ${c.channelName}`}
-        onClick={(e) => { e.stopPropagation(); setPreco(String(c.economics.price)); setEditando(true); }}
+        onClick={(e) => { e.stopPropagation(); setPreco(c.priceIsSuggested ? "" : String(c.economics.price)); setMargem(String(c.targetMarginPercent)); setEditando(true); }}
         onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setEditando(true); } }}
         className="shrink-0 rounded-lg p-1.5 text-muted hover:surface"
       >

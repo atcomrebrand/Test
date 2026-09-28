@@ -801,6 +801,16 @@ que quase todo mundo faz errado.
   sugestão com preço praticado inverteria a conclusão da tela.
 - **Devolução esperada é perda do DESEMBOLSO, não do lucro**: o preço volta pro cliente e o que se
   gastou pra despachar não volta.
+- **O preço de prateleira vem com a margem que ELE entrega.** O divisor devolve R$ 83,33 e ninguém
+  vende assim; `psychologicalPrices` dá as opções acima dele (83,90 / 89,90 / 90,00) e cada uma
+  carrega a própria margem — R$ 89,90 entrega 24,4%, não os 20% pedidos. Mostrar só o número bonito
+  seria trocar precisão por estética sem avisar. **Arredonda sempre pra CIMA**: pra baixo é o
+  caminho fácil pro número redondo e entrega menos margem do que a pessoa pediu. Conta em centavos,
+  porque somar 0,90 em ponto flutuante devolve 83,89999999999999 e o preço bonito sai feio.
+- **A margem alvo é por produto×canal**, sobrepondo a padrão: a margem que compensa num marketplace
+  que leva 20% não é a mesma da venda no PIX. Vazia, usa a das Configurações.
+- **Preço vazio LIMPA o preço** e faz o canal voltar ao sugerido — é como se diz "ainda não vendo
+  aqui" sem apagar o canal.
 - **Os modelos de canal (Shopee, Mercado Livre…) são ponto de partida, não verdade.** As taxas mudam
   e variam por categoria, então tudo continua editável — número desatualizado no código viraria
   preço errado sem ninguém perceber.

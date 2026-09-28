@@ -111,8 +111,18 @@ export function useArchiveProduct() {
 export function useSetProductPrice() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ productId, channelId, price }: { productId: string; channelId: string; price: number | null }) =>
-      api.post(`/profit/products/${productId}/price`, { channelId, price }),
+    mutationFn: ({
+      productId,
+      channelId,
+      price,
+      targetMarginPercent,
+    }: {
+      productId: string;
+      channelId: string;
+      price: number | null;
+      /** A margem que você quer NESTE canal. Ausente = usa a padrão das configurações. */
+      targetMarginPercent?: number | null;
+    }) => api.post(`/profit/products/${productId}/price`, { channelId, price, targetMarginPercent }),
     onSuccess: () => invalidate(qc),
     onError: (e: Error) => toast.error(e.message),
   });

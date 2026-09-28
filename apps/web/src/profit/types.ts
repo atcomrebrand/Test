@@ -93,9 +93,19 @@ export interface DiscountImpact {
   belowMinimum: boolean;
 }
 
+export type RoundingStyle = "ENDS_90" | "ENDS_990" | "ROUND_10";
+
+/** O preço "de prateleira" acima do sugerido, com a margem que ELE entrega — nunca só o preço. */
+export interface RoundedPrice {
+  style: RoundingStyle;
+  price: number;
+  economics: UnitEconomics;
+}
+
 export interface Analysis {
   economics: UnitEconomics;
   suggested: PriceSuggestion;
+  rounded: RoundedPrice[];
   minimum: PriceSuggestion;
   breakEven: BreakEven;
   target: TargetResult;
