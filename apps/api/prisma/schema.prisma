@@ -168,6 +168,10 @@ model User {
   trackingIncomes          TrackingIncome[]
   trackingAuditLogs        TrackingAuditLog[]
   trackingNoteTranslations TrackingNoteTranslation[]
+  profitSettings           ProfitSettings?
+  profitFixedCosts         ProfitFixedCost[]
+  profitChannels           ProfitChannel[]
+  profitProducts           ProfitProduct[]
   trackingJobPayments      TrackingJobPayment[]
 
   householdBillCategories   HouseholdBillCategory[]
@@ -2443,4 +2447,150 @@ model GymTarget {
 
   @@index([userId, achievedAt])
   @@map("gym_targets")
+}
+
+// ---------------------------------------------------------------------------
+// Lucro Certo (profit) — precificação, lucro por venda e ponto de equilíbrio
+// ---------------------------------------------------------------------------
+
+enum ProfitChannelType {
+  MARKETPLACE
+  DIRECT
+  OWN_STORE
+  WHOLESALE
+}
+
+/// Como o imposto entra na conta. São lugares DIFERENTES, e é por isso que é enum e não um campo só:
+/// percentual sobre faturamento incide no preço de cada venda; valor fixo mensal não toca no preço
+/// unitário e vira custo fixo do mês.
+enum ProfitTaxMode {
+  /// Simples Nacional: % sobre o faturamento, entra no divisor do preço.
+  PERCENT
+  /// MEI: DAS fixo por mês, entra no ponto de equilíbrio.
+  FIXED
+}
+
+/// Configuração do módulo, uma por usuário.
+model ProfitSettings {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// O imposto liga e desliga inteiro. Desligado, some da conta em vez de virar zero espalhado por
+  /// vários campos — quem não é tributado não deveria ver campo de imposto na tela.
+  taxEnabled Boolean       @default(false)
+  taxMode    ProfitTaxMode @default(PERCENT)
+  /// Só vale quando taxMode = PERCENT.
+  taxPercent Decimal       @default(0) @db.Decimal(5, 2)
+  /// Só vale quando taxMode = FIXED. Somado ao custo fixo mensal, nunca ao preço.
+  taxMonthly Decimal       @default(0) @db.Decimal(12, 2)
+
+  /// Margem desejada padrão, usada quando o par produto×canal não define a sua.
+  defaultMarginPercent Decimal @default(20) @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("profit_settings")
+}
+
+/// Despesa que vence todo mês mesmo sem vender nada. É o que transforma "quantas vendas somam X"
+/// na pergunta certa: "quantas vendas pra pagar o mês e ainda sobrar X".
+model ProfitFixedCost {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name   String
+  amount Decimal @db.Decimal(12, 2)
+  active Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, active])
+  @@map("profit_fixed_costs")
+}
+
+/// Onde você vende. As taxas moram aqui e não no produto porque é o canal que as cobra — e é isso
+/// que permite comparar o mesmo produto em lugares diferentes sem redigitar nada.
+model ProfitChannel {
+  id     String            @id @default(cuid())
+  userId String
+  user   User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name   String
+  type   ProfitChannelType @default(MARKETPLACE)
+
+  /// Comissão do canal: percentual sobre o preço MAIS um fixo por pedido. Os dois, porque
+  /// marketplace cobra assim e somar só o percentual esquece metade da conta.
+  feePercent Decimal @default(0) @db.Decimal(5, 2)
+  feeFixed   Decimal @default(0) @db.Decimal(12, 2)
+
+  /// Frete que VOCÊ paga (frete grátis). O frete pago pelo cliente não é custo seu e não entra.
+  shippingCost Decimal @default(0) @db.Decimal(12, 2)
+
+  /// Devolução esperada, em % das vendas do canal. Online costuma ter; venda na mão, não.
+  returnRatePercent Decimal @default(0) @db.Decimal(5, 2)
+
+  active    Boolean   @default(true)
+  /// Arquivar, nunca apagar: o canal está referenciado nos preços já definidos.
+  deletedAt DateTime?
+
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  products  ProfitProductChannel[]
+
+  @@index([userId, deletedAt])
+  @@map("profit_channels")
+}
+
+/// O que você vende. Só o que é do PRODUTO mora aqui; taxa é do canal.
+model ProfitProduct {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name          String
+  sku           String?
+  /// Quanto você pagou na unidade.
+  cost          Decimal @db.Decimal(12, 2)
+  /// Embalagem, etiqueta, brinde — por unidade.
+  packagingCost Decimal @default(0) @db.Decimal(12, 2)
+  /// Qualquer outro custo por unidade que não se encaixe acima.
+  extraCost     Decimal @default(0) @db.Decimal(12, 2)
+
+  notes     String?
+  active    Boolean   @default(true)
+  deletedAt DateTime?
+
+  createdAt DateTime               @default(now())
+  updatedAt DateTime               @updatedAt
+  channels  ProfitProductChannel[]
+
+  @@index([userId, deletedAt])
+  @@map("profit_products")
+}
+
+/// O preço do produto NAQUELE canal.
+///
+/// Mora na relação, e não no produto, porque o mesmo item custa diferente na Shopee e no PIX — é
+/// justamente essa diferença que a comparação lado a lado existe pra mostrar. Preço nulo significa
+/// "ainda não defini": a tela sugere pelo divisor em vez de fingir que o preço é zero.
+model ProfitProductChannel {
+  id        String        @id @default(cuid())
+  productId String
+  product   ProfitProduct @relation(fields: [productId], references: [id], onDelete: Cascade)
+  channelId String
+  channel   ProfitChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  price               Decimal? @db.Decimal(12, 2)
+  /// Margem desejada só deste par, sobrepondo a padrão das configurações.
+  targetMarginPercent Decimal? @db.Decimal(5, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([productId, channelId])
+  @@index([channelId])
+  @@map("profit_product_channels")
 }

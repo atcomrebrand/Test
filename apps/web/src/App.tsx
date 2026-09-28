@@ -4,7 +4,13 @@ import { Layout } from "./app/Layout";
 import { ProtectedRoute } from "./app/ProtectedRoute";
 import { CrmLayout } from "./crm/CrmLayout";
 import { GymLayout } from "./gym/GymLayout";
+import { ProfitLayout } from "./profit/ProfitLayout";
 import GymInicio from "./gym/pages/Inicio";
+import ProfitCalculadora from "./profit/pages/Calculadora";
+import ProfitProdutos from "./profit/pages/Produtos";
+import ProfitProdutoDetalhe from "./profit/pages/ProdutoDetalhe";
+import ProfitCanais from "./profit/pages/Canais";
+import ProfitConfiguracoes from "./profit/pages/Configuracoes";
 import GymTreinos from "./gym/pages/Treinos";
 import GymTreinoForm from "./gym/pages/TreinoForm";
 import GymExercicios from "./gym/pages/Exercicios";
@@ -173,6 +179,14 @@ export default function App() {
           <Route path="/academia/historico" element={<GymHistorico />} />
           <Route path="/academia/historico/:id" element={<GymSessaoDetalhe />} />
           <Route path="/academia/perfil" element={<GymPerfil />} />
+        </Route>
+
+        <Route element={<ProfitLayout />}>
+          <Route path="/lucro" element={<ProfitCalculadora />} />
+          <Route path="/lucro/produtos" element={<ProfitProdutos />} />
+          <Route path="/lucro/produtos/:id" element={<ProfitProdutoDetalhe />} />
+          <Route path="/lucro/canais" element={<ProfitCanais />} />
+          <Route path="/lucro/configuracoes" element={<ProfitConfiguracoes />} />
         </Route>
 
         <Route element={<CrmLayout />}>

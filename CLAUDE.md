@@ -12,6 +12,9 @@ App pessoal de finanças (nome do repo/pnpm workspace ainda é `credit-installme
 - **Academia** (`gym`) — diário de treino: catálogo de exercícios, fichas, execução com cronômetro
   de descanso, histórico, progresso, medidas, fotos, recordes e metas. Frontend em
   `apps/web/src/gym/`, rotas `/academia/*`, cor lima.
+- **Lucro Certo** (`profit`) — precificação e lucro por venda: produto × canal, preço sugerido, os
+  três números (margem, markup, ROI), ponto de equilíbrio, metas e impacto de desconto. Frontend em
+  `apps/web/src/profit/`, rotas `/lucro/*`, cor teal.
 - **Cotações** (`quotes`) — ticker rolante da Home: dólar + os ativos em carteira. Não busca preço
   próprio — o dólar sai do cache do Horas (`TrackingFxService`) e os ativos do `MarketPriceService`,
   que serve o guardado na hora e atualiza por fora. Ativo zerado ou sem cotação fica de fora (com a
@@ -758,6 +761,49 @@ servidor por `parseAssetPhoto`, porque chamada direta na API não passa pelo can
 **Exercício próprio é editável e excluível; o do catálogo, nunca.** A tela de detalhe só mostra
 Editar/Excluir quando `custom` — e o botão de foto aparece nos dois casos, que é justamente a
 diferença entre "seu exercício" e "seu jeito de ver o exercício".
+
+## Lucro Certo: taxa incide sobre o PREÇO, e é daí que sai tudo
+
+Módulo independente (`profit`), sem `imports` de outros. O que ele existe pra corrigir é uma conta
+que quase todo mundo faz errado.
+
+- **O preço é RESOLVIDO, nunca somado.** Custo R$ 50, taxa de 20% e margem desejada de 20% dá
+  **R$ 83,33**, não os R$ 70 de `50 × 1,40`. A conta intuitiva aplica os percentuais sobre o custo
+  quando eles são cobrados sobre o preço: aos R$ 70, a taxa come R$ 14 e a margem real vira **8,6%**.
+  O certo é isolar P em `P = custos + P×(taxas + imposto + margem)`, ou seja
+  `P = custos ÷ (1 − soma dos percentuais)` — o markup divisor. Tem spec travando os dois números.
+- **Percentuais somando ≥ 100% não têm preço, e isso é DITO.** O divisor vira zero e qualquer preço
+  é consumido inteiro pelas taxas. Por isso `suggestPrice` devolve um resultado (`ok: false` com o
+  motivo) e não um número: devolver infinito ou negativo faria a tela sugerir um preço impossível
+  com cara de resposta.
+- **Margem, markup e ROI são três coisas**, e aparecem juntos e rotulados. Comprou por 50 e vendeu
+  por 100 é markup de 100%, margem de 50% e ROI de 100% — calcular um e ler como o outro é o erro
+  clássico, e a tela existe pra torná-lo impossível.
+- **O imposto liga e desliga, e cai em UM de dois lugares.** `PERCENT` (Simples) entra no divisor do
+  preço; `FIXED` (DAS do MEI) **não toca no preço unitário** e vira custo fixo do mês. Rateá-lo por
+  unidade exigiria saber de antemão quantas vendas — que é justamente a pergunta que o ponto de
+  equilíbrio responde. Desligado, some da conta em vez de virar zero espalhado por vários campos.
+- **"Quantas vendas pra tirar X" NÃO é `X ÷ lucro unitário`** quando existe custo fixo. É
+  `(fixo + meta) ÷ margem de contribuição`: primeiro se paga o mês, e só então começa o lucro. Com
+  fixo zero as duas coincidem. Arredondamento sempre **pra cima** — fração de venda não existe, e
+  pra baixo deixa o mês no vermelho.
+- **Margem de contribuição ≤ 0 não tem ponto de equilíbrio**, e o retorno é `null`, não zero: zero
+  diria "já está empatado" quando a verdade é que vender mais aumenta o prejuízo.
+- **Desconto sai inteiro de cima da margem.** 10% num produto de 30% de margem leva **um terço** do
+  lucro. A tabela mostra os quatro descontos usuais com o lucro que sobra, quanto do lucro foi
+  embora e quantas vendas a mais compensariam — é o número que faz parar de dar desconto achando
+  que perdeu 10%.
+- **Taxa é do CANAL, custo é do PRODUTO, preço é da relação entre os dois.** Sem essa separação, o
+  mesmo item precisaria ser cadastrado uma vez por lugar onde é vendido — e a comparação lado a
+  lado, que é metade do módulo, deixaria de existir.
+- **Canal sem preço definido entra na comparação com o SUGERIDO**, marcado como tal (`sug.`). A
+  pergunta "onde compensa vender isso" precisa incluir o lugar onde você ainda não vende; confundir
+  sugestão com preço praticado inverteria a conclusão da tela.
+- **Devolução esperada é perda do DESEMBOLSO, não do lucro**: o preço volta pro cliente e o que se
+  gastou pra despachar não volta.
+- **Os modelos de canal (Shopee, Mercado Livre…) são ponto de partida, não verdade.** As taxas mudam
+  e variam por categoria, então tudo continua editável — número desatualizado no código viraria
+  preço errado sem ninguém perceber.
 
 ## CRM: as quatro regras que sustentam o módulo
 

@@ -12,6 +12,7 @@ import {
   Clock,
   Home as HomeIcon,
   ShoppingCart,
+  TrendingUp,
   Users,
   Landmark,
   ChevronLeft,
@@ -90,6 +91,13 @@ export const APPS: AppCard[] = [
     description: "Fichas de treino, execução com cronômetro, evolução e recordes.",
     icon: Dumbbell,
     color: "bg-lime-500",
+  },
+  {
+    to: "/lucro",
+    title: "Lucro Certo",
+    description: "Precificação, lucro por venda, ROI e quantas vendas pra bater a meta.",
+    icon: TrendingUp,
+    color: "bg-teal-600",
   },
   {
     to: "/crm",
